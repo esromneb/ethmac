@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2002/02/26 16:11:32  mohor
+// Number of interrupts changed
+//
 // Revision 1.14  2002/02/16 14:03:44  mohor
 // Registered trimmed. Unused registers removed.
 //
@@ -172,7 +175,3 @@
 `define RX_FIFO_CNT_WIDTH      4
 `define RX_FIFO_DEPTH          8
 `define RX_FIFO_DATA_WIDTH    32
-
-`define MULTICAST_XFR          0
-`define UNICAST_XFR            1
-`define BROADCAST_XFR          2
