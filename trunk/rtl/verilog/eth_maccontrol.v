@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.2  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -131,6 +134,7 @@ wire          TxCtrlStartFrm;
 wire    [7:0] ControlData;              
 wire          CtrlMux;                  
 wire          SendingCtrlFrm;           // Sending Control Frame (enables padding and CRC)
+wire          BlockTxDone;
 
 
 // Signal TxUsedDataOut was detected (a transfer is already in progress)
@@ -187,13 +191,15 @@ begin
   if(TxStartFrmIn)
     MuxedDone <= #Tp 1'b0;
   else
-  if(TxDoneIn & ~TxDoneInLatched & TxUsedDataOutDetected)
+  if(TxDoneIn & (~TxDoneInLatched) & TxUsedDataOutDetected & (~BlockTxDone))
     MuxedDone <= #Tp 1'b1;
 end
+
 
 // TxDoneOut
 assign TxDoneOut  = CtrlMux? (~TxStartFrmIn & MuxedDone) : 
                              (~TxStartFrmIn & TxDoneIn);
+//assign TxDoneOut  = (~CtrlMux) & (~TxStartFrmIn) & TxDoneIn & (~BlockTxDone);
 
 // TxAbortOut
 assign TxAbortOut  = CtrlMux? (~TxStartFrmIn & MuxedAbort) :
@@ -241,7 +247,7 @@ eth_transmitcontrol transmitcontrol1
  .TxDoneIn(TxDoneIn), .TxAbortIn(TxAbortIn), .TxStartFrmIn(TxStartFrmIn), .TPauseRq(TPauseRq), 
  .TxUsedDataOutDetected(TxUsedDataOutDetected), .TxFlow(TxFlow), .DlyCrcEn(DlyCrcEn), .TxPauseTV(TxPauseTV), 
  .MAC(MAC), .TxCtrlStartFrm(TxCtrlStartFrm), .TxCtrlEndFrm(TxCtrlEndFrm), .SendingCtrlFrm(SendingCtrlFrm), 
- .CtrlMux(CtrlMux), .ControlData(ControlData), .WillSendControlFrame(WillSendControlFrame)
+ .CtrlMux(CtrlMux), .ControlData(ControlData), .WillSendControlFrame(WillSendControlFrame), .BlockTxDone(BlockTxDone)
 );
 
 

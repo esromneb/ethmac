@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.3  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -77,7 +80,7 @@
 module eth_transmitcontrol (MTxClk, TxReset, TxUsedDataIn, TxUsedDataOut, TxDoneIn, TxAbortIn, 
                             TxStartFrmIn, TPauseRq, TxUsedDataOutDetected, TxFlow, DlyCrcEn, 
                             TxPauseTV, MAC, TxCtrlStartFrm, TxCtrlEndFrm, SendingCtrlFrm, CtrlMux, 
-                            ControlData, WillSendControlFrame
+                            ControlData, WillSendControlFrame, BlockTxDone
                            );
 
 parameter Tp = 1;
@@ -103,6 +106,7 @@ output        SendingCtrlFrm;
 output        CtrlMux;
 output [7:0]  ControlData;
 output        WillSendControlFrame;
+output        BlockTxDone;
 
 reg           SendingCtrlFrm;
 reg           CtrlMux;
@@ -116,6 +120,7 @@ reg           TxCtrlStartFrm_q;
 reg           TxCtrlEndFrm;
 reg    [7:0]  ControlData;
 reg           TxUsedDataIn_q;
+reg           BlockTxDone;
 
 wire          IncrementDlyCrcCnt;
 wire          ResetByteCnt;
@@ -146,7 +151,7 @@ begin
   if(TxUsedDataIn_q & CtrlMux)
     TxCtrlStartFrm <= #Tp 1'b0;
   else
-  if(WillSendControlFrame & ~TxUsedDataOut & (TxDoneIn | TxAbortIn | TxStartFrmIn | ~TxUsedDataOutDetected))
+  if(WillSendControlFrame & ~TxUsedDataOut & (TxDoneIn | TxAbortIn | TxStartFrmIn | (~TxUsedDataOutDetected)))
     TxCtrlStartFrm <= #Tp 1'b1;
 end
 
@@ -201,6 +206,22 @@ begin
     TxUsedDataIn_q <= #Tp 1'b0;
   else
     TxUsedDataIn_q <= #Tp TxUsedDataIn;
+end
+
+
+
+// Generation of the signal that will block sending the Done signal to the eth_wishbone module
+// While sending the control frame
+always @ (posedge MTxClk or posedge TxReset)
+begin
+  if(TxReset)
+    BlockTxDone <= #Tp 1'b0;
+  else
+  if(TxCtrlStartFrm)
+    BlockTxDone <= #Tp 1'b1;
+  else
+  if(TxDoneIn)
+    BlockTxDone <= #Tp 1'b0;
 end
 
 
