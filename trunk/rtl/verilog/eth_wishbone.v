@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.50  2003/01/22 13:49:26  tadejm
+// When control packets were received, they were ignored in some cases.
+//
 // Revision 1.49  2003/01/21 12:09:40  mohor
 // When receiving normal data frame and RxFlow control was switched on, RXB
 // interrupt was not set.
@@ -485,9 +488,6 @@ wire    [1:0]   TxValidBytes;
 
 wire    [7:0]   TempTxBDAddress;
 wire    [7:0]   TempRxBDAddress;
-
-wire            SetGotData;
-wire            GotDataEvaluate;
 
 wire            RxStatusWrite;
 
@@ -935,7 +935,7 @@ begin
   if(Reset)
     ReadTxDataFromMemory <=#Tp 1'b0;
   else
-  if(TxLengthEq0 | TxAbortPacket | TxRetryPacket)
+  if(TxLengthEq0 | TxAbortPulse | TxRetryPulse)
     ReadTxDataFromMemory <=#Tp 1'b0;
   else
   if(SetReadTxDataFromMemory)
@@ -944,9 +944,8 @@ end
 
 reg tx_burst_en;
 reg rx_burst_en;
-reg BlockingLastReadOn_Abort_Retry;
 
-wire ReadTxDataFromMemory_2 = ReadTxDataFromMemory & ~BlockReadTxDataFromMemory & ~BlockingLastReadOn_Abort_Retry;
+wire ReadTxDataFromMemory_2 = ReadTxDataFromMemory & ~BlockReadTxDataFromMemory;
 wire tx_burst = ReadTxDataFromMemory_2 & tx_burst_en;
 
 wire [31:0] TxData_wb;
@@ -957,27 +956,12 @@ begin
   if(Reset)
     BlockReadTxDataFromMemory <=#Tp 1'b0;
   else
-  if((TxBufferAlmostFull | TxLength <= 4)& MasterWbTX & (~cyc_cleared) & (!(TxAbortPacket | TxRetryPacket)))
+  if((TxBufferAlmostFull | TxLength <= 4)& MasterWbTX & (~cyc_cleared) & (!(TxAbortPacket_NotCleared | TxRetryPacket_NotCleared)))
     BlockReadTxDataFromMemory <=#Tp 1'b1;
   else
   if(ReadTxDataFromFifo_wb | TxDonePacket | TxAbortPacket | TxRetryPacket)
     BlockReadTxDataFromMemory <=#Tp 1'b0;
 end
-
-
-always @ (posedge WB_CLK_I or posedge Reset)
-begin
-  if(Reset)
-    BlockingLastReadOn_Abort_Retry <=#Tp 1'b0;
-  else
-  if(TxAbortPacket | TxRetryPacket)
-    BlockingLastReadOn_Abort_Retry <=#Tp 1'b0;
-  else
-  if(((TxAbort_wb & !TxAbortPacket_NotCleared) | (TxRetry_wb & !TxRetryPacket_NotCleared)) & !TxBDReady)
-    BlockingLastReadOn_Abort_Retry <=#Tp 1'b1;
-end
-
-
 
 
 assign MasterAccessFinished = m_wb_ack_i | m_wb_err_i;
@@ -1271,7 +1255,7 @@ begin
   if(TxStartFrm_sync2)
     TxStartFrm <=#Tp 1'b1;
   else
-  if(TxUsedData_q | ~TxStartFrm_sync2 & (TxRetry | TxAbort))
+  if(TxUsedData_q | ~TxStartFrm_sync2 & (TxRetry & (~TxRetry_q) | TxAbort & (~TxAbort_q)))
     TxStartFrm <=#Tp 1'b0;
 end
 // End: Generation of the TxStartFrm_wb which is then synchronized to the MTxClk
@@ -1425,8 +1409,8 @@ begin
   if(Reset)
     TxAbortPacket <=#Tp 1'b0;
   else
-  if(TxAbort_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished & !TxAbortPacketBlocked |
-     TxAbort_wb & !MasterWbTX & !TxAbortPacketBlocked)
+  if(TxAbort_wb & (~tx_burst_en) & MasterWbTX & MasterAccessFinished & (~TxAbortPacketBlocked) |
+     TxAbort_wb & (~MasterWbTX) & (~TxAbortPacketBlocked))
     TxAbortPacket <=#Tp 1'b1;
   else
     TxAbortPacket <=#Tp 1'b0;
@@ -1441,8 +1425,8 @@ begin
   if(TxEn & TxEn_q & TxAbortPacket_NotCleared)
     TxAbortPacket_NotCleared <=#Tp 1'b0;
   else
-  if(TxAbort_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished |
-     TxAbort_wb & !MasterWbTX)
+  if(TxAbort_wb & (~tx_burst_en) & MasterWbTX & MasterAccessFinished & (~TxAbortPacketBlocked) |
+     TxAbort_wb & (~MasterWbTX) & (~TxAbortPacketBlocked))
     TxAbortPacket_NotCleared <=#Tp 1'b1;
 end
 
@@ -1482,8 +1466,8 @@ begin
   if(StartTxBDRead)
     TxRetryPacket_NotCleared <=#Tp 1'b0;
   else
-  if(TxRetry_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished | 
-     TxRetry_wb & !MasterWbTX)
+  if(TxRetry_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished & !TxRetryPacketBlocked | 
+     TxRetry_wb & !MasterWbTX & !TxRetryPacketBlocked)
     TxRetryPacket_NotCleared <=#Tp 1'b1;
 end
 
@@ -1523,8 +1507,8 @@ begin
   if(TxEn & TxEn_q & TxDonePacket_NotCleared)
     TxDonePacket_NotCleared <=#Tp 1'b0;
   else
-  if(TxDone_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished | 
-     TxDone_wb & !MasterWbTX)
+  if(TxDone_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished & (~TxDonePacketBlocked) | 
+     TxDone_wb & !MasterWbTX & (~TxDonePacketBlocked))
     TxDonePacket_NotCleared <=#Tp 1'b1;
 end
 
@@ -1540,15 +1524,6 @@ begin
   if(!TxDone_wb & TxDone_wb_q)
     TxDonePacketBlocked <=#Tp 1'b0;
 end
-
-
-// Sinchronizing and evaluating tx data
-//assign SetGotData = (TxStartFrm_wb | NewTxDataAvaliable_wb & ~TxAbort_wb & ~TxRetry_wb) & ~WB_CLK_I;
-assign SetGotData = (TxStartFrm_wb);
-
-// Evaluating data. If abort or retry occured meanwhile than data is ignored.
-//assign GotDataEvaluate = GotDataSync3 & ~GotData & (~TxRetry & ~TxAbort | (TxRetry | TxAbort) & (TxStartFrm));
-assign GotDataEvaluate = (~TxRetry & ~TxAbort | (TxRetry | TxAbort) & (TxStartFrm));
 
 
 // Indication of the last word
