@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/09/13 12:29:14  mohor
+// Headers changed.
+//
 // Revision 1.1  2002/09/13 11:57:21  mohor
 // New testbench. Thanks to Tadej M - "The Spammer".
 //
@@ -388,7 +391,7 @@ begin
     wb_memory[task_wr_adr_i[21:2]] = task_mem_wr_data; // write data
     task_data_written = 1;
   end
-  else if (wr_sel && CLK_I)
+  else if (wr_sel && ~CLK_I)
   begin
 //    mem_wr_data_out = wb_memory[ADR_I[25:2]]; // if no SEL_I is active, old value will be written
     mem_wr_data_out = wb_memory[ADR_I[21:2]]; // if no SEL_I is active, old value will be written
@@ -403,7 +406,7 @@ begin
       mem_wr_data_out[ 7: 0] = DAT_I[ 7: 0];
 
 //    wb_memory[ADR_I[25:2]]  <= mem_wr_data_out; // write data
-    wb_memory[ADR_I[21:2]]      = mem_wr_data_out; // write data
+    wb_memory[ADR_I[21:2]]  = mem_wr_data_out; // write data
   end
 end
 
