@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.2  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -105,7 +108,7 @@ begin
     x[9:0] <= #Tp {x[8:0], Feedback};
 end
 
-assign Feedback = x[2] ~^ x[9];
+assign Feedback = ~(x[2] ^ x[9]);
 
 assign Random [0] = x[0];
 assign Random [1] = (RetryCnt > 1) ? x[1] : 1'b0;
