@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2002/02/08 16:21:54  mohor
+// Rx status is written back to the BD.
+//
 // Revision 1.10  2002/02/06 14:10:21  mohor
 // non-DMA host interface added. Select the right configutation in eth_defines.
 //
@@ -351,6 +354,15 @@ wire        ReceivedLengthOK;
 wire        InvalidSymbol;
 wire        LatchedCrcError;
 wire        RxLateCollision;
+wire  [3:0] RetryCntLatched;
+wire  [3:0] RetryCnt;
+wire        StartTxDone;
+wire        StartTxAbort;
+wire        MaxCollisionOccured;
+wire        RetryLimit;
+wire        StatePreamble;
+wire  [1:0] StateData;
+
 
 // Connecting MACControl
 eth_maccontrol maccontrol1
@@ -418,7 +430,10 @@ eth_txethmac txethmac1
   .MaxFL(r_MaxFL),                    .MTxEn(mtxen_pad_o),                .MTxD(mtxd_pad_o), 
   .MTxErr(mtxerr_pad_o),              .TxUsedData(TxUsedDataIn),          .TxDone(TxDoneIn), 
   .TxRetry(TxRetry),                  .TxAbort(TxAbortIn),                .WillTransmit(WillTransmit), 
-  .ResetCollision(ResetCollision)
+  .ResetCollision(ResetCollision),    .RetryCnt(RetryCnt),                .StartTxDone(StartTxDone),
+  .StartTxAbort(StartTxAbort),        .MaxCollisionOccured(MaxCollisionOccured), .LateCollision(LateCollision),
+  .StartDefer(StartDefer),            .StatePreamble(StatePreamble),      .StateData(StateData)
+
 );
 
 
@@ -589,7 +604,9 @@ eth_wishbone wishbone
 
   .InvalidSymbol(InvalidSymbol),      .LatchedCrcError(LatchedCrcError),        .RxLength(RxByteCnt),
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
-  .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus)
+  .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus),     .RetryCntLatched(RetryCntLatched),
+  .RetryLimit(RetryLimit),            .LateCollLatched(LateCollLatched),        .DeferLatched(DeferLatched),
+  .CarrierSenseLost(CarrierSenseLost)
 
 );
 
@@ -609,8 +626,14 @@ eth_macstatus macstatus1
   .CollValid(r_CollValid),            .RxLateCollision(RxLateCollision),           .r_RecSmall(r_RecSmall),
   .r_MinFL(r_MinFL),                  .r_MaxFL(r_MaxFL),                           .ShortFrame(ShortFrame),
   .DribbleNibble(DribbleNibble),      .ReceivedPacketTooBig(ReceivedPacketTooBig), .r_HugEn(r_HugEn),
-  .LoadRxStatus(LoadRxStatus)
+  .LoadRxStatus(LoadRxStatus),        .RetryCnt(RetryCnt),                         .StartTxDone(StartTxDone),
+  .StartTxAbort(StartTxAbort),        .RetryCntLatched(RetryCntLatched),           .MTxClk(mtx_clk_pad_i),
+  .MaxCollisionOccured(MaxCollisionOccured), .RetryLimit(RetryLimit),              .LateCollision(LateCollision), 
+  .LateCollLatched(LateCollLatched),  .StartDefer(StartDefer),                     .DeferLatched(DeferLatched),
+  .TxStartFrm(TxStartFrmOut),         .StatePreamble(StatePreamble),               .StateData(StateData),
+  .CarrierSense(CarrierSense_Tx2),    .CarrierSenseLost(CarrierSenseLost),         .TxUsedData(TxUsedDataIn)
 );
+
 
 
 endmodule

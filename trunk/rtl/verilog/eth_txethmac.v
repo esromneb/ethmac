@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.3  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -83,7 +86,9 @@ module eth_txethmac (MTxClk, Reset, TxStartFrm, TxEndFrm, TxUnderRun, TxData, Ca
                      Collision, Pad, CrcEn, FullD, HugEn, DlyCrcEn, MinFL, MaxFL, IPGT, 
                      IPGR1, IPGR2, CollValid, MaxRet, NoBckof, ExDfrEn, 
                      MTxD, MTxEn, MTxErr, TxDone, TxRetry, TxAbort, TxUsedData, WillTransmit, 
-                     ResetCollision
+                     ResetCollision, RetryCnt, StartTxDone, StartTxAbort, MaxCollisionOccured,
+                     LateCollision, StartDefer, StatePreamble, StateData
+
                     );
 
 parameter Tp = 1;
@@ -121,6 +126,14 @@ output TxAbort;                 // Transmit packet abort (to RISC)
 output TxUsedData;              // Transmit packet used data (to RISC)
 output WillTransmit;            // Will transmit (to RxEthMAC)
 output ResetCollision;          // Reset Collision (for synchronizing collision)
+output [3:0] RetryCnt;          // Latched Retry Counter for tx status purposes
+output StartTxDone;
+output StartTxAbort;
+output MaxCollisionOccured;
+output LateCollision;
+output StartDefer;
+output StatePreamble;
+output [1:0] StateData;
 
 reg [3:0] MTxD;
 reg MTxEn;
@@ -137,10 +150,10 @@ reg [3:0] MTxD_d;
 reg StatusLatch;
 reg PacketFinished_q;
 reg PacketFinished;
+reg [3:0] RetryCntLatched;
 
 
 wire ExcessiveDeferOccured;
-wire StartDefer;
 wire StartIPG;
 wire StartPreamble;
 wire [1:0] StartData;
@@ -150,20 +163,14 @@ wire StartBackoff;
 wire StateDefer;
 wire StateIPG;
 wire StateIdle;
-wire StatePreamble;
-wire [1:0] StateData;
 wire StatePAD;
 wire StateFCS;
 wire StateJam;
 wire StateBackOff;
 wire StateSFD;
 wire StartTxRetry;
-wire StartTxDone;
-wire LateCollision;
-wire MaxCollisionOccured;
 wire UnderRun;
 wire TooBig;
-wire StartTxAbort;
 wire [31:0] Crc;
 wire CrcError;
 wire [2:0] DlyCrcCnt;

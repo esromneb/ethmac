@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/02/08 16:21:54  mohor
+// Rx status is written back to the BD.
+//
 // Revision 1.4  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -78,7 +81,9 @@ module eth_macstatus(
                       RxByteCnt, RxByteCntEq0, RxByteCntGreat2, RxByteCntMaxFrame, ReceivedPauseFrm,
                       InvalidSymbol, MRxD, LatchedCrcError, Collision, CollValid, RxLateCollision,
                       r_RecSmall, r_MinFL, r_MaxFL, ShortFrame, DribbleNibble, ReceivedPacketTooBig, r_HugEn,
-                      LoadRxStatus
+                      LoadRxStatus, StartTxDone, StartTxAbort, RetryCnt, RetryCntLatched, MTxClk, MaxCollisionOccured, 
+                      RetryLimit, LateCollision, LateCollLatched, StartDefer, DeferLatched, TxStartFrm,
+                      StatePreamble, StateData, CarrierSense, CarrierSenseLost, TxUsedData
                     );
 
 
@@ -109,6 +114,19 @@ input         r_RecSmall;
 input  [15:0] r_MinFL;
 input  [15:0] r_MaxFL;
 input         r_HugEn;
+input         StartTxDone;
+input         StartTxAbort;
+input   [3:0] RetryCnt;
+input         MTxClk;
+input         MaxCollisionOccured;
+input         LateCollision;
+input         StartDefer;
+input         TxStartFrm;
+input         StatePreamble;
+input   [1:0] StateData;
+input         CarrierSense;
+input         TxUsedData;
+
 
 output        ReceivedLengthOK;
 output        ReceiveEnd;
@@ -120,6 +138,12 @@ output        ShortFrame;
 output        DribbleNibble;
 output        ReceivedPacketTooBig;
 output        LoadRxStatus;
+output  [3:0] RetryCntLatched;
+output        RetryLimit;
+output        LateCollLatched;
+output        DeferLatched;
+output        CarrierSenseLost;
+
 
 reg           ReceiveEnd;
 
@@ -127,6 +151,11 @@ reg           LatchedCrcError;
 reg           LatchedMRxErr;
 reg           LoadRxStatus;
 reg           InvalidSymbol;
+reg     [3:0] RetryCntLatched;
+reg           RetryLimit;
+reg           LateCollLatched;
+reg           DeferLatched;
+reg           CarrierSenseLost;
 
 wire          TakeSample;
 wire          SetInvalidSymbol; // Invalid symbol was received during reception in 100Mbps 
@@ -288,5 +317,69 @@ begin
   if(TakeSample)
     ReceivedPacketTooBig <=#Tp ~r_HugEn & RxByteCnt[15:0] > r_MaxFL[15:0];
 end
+
+
+
+// Latched Retry counter for tx status
+always @ (posedge MTxClk or posedge Reset)
+begin
+  if(Reset)
+    RetryCntLatched <=#Tp 4'h0;
+  else
+  if(StartTxDone | StartTxAbort)
+    RetryCntLatched <=#Tp RetryCnt;
+end
+
+
+// Latched Retransmission limit
+always @ (posedge MTxClk or posedge Reset)
+begin
+  if(Reset)
+    RetryLimit <=#Tp 4'h0;
+  else
+  if(StartTxDone | StartTxAbort)
+    RetryLimit <=#Tp MaxCollisionOccured;
+end
+
+
+// Latched Late Collision
+always @ (posedge MTxClk or posedge Reset)
+begin
+  if(Reset)
+    LateCollLatched <=#Tp 1'b0;
+  else
+  if(StartTxDone | StartTxAbort)
+    LateCollLatched <=#Tp LateCollision;
+end
+
+
+
+// Latched Defer state
+always @ (posedge MTxClk or posedge Reset)
+begin
+  if(Reset)
+    DeferLatched <=#Tp 1'b0;
+  else
+  if(StartDefer & TxUsedData)
+    DeferLatched <=#Tp 1'b1;
+  else
+  if(TxStartFrm)
+    DeferLatched <=#Tp 1'b0;
+end
+
+
+// CarrierSenseLost
+always @ (posedge MTxClk or posedge Reset)
+begin
+  if(Reset)
+    CarrierSenseLost <=#Tp 1'b0;
+  else
+  if((StatePreamble | (|StateData)) & ~CarrierSense)
+    CarrierSenseLost <=#Tp 1'b1;
+  else
+  if(TxStartFrm)
+    CarrierSenseLost <=#Tp 1'b0;
+end
+
 
 endmodule

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/02/08 16:21:54  mohor
+// Rx status is written back to the BD.
+//
 // Revision 1.4  2002/02/06 14:10:21  mohor
 // non-DMA host interface added. Select the right configutation in eth_defines.
 //
@@ -106,8 +109,12 @@ module eth_wishbone
     // Interrupts
     TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ,
     
+    // Rx Status
     InvalidSymbol, LatchedCrcError, RxLateCollision, ShortFrame, DribbleNibble,
-    ReceivedPacketTooBig, RxLength, LoadRxStatus
+    ReceivedPacketTooBig, RxLength, LoadRxStatus,
+    
+    // Tx Status
+    RetryCntLatched, RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost
 
 		);
 
@@ -139,7 +146,7 @@ input           m_wb_err_i;     //
 
 input           Reset;       // Reset signal
 
-// Status signals
+// Rx Status signals
 input           InvalidSymbol;    // Invalid symbol was received during reception in 100 Mbps mode
 input           LatchedCrcError;  // CRC error
 input           RxLateCollision;  // Late collision occured while receiving frame
@@ -148,6 +155,13 @@ input           DribbleNibble;    // Extra nibble received
 input           ReceivedPacketTooBig;// Received packet is bigger than r_MaxFL
 input    [15:0] RxLength;         // Length of the incoming frame
 input           LoadRxStatus;     // Rx status was loaded
+
+// Tx Status signals
+input     [3:0] RetryCntLatched;  // Latched Retry Counter
+input           RetryLimit;       // Retry limit reached (Retry Max value + 1 attempts were made)
+input           LateCollLatched;  // Late collision occured
+input           DeferLatched;     // Defer indication (Frame was defered before sucessfully sent)
+input           CarrierSenseLost; // Carrier Sense was lost during the frame transmission
 
 // Tx
 input           MTxClk;         // Transmit clock (from PHY)
@@ -195,6 +209,7 @@ reg             TxEndFrm;
 reg     [7:0]   TxData;
 
 reg             TxUnderRun;
+reg             TxUnderRun_wb;
 
 reg             TxBDRead;
 wire            TxStatusWrite;
@@ -202,9 +217,10 @@ wire            TxStatusWrite;
 reg     [1:0]   TxValidBytesLatched;
 
 reg    [15:0]   TxLength;
-reg    [15:0]   TxStatus;
+reg    [15:0]   LatchedTxLength;
+reg   [14:11]   TxStatus;
 
-reg   [14:13]   RxStatusOld;
+reg   [14:13]   RxStatus;
 
 reg             TxStartFrm_wb;
 reg             TxRetry_wb;
@@ -572,10 +588,10 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    TxStatus <=#Tp 15'h0;
+    TxStatus <=#Tp 4'h0;
   else
   if(TxEn & TxEn_q & TxBDRead)
-    TxStatus <=#Tp ram_do[15:0];
+    TxStatus <=#Tp ram_do[14:11];
 end
 
 reg ReadTxDataFromMemory;
@@ -609,6 +625,16 @@ begin
       else
         TxLength <=#Tp TxLength - 3'h4;    // Length is subtracted at the data request
     end
+end
+
+//Latching length from the buffer descriptor;
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    LatchedTxLength <=#Tp 16'h0;
+  else
+  if(TxEn & TxEn_q & TxBDRead)
+    LatchedTxLength <=#Tp ram_do[31:16];
 end
 
 assign TxLengthEq0 = TxLength == 0;
@@ -777,7 +803,7 @@ assign TxFifoClear = (TxAbort_wb | TxRetry_wb) & ~TxBDReady;
 
 eth_fifo #(`TX_FIFO_DATA_WIDTH, `TX_FIFO_DEPTH, `TX_FIFO_CNT_WIDTH)
 tx_fifo (.data_in(m_wb_dat_i),               .data_out(TxData_wb),            .clk(WB_CLK_I), 
-         .reset(Reset),                   .write(MasterWbTX & m_wb_ack_i), .read(ReadTxDataFromFifo_wb),
+         .reset(Reset),                      .write(MasterWbTX & m_wb_ack_i), .read(ReadTxDataFromFifo_wb),
          .clear(TxFifoClear),                .full(TxBufferFull),             .almost_full(TxBufferAlmostFull),
          .almost_empty(TxBufferAlmostEmpty), .empty(TxBufferEmpty));
 
@@ -929,18 +955,18 @@ end
 // bit 10 od tx je last (crc se doda le ce je bit 11 in hkrati bit 10)
 // bit 9  od tx je pause request (control frame)
     // Vsi zgornji biti gredo ven, spodnji biti (od 8 do 0) pa so statusni in se vpisejo po koncu oddajanja
-// bit 8  od tx je defer indication
-// bit 7  od tx je late collision
-// bit 6  od tx je retransmittion limit
-// bit 5  od tx je underrun
+// bit 8  od tx je defer indication           done
+// bit 7  od tx je late collision             done
+// bit 6  od tx je retransmittion limit       done
+// bit 5  od tx je underrun                   done
 // bit 4  od tx je carrier sense lost
-// bit [3:0] od tx je retry count
+// bit [3:0] od tx je retry count             done
 
 //assign TxBDReady      = TxStatus[15];     // already used
 assign TxIRQEn          = TxStatus[14];
 assign WrapTxStatusBit  = TxStatus[13];                                                   // ok povezan
 assign PerPacketPad     = TxStatus[12];                                                   // ok povezan
-assign PerPacketCrcEn   = TxStatus[11] & TxStatus[10];      // When last is also set      // ok povezan
+assign PerPacketCrcEn   = TxStatus[11];
 //assign TxPauseRq      = TxStatus[9];      // already used     Ta gre ven, ker bo stvar izvedena preko registrov
 
 
@@ -951,17 +977,20 @@ assign PerPacketCrcEn   = TxStatus[11] & TxStatus[10];      // When last is also
 // bit 13 od rx je wrap
 // bit 12 od rx je reserved
 // bit 11 od rx je reserved
-// bit 10 od rx je last (crc se doda le ce je bit 11 in hkrati bit 10)
-// bit 9  od rx je pause request (control frame)
-    // Vsi zgornji biti gredo ven, spodnji biti (od 8 do 0) pa so statusni in se vpisejo po koncu oddajanja
-// bit 8  od rx je defer indication
-// bit 7  od rx je late collision
-// bit 6  od rx je retransmittion limit
-// bit 5  od rx je underrun
-// bit 4  od rx je carrier sense lost
-// bit [3:0] od rx je retry count
+// bit 10 od rx je reserved
+// bit 9  od rx je reserved
+// bit 8  od rx je reserved
+// bit 7  od rx je reserved
+// bit 6  od rx je underrun         still missing
+// bit 5  od rx je InvalidSymbol
+// bit 4  od rx je DribbleNibble
+// bit 3  od rx je ReceivedPacketTooBig
+// bit 2  od rx je ShortFrame
+// bit 1  od rx je LatchedCrcError
+// bit 0  od rx je RxLateCollision
+assign RxStatusIn = {InvalidSymbol, DribbleNibble, ReceivedPacketTooBig, ShortFrame, LatchedCrcError, RxLateCollision};
 
-assign WrapRxStatusBit = RxStatusOld[13];
+assign WrapRxStatusBit = RxStatus[13];
 
 
 // Temporary Tx and Rx buffer descriptor address 
@@ -994,8 +1023,10 @@ begin
     RxBDAddress <=#Tp TempRxBDAddress;
 end
 
-assign RxBDDataIn = {LatchedRxLength, 1'b0, RxStatusOld, 7'h0, RxStatusInLatched};  // tu dopolni, da se bo vpisoval status
-assign TxBDDataIn = {32'h004380ef};   // tu dopolni, da se bo vpisoval status
+wire [8:0] TxStatusInLatched = {TxUnderRun, RetryCntLatched[3:0], RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost};
+
+assign RxBDDataIn = {LatchedRxLength, 1'b0, RxStatus, 7'h0, RxStatusInLatched};
+assign TxBDDataIn = {LatchedTxLength, 1'b0, TxStatus, 2'h0, TxStatusInLatched};
 
 
 // Signals used for various purposes
@@ -1126,13 +1157,27 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    TxUnderRun <=#Tp 1'b0;
+    TxUnderRun_wb <=#Tp 1'b0;
   else
   if(TxAbortPulse)
-    TxUnderRun <=#Tp 1'b0;
+    TxUnderRun_wb <=#Tp 1'b0;
   else
   if(TxBufferEmpty & ReadTxDataFromFifo_wb)
+    TxUnderRun_wb <=#Tp 1'b1;
+end
+
+
+// Tx under run
+always @ (posedge MTxClk or posedge Reset)
+begin
+  if(Reset)
+    TxUnderRun <=#Tp 1'b0;
+  else
+  if(TxUnderRun_wb)
     TxUnderRun <=#Tp 1'b1;
+  else
+  if(BlockingTxStatusWrite)
+    TxUnderRun <=#Tp 1'b0;
 end
 
 
@@ -1309,10 +1354,10 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    RxStatusOld <=#Tp 2'h0;
+    RxStatus <=#Tp 2'h0;
   else
   if(RxEn & RxEn_q & RxBDRead)
-    RxStatusOld <=#Tp ram_do[14:13];
+    RxStatus <=#Tp ram_do[14:13];
 end
 
 
@@ -1708,7 +1753,6 @@ begin
   if(LoadRxStatus & ~LoadStatusBlocked)
     RxStatusInLatched <=#Tp RxStatusIn;
 end
-
 
 
 endmodule

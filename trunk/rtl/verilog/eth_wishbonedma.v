@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2002/02/08 16:21:54  mohor
+// Rx status is written back to the BD.
+//
 // Revision 1.11  2002/02/06 14:10:21  mohor
 // non-DMA host interface added. Select the right configutation in eth_defines.
 //
@@ -127,7 +130,8 @@ module eth_wishbonedma
     TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ, 
     
     InvalidSymbol, LatchedCrcError, RxLateCollision, ShortFrame, DribbleNibble,
-    ReceivedPacketTooBig, RxLength, LoadRxStatus
+    ReceivedPacketTooBig, RxLength, LoadRxStatus, RetryCntLatched, RetryLimit,
+    LateCollLatched, DeferLatched, CarrierSenseLost
 
 
 		);
@@ -154,7 +158,7 @@ output  [1:0]   WB_REQ_O;       // DMA request output
 output  [1:0]   WB_ND_O;        // DMA force new descriptor output
 output          WB_RD_O;        // DMA restart descriptor output
 
-// Status
+// Rx Status
 input           InvalidSymbol;
 input           LatchedCrcError;
 input           RxLateCollision;
@@ -163,6 +167,14 @@ input           DribbleNibble;
 input           ReceivedPacketTooBig;
 input   [15:0]  RxLength;
 input           LoadRxStatus;
+
+// Tx Status
+input    [3:0]  RetryCntLatched;
+input           RetryLimit;
+input           LateCollLatched;
+input           DeferLatched;
+input           CarrierSenseLost;
+
 
 // Tx
 input           MTxClk;         // Transmit clock (from PHY)
