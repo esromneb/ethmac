@@ -102,7 +102,7 @@ parameter Tp = 1;
  
 assign RxAddressInvalid = ~(UnicastOK | BroadcastOK | MulticastOK);
  
-assign BroadcastOK = Broadcast;
+assign BroadcastOK = Broadcast & ~r_Bro;
  
 assign RxCheckEn   = | StateData;
  
