@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.2  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -95,7 +98,7 @@ reg           Mdo;                // MII Management Data Output
 
 // Generation of the Serial Enable signal (enables the serialization of the data)
 assign SerialEn =  WriteOp & InProgress & ( BitCounter>31 | ( ( BitCounter == 0 ) & NoPre ) )
-                | ~WriteOp & InProgress & (( BitCounter>31 & BitCounter<46 ) | ( ( BitCounter == 0 ) & NoPre )); // igor !!!  ali je tu res <46. To je veljalo, ko sem imel se >31 in napako 32 preamble bitov
+                | ~WriteOp & InProgress & (( BitCounter>31 & BitCounter<46 ) | ( ( BitCounter == 0 ) & NoPre ));
 
 
 // Generation of the MdoEn signal
