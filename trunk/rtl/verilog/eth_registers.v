@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2002/08/16 22:28:23  mohor
+// Syntax error fixed.
+//
 // Revision 1.17  2002/08/16 22:23:03  mohor
 // Syntax error fixed.
 //
@@ -379,7 +382,7 @@ eth_register #(`ETH_TX_BD_NUM_WIDTH, `ETH_TX_BD_NUM_DEF) TX_BD_NUM
   (
    .DataIn    (DataIn[`ETH_TX_BD_NUM_WIDTH-1:0]),
    .DataOut   (TX_BD_NUMOut[`ETH_TX_BD_NUM_WIDTH-1:0]),
-   .Write     (TX_BD_NUM_Wr),
+   .Write     (TX_BD_NUM_Wr & (DataIn<='h80)),
    .Clk       (Clk),
    .Reset     (Reset),
    .SyncReset (1'b0)
@@ -590,8 +593,8 @@ assign r_Pro              = MODEROut[5];
 assign r_Iam              = MODEROut[4];
 assign r_Bro              = MODEROut[3];
 assign r_NoPre            = MODEROut[2];
-assign r_TxEn             = MODEROut[1];
-assign r_RxEn             = MODEROut[0];
+assign r_TxEn             = MODEROut[1] & (TX_BD_NUMOut>0);     // Transmission is enabled when there is at least one TxBD.
+assign r_RxEn             = MODEROut[0] & (TX_BD_NUMOut<'h80);  // Reception is enabled when there is  at least one RxBD.
 
 assign r_IPGT[6:0]        = IPGTOut[6:0];
 
