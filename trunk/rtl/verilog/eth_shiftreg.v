@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/03/02 21:06:01  mohor
+// LinkFail signal was not latching appropriate bit.
+//
 // Revision 1.3  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -127,7 +130,7 @@ begin
                 begin
                   Prsd[7:0] <= #Tp {ShiftReg[6:0], Mdi};
                   if(Rgad == 5'h01)
-                    LinkFail <= #Tp ~ShiftReg[2];  // because of shifting
+                    LinkFail <= #Tp ~ShiftReg[1];  // this is bit [2], because it is not shifted yet
                 end
               else
                 begin
