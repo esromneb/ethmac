@@ -13,7 +13,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2001 Authors                                   ////
+//// Copyright (C) 2001, 2002 Authors                             ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.28  2002/07/18 16:11:46  mohor
+// RxBDAddress takes `ETH_TX_BD_NUM_DEF value after reset.
+//
 // Revision 1.27  2002/07/11 02:53:20  mohor
 // RxPointer bug fixed.
 //
@@ -832,7 +835,7 @@ end
 
 assign MasterAccessFinished = m_wb_ack_i | m_wb_err_i;
 reg cyc_cleared;
-     
+
 // Enabling master wishbone access to the memory for two devices TX and RX.
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
@@ -1628,6 +1631,10 @@ end
 reg ShiftEnded_tck;
 reg ShiftEndedSync1;
 reg ShiftEndedSync2;
+reg ShiftEndedSync3;
+reg ShiftEndedSync_c1;
+reg ShiftEndedSync_c2;
+
 wire StartShiftWillEnd;
 //assign StartShiftWillEnd = LastByteIn & (&RxByteCnt) | RxValid & RxEndFrm & (&RxByteCnt) & RxEnableWindow;
 assign StartShiftWillEnd = LastByteIn  | RxValid & RxEndFrm & (&RxByteCnt) & RxEnableWindow;
@@ -1835,7 +1842,7 @@ rx_fifo (.data_in(RxDataLatched2),                      .data_out(m_wb_dat_o),
          .clk(WB_CLK_I),                                .reset(Reset), 
          .write(WriteRxDataToFifo_wb),                  .read(MasterWbRX & m_wb_ack_i), 
          .clear(RxFifoReset),                           .full(RxBufferFull), 
-         .almost_full(RxBufferAlmostFull),              .almost_empty(RxBufferAlmostEmpty), 
+         .almost_full(),                                .almost_empty(RxBufferAlmostEmpty), 
          .empty(RxBufferEmpty),                         .cnt()
         );
 
@@ -1849,10 +1856,10 @@ begin
   if(Reset)
     ShiftEnded_tck <=#Tp 1'b0;
   else
-  if(SetWriteRxDataToFifo & StartShiftWillEnd & ~RxAbort & ~ShiftEnded_tck)
+  if(~RxAbort & SetWriteRxDataToFifo & StartShiftWillEnd)
     ShiftEnded_tck <=#Tp 1'b1;
   else
-  if(ShiftEnded | RxAbort)
+  if(RxAbort | ShiftEndedSync_c1 & ShiftEndedSync_c2)
     ShiftEnded_tck <=#Tp 1'b0;
 end
 
@@ -1872,6 +1879,17 @@ begin
     ShiftEndedSync2 <=#Tp ShiftEndedSync1;
 end
 
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    ShiftEndedSync3 <=#Tp 1'b0;
+  else
+  if(ShiftEndedSync1 & ~ShiftEndedSync2)
+    ShiftEndedSync3 <=#Tp 1'b1;
+  else
+  if(ShiftEnded)
+    ShiftEndedSync3 <=#Tp 1'b0;
+end
 
 // Generation of the end-of-frame signal
 always @ (posedge WB_CLK_I or posedge Reset)
@@ -1879,13 +1897,28 @@ begin
   if(Reset)
     ShiftEnded <=#Tp 1'b0;
   else
-  if(ShiftEndedSync2 & MasterWbRX & m_wb_ack_i & RxBufferAlmostEmpty & ~ShiftEnded)
+  if(ShiftEndedSync3 & MasterWbRX & m_wb_ack_i & RxBufferAlmostEmpty & ~ShiftEnded)
     ShiftEnded <=#Tp 1'b1;
   else
   if(RxStatusWrite)
     ShiftEnded <=#Tp 1'b0;
 end
 
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    ShiftEndedSync_c1 <=#Tp 1'b0;
+  else
+    ShiftEndedSync_c1 <=#Tp ShiftEndedSync2;
+end
+
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    ShiftEndedSync_c2 <=#Tp 1'b0;
+  else
+    ShiftEndedSync_c2 <=#Tp ShiftEndedSync_c1;
+end
 
 // Generation of the end-of-frame signal
 always @ (posedge MRxClk or posedge Reset)
