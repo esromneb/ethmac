@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2002/03/08 06:56:46  mohor
+// Big Endian problem when sending frames fixed.
+//
 // Revision 1.14  2002/03/02 19:12:40  mohor
 // Byte ordering changed (Big Endian used). casex changed with case because
 // Xilinx Foundation had problems. Tested in HW. It WORKS.
@@ -1443,7 +1446,7 @@ begin
   if(Reset)
     RxStatusWriteLatched <=#Tp 1'b0;
   else
-  if(RxStatusWrite)
+  if(RxStatusWrite & ~RxStatusWrite_rck)
     RxStatusWriteLatched <=#Tp 1'b1;
   else
   if(RxStatusWrite_rck)
@@ -1456,7 +1459,10 @@ begin
   if(Reset)
     RxStatusWrite_rck <=#Tp 1'b0;
   else
-    RxStatusWrite_rck <=#Tp RxStatusWriteLatched;
+  if(RxStatusWriteLatched)
+    RxStatusWrite_rck <=#Tp 1'b1;
+  else
+    RxStatusWrite_rck <=#Tp 1'b0;
 end
 
 
@@ -1747,7 +1753,7 @@ begin
   if(LoadRxStatus & ~RxAbortLatched)
     LoadStatusBlocked <=#Tp 1'b1;
   else
-  if(RxStatusWrite_rck)
+  if(RxStatusWrite_rck | RxStartFrm)
     LoadStatusBlocked <=#Tp 1'b0;
 end
 
