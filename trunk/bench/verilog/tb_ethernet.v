@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2002/11/22 17:29:42  mohor
+// Flow control test almost finished.
+//
 // Revision 1.23  2002/11/22 02:12:16  mohor
 // test_mac_full_duplex_flow_control tests pretty much finished.
 // TEST 0: INSERT CONTROL FRM. WHILE TRANSMITTING NORMAL
@@ -458,7 +461,7 @@ begin
   eth_phy.carrier_sense_real_delay(0);
 //    test_mac_full_duplex_transmit(8, 9);    // 0 - (21)
 //    test_mac_full_duplex_receive(8, 9);
-    test_mac_full_duplex_flow_control(2, 2);
+    test_mac_full_duplex_flow_control(0, 2);  // 0 - 2
 
   test_note("PHY generates 'real delayed' Carrier sense and Collision signals for following tests");
   eth_phy.carrier_sense_real_delay(1);
@@ -14169,6 +14172,7 @@ task test_mac_full_duplex_flow_control;
   reg            PassAll;
   reg            RxFlow;
   reg            enable_irq_in_rxbd;
+  reg    [15:0]  pause_value;
 begin
 // MAC FULL DUPLEX FLOW CONTROL TEST
 test_heading("MAC FULL DUPLEX FLOW CONTROL TEST");
@@ -14668,15 +14672,15 @@ begin
 
   ////////////////////////////////////////////////////////////////////
   ////                                                            ////
-  ////  Receive control frames with PASSALL option turned off     ////
-  ////  Using only one RX buffer decriptor ( 10Mbps ).            ////
+  ////  Receive control frames with PASSALL option turned on and  ////
+  ////  off. Using only one RX buffer decriptor ( 10Mbps ).       ////
   ////                                                            ////
   ////////////////////////////////////////////////////////////////////
   if (test_num == 2) // 
   begin
-    // TEST 2: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED OFF AT ONE RX BD ( 10Mbps )
-    test_name   = "TEST 2: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED OFF AT ONE RX BD ( 10Mbps )";
-    `TIME; $display("  TEST 2: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED OFF AT ONE RX BD ( 10Mbps )");
+    // TEST 2: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED ON AND OFF AT ONE RX BD ( 10Mbps )
+    test_name   = "TEST 2: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED ON AND OFF AT ONE RX BD ( 10Mbps )";
+    `TIME; $display("  TEST 2: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED ON AND OFF AT ONE RX BD ( 10Mbps )");
 
     // unmask interrupts
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
@@ -14684,19 +14688,20 @@ begin
     // set 1 RX buffer descriptor (8'h80 - 1) - must be set before RX enable
     wbm_write(`ETH_TX_BD_NUM, 32'h7F, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable RX, set full-duplex mode, NO receive small, NO correct IFG
-    wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
+    wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable RX_FLOW control
     wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_RXFLOW, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-    // prepare one control (PAUSE)packet
-    st_data = 8'h00;
-    set_rx_packet(0, 60, 1'b0, 48'h0180_c200_0001, 48'h0708_090A_0B0C, 16'h8808, st_data); // length without CRC
-    append_rx_crc (0, 60, 1'b0, 1'b0); // CRC for control packet
     // prepare one packet of 100 bytes long
-    st_data = 8'h1A;
-    set_rx_packet(64, 100, 1'b0, 48'h1234_5678_8765, 48'hA1B2_C3D4_E5F6, 16'hE77E, st_data); 
-    append_rx_crc (64, 100, 1'b0, 1'b0); // CRC for data packet
+//    st_data = 8'h1A;
+//    set_rx_packet(64, 100, 1'b0, 48'h1234_5678_8765, 48'hA1B2_C3D4_E5F6, 16'hE77E, st_data); 
+//    append_rx_crc (64, 100, 1'b0, 1'b0); // CRC for data packet
+    st_data = 8'h01;
+    set_tx_packet(`MEMORY_BASE + 64, 100, 8'h01); // length without CRC
+    set_tx_bd(0, 0, 100, 1'b1, 1'b1, 1'b1, (`MEMORY_BASE + 64));
+    set_tx_bd_wrap(0);
+
     // check WB INT signal
     if (wb_int !== 1'b0)
     begin
@@ -14716,6 +14721,8 @@ begin
     // Test irq logic while RXB and RXC interrupts are masked. IRQ in RxBD is cleared
     for (i=0; i<3; i=i+1)
     begin
+      pause_value = i+1;
+      set_rx_control_packet(0, pause_value);  // CRC already appended
       // choose generating carrier sense and collision for first and last 64 lengths of frames
       case (i)
       0: // PASSALL = 0, RXFLOW = 1, IRQ in RxBD = 1
@@ -14764,7 +14771,6 @@ begin
           repeat(10) @(posedge mrx_clk);
         end
         begin
-          #1 check_rx_bd(127, data);
           wait (MRxDV === 1'b1); // start transmit
           #1 check_rx_bd(127, data);          
           if (data[15] !== 1)
@@ -14773,11 +14779,20 @@ begin
             test_fail("Wrong buffer descriptor's ready bit read out from MAC");
             fail = fail + 1;
           end
-          
-          wait (MRxDV === 1'b0); // end transmit
-          repeat(50) @(posedge mrx_clk);  // Wait some time so frame is received and
-          repeat (100) @(posedge wb_clk); // status/irq is written.
+
+          wait (MRxDV === 1'b0); // received pause frame
+          repeat(5) @(posedge mrx_clk);  // Wait some time so pause is activated.
+          repeat(5) @(posedge mtx_clk);  // Wait some time so pause is activated.
+
+          set_tx_bd_ready(0, 0); // Request sending the data. Data should not be sent when pause frame was received
+                                 // and RxFlow enabled.
+
+
+          // When we exit the while loop, status frame is received
+          repeat(`ETH_TX_FIFO_DEPTH) @(eth_ma_wb_ack_i);  // Waiting until TX fifo is filled.
+          repeat(10) @(posedge mtx_clk);  // Wait some time for tx start.
         end
+
       join
 
       #1 check_rx_bd(127, data);
@@ -14856,9 +14871,57 @@ begin
           `TIME; $display("*E Some IRQs is active! (ETH_INT=0x%0x)", data);
         end
       end
+
+
+      if(RxFlow)
+        begin
+          if(MTxEn)   // If pause frame was received OK, transmission of the data packet should not start
+            begin
+              `TIME; $display("*E Transmission should not be started because pause frame was received.");
+              test_fail("Transmission should not be started because pause frame was received.");
+              fail = fail + 1;
+            end
+          while(pause_value)
+            begin
+              pause_value=pause_value-1;
+              repeat(2*64) @(posedge mtx_clk);  // Wait for the time needed for the pause (1 slot).
+              if((!pause_value) && (!MTxEn))        // Transmission should be enabled now.
+                begin
+                  `TIME; $display("*E Transmission should be started because pause passed.");
+                  test_fail("Transmission should be started because pause passed.");
+                  fail = fail + 1;
+                end
+              else if((pause_value) && (MTxEn))     // Transmission should not be enabled now.
+                begin
+                  `TIME; $display("*E Transmission should still be paused.");
+                  test_fail("Transmission should still be paused.");
+                  fail = fail + 1;
+                end
+            end
+        end
+      else
+        begin
+          if(!MTxEn)   // Pause frame was not received because RxFlow is turned off.
+            begin
+              `TIME; $display("*E Transmission should be started because pause frame was not received (RxFlow=0).");
+              test_fail("Transmission should be started because pause frame was not received (RxFlow=0).");
+              fail = fail + 1;
+            end
+        end
+
+
+      wait(wb_int);   // Wait antil frame transmission is over and irq generated
+      wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      if(data !== (`ETH_INT_TXB))
+        begin
+          test_fail("TXB is not set or multiple IRQs active!");
+          fail = fail + 1;
+          `TIME; $display("*E TXB is not set or multiple IRQs active! (ETH_INT=0x%0x)", data);
+        end
+        // Clear TXB interrupt
+        wbm_write(`ETH_INT, `ETH_INT_TXB, 4'hF, 1, 4'h0, 4'h0);
     end
     // End: Test is irq is set while RXB and RXC interrupts are masked.
-    
 
 
     // Now all interrupts are unmasked. Performing tests again.
@@ -14867,6 +14930,8 @@ begin
 
     for (i=0; i<4; i=i+1)
     begin
+      pause_value = i+1;
+      set_rx_control_packet(0, pause_value);  // CRC already appended
       // choose generating carrier sense and collision for first and last 64 lengths of frames
       case (i)
       0: // PASSALL = 0, RXFLOW = 0
@@ -14930,6 +14995,9 @@ begin
           wait (MRxDV === 1'b0); // end transmit
           repeat(50) @(posedge mrx_clk);  // Wait some time so frame is received and
           repeat (100) @(posedge wb_clk); // status/irq is written.
+
+          if(RxFlow)    // Waiting x slot times before continuing so pause is deactivated.
+            repeat(64 * 2 * pause_value) @(posedge mrx_clk);
         end
       join
 
@@ -15596,6 +15664,63 @@ begin
   delta_t = !delta_t;
 end
 endtask // set_rx_packet
+
+task set_rx_control_packet;
+  input  [31:0] rxpnt;
+  input  [15:0] PauseTV;
+  integer       i;
+  reg    [47:0] dest_addr;
+  reg    [47:0] source_addr;
+  reg    [15:0] type_len;
+  reg    [21:0] buffer;
+  reg           delta_t;
+  reg    [15:0] PTV;
+  reg    [15:0] opcode;
+begin
+  buffer = rxpnt[21:0];
+  dest_addr = 48'h0180_c200_0001;
+  source_addr = 48'h0708_090A_0B0C;
+  type_len = 16'h8808;
+  opcode = 16'h0001;
+  PTV = PauseTV;
+  delta_t = 0;
+  for(i = 0; i < 60; i = i + 1) 
+  begin
+    if (i < 6)
+    begin
+      eth_phy.rx_mem[buffer] = dest_addr[47:40];
+      dest_addr = dest_addr << 8;
+    end
+    else if (i < 12)
+    begin
+      eth_phy.rx_mem[buffer] = source_addr[47:40];
+      source_addr = source_addr << 8;
+    end
+    else if (i < 14)
+    begin
+      eth_phy.rx_mem[buffer] = type_len[15:8];
+      type_len = type_len << 8;
+    end
+    else if (i < 16)
+    begin
+      eth_phy.rx_mem[buffer] = opcode[15:8];
+      opcode = opcode << 8;
+    end
+    else if (i < 18)
+    begin
+      eth_phy.rx_mem[buffer] = PTV[15:8];
+      PTV = PTV << 8;
+    end
+    else
+    begin
+      eth_phy.rx_mem[buffer] = 0;
+    end
+    buffer = buffer + 1;
+  end
+  delta_t = !delta_t;
+  append_rx_crc (rxpnt, 60, 1'b0, 1'b0); // CRC for control packet
+end
+endtask // set_rx_control_packet
 
 task set_rx_addr_type;
   input  [31:0] rxpnt;
