@@ -41,6 +41,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/11/19 17:37:32  mohor
+// When control frame (PAUSE) was sent, status was written in the
+// eth_wishbone module and both TXB and TXC interrupts were set. Fixed.
+// Only TXC interrupt is set.
+//
 // Revision 1.3  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -191,19 +196,18 @@ begin
   if(TxStartFrmIn)
     MuxedDone <= #Tp 1'b0;
   else
-  if(TxDoneIn & (~TxDoneInLatched) & TxUsedDataOutDetected & (~BlockTxDone))
+  if(TxDoneIn & (~TxDoneInLatched) & TxUsedDataOutDetected)
     MuxedDone <= #Tp 1'b1;
 end
 
 
 // TxDoneOut
-assign TxDoneOut  = CtrlMux? (~TxStartFrmIn & MuxedDone) : 
-                             (~TxStartFrmIn & TxDoneIn);
-//assign TxDoneOut  = (~CtrlMux) & (~TxStartFrmIn) & TxDoneIn & (~BlockTxDone);
+assign TxDoneOut  = CtrlMux? ((~TxStartFrmIn) & (~BlockTxDone) & MuxedDone) : 
+                             ((~TxStartFrmIn) & (~BlockTxDone) & TxDoneIn);
 
 // TxAbortOut
-assign TxAbortOut  = CtrlMux? (~TxStartFrmIn & MuxedAbort) :
-                              (TxAbortIn);
+assign TxAbortOut  = CtrlMux? ((~TxStartFrmIn) & (~BlockTxDone) & MuxedAbort) :
+                              ((~TxStartFrmIn) & (~BlockTxDone) & TxAbortIn);
 
 // TxUsedDataOut
 assign TxUsedDataOut  = ~CtrlMux & TxUsedDataIn;
