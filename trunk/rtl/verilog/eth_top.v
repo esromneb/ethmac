@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2002/02/16 07:15:27  mohor
+// Testbench fixed, code simplified, unused signals removed.
+//
 // Revision 1.16  2002/02/15 13:49:39  mohor
 // RxAbort is connected differently.
 //
@@ -128,7 +131,7 @@ module eth_top
   wb_adr_i, wb_sel_i, wb_we_i, wb_cyc_i, wb_stb_i, wb_ack_o, wb_err_o, 
   wb_ack_i, 
 
-`ifdef WISHBONE_DMA
+`ifdef EXTERNAL_DMA
   wb_req_o, wb_nd_o, wb_rd_o, 
 `else
   // WISHBONE master
@@ -170,7 +173,7 @@ input           wb_cyc_i;     // WISHBONE cycle input
 input           wb_stb_i;     // WISHBONE strobe input
 output          wb_ack_o;     // WISHBONE acknowledge output
 
-`ifdef WISHBONE_DMA
+`ifdef EXTERNAL_DMA
 // DMA
 output   [1:0]  wb_req_o;     // DMA request output
 output   [1:0]  wb_nd_o;      // DMA force new descriptor output
@@ -567,7 +570,7 @@ end
 
 
 // Connecting WishboneDMA module
-`ifdef WISHBONE_DMA
+`ifdef EXTERNAL_DMA
 eth_wishbonedma wishbone
 `else
 eth_wishbone wishbone
@@ -582,7 +585,7 @@ eth_wishbone wishbone
 
   .Reset(wb_rst_i), 
 
-`ifdef WISHBONE_DMA
+`ifdef EXTERNAL_DMA
   .WB_REQ_O(wb_req_o),                .WB_ND_O(wb_nd_o),                        .WB_RD_O(wb_rd_o), 
   .WB_ACK_I(wb_ack_i),
 `else
@@ -612,7 +615,7 @@ eth_wishbone wishbone
   .Busy_IRQ(Busy_IRQ),                .RxF_IRQ(RxF_IRQ),                        .RxB_IRQ(RxB_IRQ), 
   .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ),
 
-`ifdef WISHBONE_DMA
+`ifdef EXTERNAL_DMA
 `else
   .RxAbort(RxAbort), 
 `endif

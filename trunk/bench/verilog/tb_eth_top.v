@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2002/02/16 07:22:15  mohor
+// Testbench fixed, code simplified, unused signals removed.
+//
 // Revision 1.9  2002/02/14 20:14:38  billditt
 // Added separate tests for Multicast, Unicast, Broadcast
 //
@@ -113,7 +116,7 @@ wire          WB_ACK_O;
 wire          WB_ERR_O;
 reg    [1:0]  WB_ACK_I;
 
-`ifdef WISHBONE_DMA
+`ifdef EXTERNAL_DMA
 wire   [1:0]  WB_REQ_O;
 wire   [1:0]  WB_ND_O;
 wire          WB_RD_O;
@@ -154,7 +157,7 @@ reg StartTB;
 reg [9:0] TxBDIndex;
 reg [9:0] RxBDIndex;
 
-`ifdef WISHBONE_DMA
+`ifdef EXTERNAL_DMA
 `else
   integer mcd1;
   integer mcd2;
@@ -171,7 +174,7 @@ eth_top ethtop
  	.wb_adr_i(WB_ADR_I[11:2]), .wb_sel_i(WB_SEL_I), .wb_we_i(WB_WE_I),   .wb_cyc_i(WB_CYC_I), 
  	.wb_stb_i(WB_STB_I),       .wb_ack_o(WB_ACK_O), .wb_err_o(WB_ERR_O), .wb_ack_i(WB_ACK_I), 
  	
-`ifdef WISHBONE_DMA
+`ifdef EXTERNAL_DMA
  	.wb_req_o(WB_REQ_O), .wb_nd_o(WB_ND_O),   .wb_rd_o(WB_RD_O), 
 `else
 // WISHBONE master
@@ -209,7 +212,7 @@ begin
   WB_CYC_I  =  1'b0;
   WB_STB_I  =  1'b0;
 
-`ifdef WISHBONE_DMA
+`ifdef EXTERNAL_DMA
   WB_ACK_I  =  2'h0;
 `else
   m_wb_ack_i = 0;
@@ -233,7 +236,7 @@ end
 // Reset pulse
 initial
 begin
-`ifdef WISHBONE_DMA
+`ifdef EXTERNAL_DMA
 `else
   mcd1 = $fopen("ethernet_tx.log");
   mcd2 = $fopen("ethernet_rx.log");
@@ -272,7 +275,7 @@ begin
 //  #16 forever #250 MRxClk = ~MRxClk;
 end
 
-`ifdef WISHBONE_DMA
+`ifdef EXTERNAL_DMA
 initial
 begin
   wait(StartTB);  // Start of testbench
@@ -673,7 +676,7 @@ task GetControlDataOnMRxD;
   end
 endtask
 
-`else // No WISHBONE_DMA
+`else // No EXTERNAL_DMA
 
 initial
 begin

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2002/02/15 10:58:31  mohor
+// Changed that were lost with last update put back to the file.
+//
 // Revision 1.11  2002/02/14 20:19:41  billditt
 // Modified for Address Checking,
 // addition of eth_addrcheck.v
@@ -98,7 +101,7 @@
 //
 
 
-//`define WISHBONE_DMA                  // Using DMA
+//`define EXTERNAL_DMA                  // Using DMA
 
 
 // Selection of the used memory
