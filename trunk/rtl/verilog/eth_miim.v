@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2005/02/21 12:48:07  igorm
+// Warning fixes.
+//
 // Revision 1.5  2003/05/16 10:08:27  mohor
 // Busy was set 2 cycles too late. Reported by Dennis Scott.
 //
@@ -173,7 +176,6 @@ reg           WriteOp;            // Write Operation Latch (When asserted, write
 reg     [6:0] BitCounter;         // Bit Counter
 
 
-wire          MdcFrame;           // Frame window for limiting the Mdc
 wire    [3:0] ByteSelect;         // Byte Select defines which byte (preamble, data, operation, etc.) is loaded and shifted through the shift register.
 wire          MdcEn;              // MII Management Data Clock Enable signal is asserted for one Clk period before Mdc rises.
 wire          ShiftedBit;         // This bit is output of the shift register and is connected to the Mdo signal

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2005/02/21 10:42:11  igorm
+// Defer indication fixed.
+//
 // Revision 1.15  2003/01/30 13:28:19  tadejm
 // Defer indication changed.
 //
@@ -372,7 +375,7 @@ end
 always @ (posedge MTxClk or posedge Reset)
 begin
   if(Reset)
-    RetryLimit <=#Tp 4'h0;
+    RetryLimit <=#Tp 1'h0;
   else
   if(StartTxDone | StartTxAbort)
     RetryLimit <=#Tp MaxCollisionOccured;

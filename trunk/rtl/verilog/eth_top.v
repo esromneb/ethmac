@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.51  2005/02/21 11:13:17  igorm
+// Defer indication fixed.
+//
 // Revision 1.50  2004/04/26 15:26:23  igorm
 // - Bug connected to the TX_BD_NUM_Wr signal fixed (bug came in with the
 //   previous update of the core.
@@ -366,7 +369,6 @@ wire            TxRetry;
 wire            TxAbort;
 wire            TxUnderRun;
 wire            TxDone;
-wire     [5:0]  CollValid;
 
 
 reg             WillSendControlFrame_sync1;
@@ -440,7 +442,6 @@ wire        Busy_IRQ;       // Interrupt Busy (lack of buffers)
 
 //wire        DWord;
 wire        ByteSelected;
-wire  [3:0] ByteSel;
 wire        BDAck;
 wire [31:0] BD_WB_DAT_O;    // wb_dat_o that comes from the Wishbone module (for buffer descriptors read/write)
 wire  [3:0] BDCs;           // Buffer descriptor CS
@@ -634,8 +635,6 @@ reg Collision_Tx1;
 reg Collision_Tx2;
 
 reg RxEnSync;                 // Synchronized Receive Enable
-//reg CarrierSense_Rx1;
-//reg RxCarrierSense;           // Synchronized CarrierSense (to Rx clock)
 reg WillTransmit_q;
 reg WillTransmit_q2;
 
@@ -746,22 +745,6 @@ assign Collision = ~r_FullD & Collision_Tx2;
 
 
 
-// Carrier sense is synchronized to receive clock.
-//always @ (posedge mrx_clk_pad_i or posedge wb_rst_i)
-//begin
-//  if(wb_rst_i)
-//    begin
-//      CarrierSense_Rx1 <= #Tp 1'h0;
-//      RxCarrierSense <= #Tp 1'h0;
-//    end
-//  else
-//    begin
-//      CarrierSense_Rx1 <= #Tp mcrs_pad_i;
-//      RxCarrierSense <= #Tp CarrierSense_Rx1;
-//    end
-//end
-
-
 // Delayed WillTransmit
 always @ (posedge mrx_clk_pad_i)
 begin
@@ -780,7 +763,6 @@ begin
   if(wb_rst_i)
     RxEnSync <= #Tp 1'b0;
   else
-  //if(~RxCarrierSense | RxCarrierSense & Transmitting)
   if(~mrxdv_pad_i)
     RxEnSync <= #Tp r_RxEn;
 end 
@@ -853,7 +835,6 @@ end
 wire LatchedMRxErr;
 reg RxAbort_latch;
 reg RxAbort_sync1;
-reg RxAbort_sync2;
 reg RxAbort_wb;
 reg RxAbortRst_sync1;
 reg RxAbortRst;

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.57  2005/02/21 11:35:33  igorm
+// Defer indication fixed.
+//
 // Revision 1.56  2004/04/30 10:30:00  igorm
 // Accidently deleted line put back.
 //
@@ -1828,13 +1831,13 @@ reg RxAbortSync4;
 reg RxAbortSyncb1;
 reg RxAbortSyncb2;
 
-assign StartRxBDRead = RxStatusWrite | RxAbortSync3 & ~RxAbortSync4;
+assign StartRxBDRead = RxStatusWrite | RxAbortSync3 & ~RxAbortSync4 | r_RxEn & ~r_RxEn_q;
 
 // Reading the Rx buffer descriptor
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    RxBDRead <=#Tp 1'b1;
+    RxBDRead <=#Tp 1'b0;
   else
   if(StartRxBDRead & ~RxReady)
     RxBDRead <=#Tp 1'b1;
@@ -1878,7 +1881,7 @@ begin
   if(Reset)
     RxReady <=#Tp 1'b0;
   else
-  if(ShiftEnded | RxAbortSync2 & ~RxAbortSync3)
+  if(ShiftEnded | RxAbortSync2 & ~RxAbortSync3 | ~r_RxEn & r_RxEn_q)
     RxReady <=#Tp 1'b0;
   else
   if(RxEn & RxEn_q & RxPointerRead)

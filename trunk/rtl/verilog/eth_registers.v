@@ -41,6 +41,14 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.28  2004/04/26 15:26:23  igorm
+// - Bug connected to the TX_BD_NUM_Wr signal fixed (bug came in with the
+//   previous update of the core.
+// - TxBDAddress is set to 0 after the TX is enabled in the MODER register.
+// - RxBDAddress is set to r_TxBDNum<<1 after the RX is enabled in the MODER
+//   register. (thanks to Mathias and Torbjorn)
+// - Multicast reception was fixed. Thanks to Ulrich Gries
+//
 // Revision 1.27  2004/04/26 11:42:17  igorm
 // TX_BD_NUM_Wr error fixed. Error was entered with the last check-in.
 //
@@ -327,7 +335,6 @@ wire [1:0] MAC_ADDR1_Wr;
 wire [3:0] HASH0_Wr;
 wire [3:0] HASH1_Wr;
 wire [2:0] TXCTRL_Wr;
-wire [1:0] RXCTRL_Wr;
 wire [0:0] TX_BD_NUM_Wr;
 
 assign MODER_Wr[0]       = Write[0]  & MODER_Sel; 
@@ -372,8 +379,6 @@ assign HASH1_Wr[3]       = Write[3]  & HASH1_Sel;
 assign TXCTRL_Wr[0]      = Write[0]  & TXCTRL_Sel; 
 assign TXCTRL_Wr[1]      = Write[1]  & TXCTRL_Sel; 
 assign TXCTRL_Wr[2]      = Write[2]  & TXCTRL_Sel; 
-assign RXCTRL_Wr[0]      = Write[0]  & RXCTRL_Sel; 
-assign RXCTRL_Wr[1]      = Write[1]  & RXCTRL_Sel; 
 assign TX_BD_NUM_Wr[0]   = Write[0]  & TX_BD_NUM_Sel & (DataIn<='h80); 
 
 
@@ -399,7 +404,6 @@ wire [31:0] TX_BD_NUMOut;
 wire [31:0] HASH0Out;
 wire [31:0] HASH1Out;
 wire [31:0] TXCTRLOut;
-wire [31:0] RXCTRLOut;
 
 // MODER Register
 eth_register #(`ETH_MODER_WIDTH_0, `ETH_MODER_DEF_0)        MODER_0
@@ -834,26 +838,6 @@ eth_register #(`ETH_TX_CTRL_WIDTH_2, `ETH_TX_CTRL_DEF_2)  TXCTRL_2 // Request bi
   );
 assign TXCTRLOut[31:`ETH_TX_CTRL_WIDTH_2 + 16] = 0;
 
-// RXCTRL Register
-eth_register #(`ETH_RX_CTRL_WIDTH_0, `ETH_RX_CTRL_DEF_0)      RXCTRL_0
-  (
-   .DataIn    (DataIn[`ETH_RX_CTRL_WIDTH_0 - 1:0]),
-   .DataOut   (RXCTRLOut[`ETH_RX_CTRL_WIDTH_0 - 1:0]),
-   .Write     (RXCTRL_Wr[0]),
-   .Clk       (Clk),
-   .Reset     (Reset),
-   .SyncReset (1'b0)
-  );
-eth_register #(`ETH_RX_CTRL_WIDTH_1, `ETH_RX_CTRL_DEF_1)      RXCTRL_1
-  (
-   .DataIn    (DataIn[`ETH_RX_CTRL_WIDTH_1 + 7:8]),
-   .DataOut   (RXCTRLOut[`ETH_RX_CTRL_WIDTH_1 + 7:8]),
-   .Write     (RXCTRL_Wr[1]),
-   .Clk       (Clk),
-   .Reset     (Reset),
-   .SyncReset (1'b0)
-  );
-assign RXCTRLOut[31:`ETH_RX_CTRL_WIDTH_1 + 8] = 0;
 
 
 // Reading data from registers
@@ -862,7 +846,7 @@ always @ (Address       or Read           or MODEROut       or INT_SOURCEOut  or
           PACKETLENOut  or COLLCONFOut    or CTRLMODEROut   or MIIMODEROut    or
           MIICOMMANDOut or MIIADDRESSOut  or MIITX_DATAOut  or MIIRX_DATAOut  or 
           MIISTATUSOut  or MAC_ADDR0Out   or MAC_ADDR1Out   or TX_BD_NUMOut   or
-          HASH0Out      or HASH1Out       or TXCTRLOut      or RXCTRLOut
+          HASH0Out      or HASH1Out       or TXCTRLOut       
          )
 begin
   if(Read)  // read
@@ -889,7 +873,6 @@ begin
         `ETH_HASH0_ADR        :  DataOut<=HASH0Out;
         `ETH_HASH1_ADR        :  DataOut<=HASH1Out;
         `ETH_TX_CTRL_ADR      :  DataOut<=TXCTRLOut;
-        `ETH_RX_CTRL_ADR      :  DataOut<=RXCTRLOut;
 
         default:             DataOut<=32'h0;
       endcase
