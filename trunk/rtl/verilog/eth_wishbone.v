@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.46  2002/11/22 01:57:06  mohor
+// Rx Flow control fixed. CF flag added to the RX buffer descriptor. RxAbort
+// synchronized.
+//
 // Revision 1.45  2002/11/19 17:33:34  mohor
 // AddressMiss status is connecting to the Rx BD. AddressMiss is identifying
 // that a frame was received because of the promiscous mode.
@@ -1805,7 +1809,6 @@ reg RxAbortSync4;
 reg RxAbortSyncb1;
 reg RxAbortSyncb2;
 
-//assign StartRxBDRead = RxStatusWrite | RxAbortLatched;
 assign StartRxBDRead = RxStatusWrite | RxAbortSync3 & ~RxAbortSync4;
 
 // Reading the Rx buffer descriptor
@@ -1937,34 +1940,6 @@ end
 
 // Reception status is written back to the buffer descriptor after the end of frame is detected.
 assign RxStatusWrite = ShiftEnded & RxEn & RxEn_q;
-
-reg RxStatusWriteLatched;
-reg RxStatusWrite_rck;
-
-always @ (posedge WB_CLK_I or posedge Reset)
-begin
-  if(Reset)
-    RxStatusWriteLatched <=#Tp 1'b0;
-  else
-  if(RxStatusWrite & ~RxStatusWrite_rck)
-    RxStatusWriteLatched <=#Tp 1'b1;
-  else
-  if(RxStatusWrite_rck)
-    RxStatusWriteLatched <=#Tp 1'b0;
-end
-
-
-always @ (posedge MRxClk or posedge Reset)
-begin
-  if(Reset)
-    RxStatusWrite_rck <=#Tp 1'b0;
-  else
-  if(RxStatusWriteLatched)
-    RxStatusWrite_rck <=#Tp 1'b1;
-  else
-    RxStatusWrite_rck <=#Tp 1'b0;
-end
-
 
 reg RxEnableWindow;
 
