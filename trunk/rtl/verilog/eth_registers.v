@@ -102,7 +102,7 @@ module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut, r_DmaEn,
                       r_RGAD, r_FIAD, r_CtrlData, NValid_stat, Busy_stat, 
                       LinkFail, r_MAC, WCtrlDataStart, RStatStart,
                       UpdateMIIRX_DATAReg, Prsd, r_TxBDNum, TX_BD_NUM_Wr, int_o,
-                      r_HASH0, r_HASH1
+					  r_HASH0, r_HASH1
                     );
 
 parameter Tp = 1;
@@ -142,6 +142,8 @@ output r_Bro;
 output r_NoPre;
 output r_TxEn;
 output r_RxEn;
+output [31:0] r_HASH0;
+output [31:0] r_HASH1;
 
 input TxB_IRQ;
 input TxE_IRQ;
@@ -177,9 +179,6 @@ output [4:0] r_RGAD;
 output [4:0] r_FIAD;
 
 output [15:0]r_CtrlData;
-
-output [31:0]r_HASH0;
-output [31:0]r_HASH1;
 
 
 input NValid_stat;
@@ -218,9 +217,9 @@ wire MIIRX_DATA_Wr  = UpdateMIIRX_DATAReg;
 wire MIISTATUS_Wr   = (Address == `ETH_MIISTATUS_ADR   )  & Write;
 wire MAC_ADDR0_Wr   = (Address == `ETH_MAC_ADDR0_ADR   )  & Write;
 wire MAC_ADDR1_Wr   = (Address == `ETH_MAC_ADDR1_ADR   )  & Write;
+wire HASH0_Wr       = (Address == `ETH_HASH0_ADR   )  & Write;
+wire HASH1_Wr       = (Address == `ETH_HASH1_ADR   )  & Write;
 assign TX_BD_NUM_Wr = (Address == `ETH_TX_BD_NUM_ADR   )  & Write;
-wire MAC_HASH0_Wr   = (Address == `ETH_HASH0_ADR       )  & Write;
-wire MAC_HASH1_Wr   = (Address == `ETH_HASH1_ADR       )  & Write;
 
 
 
@@ -242,8 +241,9 @@ wire [31:0] MIISTATUSOut;
 wire [31:0] MAC_ADDR0Out;
 wire [31:0] MAC_ADDR1Out;
 wire [31:0] TX_BD_NUMOut;
-wire [31:0] MAC_HASH0Out;
-wire [31:0] MAC_HASH1Out;
+wire [31:0] HASH0Out;
+wire [31:0] HASH1Out;
+
 
 
 eth_register #(32) MODER       (.DataIn(DataIn), .DataOut(MODEROut),      .Write(MODER_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_MODER_DEF));
@@ -253,6 +253,10 @@ eth_register #(32) IPGR1       (.DataIn(DataIn), .DataOut(IPGR1Out),      .Write
 eth_register #(32) IPGR2       (.DataIn(DataIn), .DataOut(IPGR2Out),      .Write(IPGR2_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGR2_DEF));
 eth_register #(32) PACKETLEN   (.DataIn(DataIn), .DataOut(PACKETLENOut),  .Write(PACKETLEN_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_PACKETLEN_DEF));
 eth_register #(32) COLLCONF    (.DataIn(DataIn), .DataOut(COLLCONFOut),   .Write(COLLCONF_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_COLLCONF_DEF));
+eth_register #(32) RXHASH0    (.DataIn(DataIn), .DataOut(HASH0Out),   .Write(HASH0_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH0_DEF));
+eth_register #(32) RXHASH1    (.DataIn(DataIn), .DataOut(HASH1Out),   .Write(HASH1_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH1_DEF));
+
+
 
 // CTRLMODER registers
 wire [31:0] DefaultCtrlModer = `ETH_CTRLMODER_DEF;
@@ -280,9 +284,6 @@ eth_register #(32) MAC_ADDR1   (.DataIn(DataIn), .DataOut(MAC_ADDR1Out),  .Write
 
 assign TX_BD_NUMOut[31:8] = 24'h0;
 eth_register #(8) TX_BD_NUM   (.DataIn(DataIn[7:0]), .DataOut(TX_BD_NUMOut[7:0]), .Write(TX_BD_NUM_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_TX_BD_NUM_DEF));
-
-eth_register #(32) MAC_HASH0   (.DataIn(DataIn), .DataOut(MAC_HASH0Out),  .Write(MAC_HASH0_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH0_DEF));
-eth_register #(32) MAC_HASH1   (.DataIn(DataIn), .DataOut(MAC_HASH1Out),  .Write(MAC_HASH1_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH1_DEF));
 
 
 reg LinkFailRegister;
@@ -314,7 +315,7 @@ always @ (Address or Read or MODEROut or INT_SOURCEOut or INT_MASKOut or IPGTOut
           IPGR1Out or IPGR2Out or PACKETLENOut or COLLCONFOut or CTRLMODEROut or 
           MIIMODEROut or MIICOMMANDOut or MIIADDRESSOut or MIITX_DATAOut or 
           MIIRX_DATAOut or MIISTATUSOut or MAC_ADDR0Out or MAC_ADDR1Out or 
-          TX_BD_NUMOut or MAC_HASH0Out or MAC_HASH1Out)
+          TX_BD_NUMOut or HASH0Out or HASH1Out)
 begin
   if(Read)  // read
     begin
@@ -337,8 +338,8 @@ begin
         `ETH_MAC_ADDR0_ADR    :  DataOut<=MAC_ADDR0Out;
         `ETH_MAC_ADDR1_ADR    :  DataOut<=MAC_ADDR1Out;
         `ETH_TX_BD_NUM_ADR    :  DataOut<=TX_BD_NUMOut;
-        `ETH_HASH0_ADR        :  DataOut<=MAC_HASH0Out;
-        `ETH_HASH1_ADR        :  DataOut<=MAC_HASH1Out;
+		`ETH_HASH0_ADR        :  DataOut<=HASH0Out;
+		`ETH_HASH1_ADR        :  DataOut<=HASH1Out;
         default:             DataOut<=32'h0;
       endcase
     end
@@ -405,11 +406,11 @@ assign MIISTATUSOut[0]  = LinkFailRegister   ;
 
 assign r_MAC[31:0]        = MAC_ADDR0Out[31:0];
 assign r_MAC[47:32]       = MAC_ADDR1Out[15:0];
+assign r_HASH1[31:0]      = HASH1Out;
+assign r_HASH0[31:0]      = HASH0Out;
 
 assign r_TxBDNum[7:0] = TX_BD_NUMOut[7:0];
 
-assign r_HASH0 = MAC_HASH0Out;
-assign r_HASH1 = MAC_HASH1Out;
 
 // Interrupt generation
 

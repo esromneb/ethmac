@@ -41,9 +41,6 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
-// Revision 1.12  2002/02/11 09:18:22  mohor
-// Tx status is written back to the BD.
-//
 // Revision 1.11  2002/02/08 16:21:54  mohor
 // Rx status is written back to the BD.
 //
@@ -271,7 +268,8 @@ wire        DribbleNibble;  // Extra nibble received
 wire        ReceivedPacketTooBig; // Received packet is too big
 wire [47:0] r_MAC;          // MAC address
 wire        LoadRxStatus;   // Rx status was loaded
-
+wire [31:0] r_HASH0;        // HASH table, lower 4 bytes
+wire [31:0] r_HASH1;        // HASH table, upper 4 bytes
 wire  [7:0] r_TxBDNum;      // Receive buffer descriptor number
 wire  [6:0] r_IPGT;         // 
 wire  [6:0] r_IPGR1;        // 
@@ -320,8 +318,8 @@ eth_registers ethreg1
   .r_Pad(r_Pad),                          .r_HugEn(r_HugEn),                          .r_CrcEn(r_CrcEn), 
   .r_DlyCrcEn(r_DlyCrcEn),                .r_Rst(r_Rst),                              .r_FullD(r_FullD), 
   .r_ExDfrEn(r_ExDfrEn),                  .r_NoBckof(r_NoBckof),                      .r_LoopBck(r_LoopBck), 
-  .r_IFG(r_IFG),                          .r_Pro(),                                   .r_Iam(), 
-  .r_Bro(),                               .r_NoPre(r_NoPre),                          .r_TxEn(r_TxEn), 
+  .r_IFG(r_IFG),                          .r_Pro(r_Pro),                              .r_Iam(), 
+  .r_Bro(r_Bro),                          .r_NoPre(r_NoPre),                          .r_TxEn(r_TxEn), 
   .r_RxEn(r_RxEn),                        .Busy_IRQ(Busy_IRQ),                        .RxF_IRQ(RxF_IRQ), 
   .RxB_IRQ(RxB_IRQ),                      .TxE_IRQ(TxE_IRQ),                          .TxB_IRQ(TxB_IRQ), 
   .r_IPGT(r_IPGT), 
@@ -335,7 +333,7 @@ eth_registers ethreg1
   .LinkFail(LinkFail),                    .r_MAC(r_MAC),                              .WCtrlDataStart(WCtrlDataStart),
   .RStatStart(RStatStart),                .UpdateMIIRX_DATAReg(UpdateMIIRX_DATAReg),  .Prsd(Prsd), 
   .r_TxBDNum(r_TxBDNum),                  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),                .int_o(int_o),
-  .r_HASH0(),                             .r_HASH1()
+  .r_HASH0(r_HASH0),                      .r_HASH1(r_HASH1)
 );
 
 
@@ -358,15 +356,6 @@ wire        ReceivedLengthOK;
 wire        InvalidSymbol;
 wire        LatchedCrcError;
 wire        RxLateCollision;
-wire  [3:0] RetryCntLatched;
-wire  [3:0] RetryCnt;
-wire        StartTxDone;
-wire        StartTxAbort;
-wire        MaxCollisionOccured;
-wire        RetryLimit;
-wire        StatePreamble;
-wire  [1:0] StateData;
-
 
 // Connecting MACControl
 eth_maccontrol maccontrol1
@@ -434,10 +423,7 @@ eth_txethmac txethmac1
   .MaxFL(r_MaxFL),                    .MTxEn(mtxen_pad_o),                .MTxD(mtxd_pad_o), 
   .MTxErr(mtxerr_pad_o),              .TxUsedData(TxUsedDataIn),          .TxDone(TxDoneIn), 
   .TxRetry(TxRetry),                  .TxAbort(TxAbortIn),                .WillTransmit(WillTransmit), 
-  .ResetCollision(ResetCollision),    .RetryCnt(RetryCnt),                .StartTxDone(StartTxDone),
-  .StartTxAbort(StartTxAbort),        .MaxCollisionOccured(MaxCollisionOccured), .LateCollision(LateCollision),
-  .StartDefer(StartDefer),            .StatePreamble(StatePreamble),      .StateData(StateData)
-
+  .ResetCollision(ResetCollision)
 );
 
 
@@ -467,7 +453,9 @@ eth_rxethmac rxethmac1
   .Broadcast(),                         .Multicast(),                         .ByteCnt(RxByteCnt), 
   .ByteCntEq0(RxByteCntEq0),            .ByteCntGreat2(RxByteCntGreat2),      .ByteCntMaxFrame(RxByteCntMaxFrame), 
   .CrcError(RxCrcError),                .StateIdle(RxStateIdle),              .StatePreamble(RxStatePreamble), 
-  .StateSFD(RxStateSFD),                .StateData(RxStateData)
+  .StateSFD(RxStateSFD),                .StateData(RxStateData),
+  .MAC(r_MAC),                          .r_Pro(r_Pro),                         .r_Bro(r_Bro),  // ditt
+  .r_HASH0(r_HASH0),                    .r_HASH1(r_HASH1)
 );
 
 
@@ -585,7 +573,7 @@ eth_wishbone wishbone
 
     //TX
   .MTxClk(mtx_clk_pad_i),             .TxStartFrm(TxStartFrm),                  .TxEndFrm(TxEndFrm), 
-  .TxUsedData(TxUsedData),            .TxData(TxData),
+  .TxUsedData(TxUsedData),            .TxData(TxData),                          .StatusIzTxEthMACModula(16'h0), 
   .TxRetry(TxRetry),                  .TxAbort(TxAbort),                        .TxUnderRun(TxUnderRun), 
   .TxDone(TxDone),                    .TPauseRq(TPauseRq),                      .TxPauseTV(TxPauseTV), 
   .PerPacketCrcEn(PerPacketCrcEn),    .PerPacketPad(PerPacketPad),              .WillSendControlFrame(WillSendControlFrame), 
@@ -608,9 +596,7 @@ eth_wishbone wishbone
 
   .InvalidSymbol(InvalidSymbol),      .LatchedCrcError(LatchedCrcError),        .RxLength(RxByteCnt),
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
-  .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus),     .RetryCntLatched(RetryCntLatched),
-  .RetryLimit(RetryLimit),            .LateCollLatched(LateCollLatched),        .DeferLatched(DeferLatched),
-  .CarrierSenseLost(CarrierSenseLost)
+  .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus)
 
 );
 
@@ -630,14 +616,8 @@ eth_macstatus macstatus1
   .CollValid(r_CollValid),            .RxLateCollision(RxLateCollision),           .r_RecSmall(r_RecSmall),
   .r_MinFL(r_MinFL),                  .r_MaxFL(r_MaxFL),                           .ShortFrame(ShortFrame),
   .DribbleNibble(DribbleNibble),      .ReceivedPacketTooBig(ReceivedPacketTooBig), .r_HugEn(r_HugEn),
-  .LoadRxStatus(LoadRxStatus),        .RetryCnt(RetryCnt),                         .StartTxDone(StartTxDone),
-  .StartTxAbort(StartTxAbort),        .RetryCntLatched(RetryCntLatched),           .MTxClk(mtx_clk_pad_i),
-  .MaxCollisionOccured(MaxCollisionOccured), .RetryLimit(RetryLimit),              .LateCollision(LateCollision), 
-  .LateCollLatched(LateCollLatched),  .StartDefer(StartDefer),                     .DeferLatched(DeferLatched),
-  .TxStartFrm(TxStartFrmOut),         .StatePreamble(StatePreamble),               .StateData(StateData),
-  .CarrierSense(CarrierSense_Tx2),    .CarrierSenseLost(CarrierSenseLost),         .TxUsedData(TxUsedDataIn)
+  .LoadRxStatus(LoadRxStatus)
 );
-
 
 
 endmodule

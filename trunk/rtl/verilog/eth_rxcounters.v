@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.2  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -75,7 +78,9 @@
 
 module eth_rxcounters (MRxClk, Reset, MRxDV, StateIdle, StateSFD, StateData, StateDrop, StatePreamble, 
                        MRxDEqD, DlyCrcEn, DlyCrcCnt, Transmitting, MaxFL, r_IFG, HugEn, IFGCounterEq24, 
-                       ByteCntEq0, ByteCntEq1, ByteCntEq6, ByteCntGreat2, ByteCntSmall7, ByteCntMaxFrame, 
+                       ByteCntEq0, ByteCntEq1, 
+					    ByteCntEq2,ByteCntEq3,ByteCntEq4,ByteCntEq5, ByteCntEq6,
+					   ByteCntEq7, ByteCntGreat2, ByteCntSmall7, ByteCntMaxFrame, 
                        ByteCnt
                       );
 
@@ -100,7 +105,12 @@ output        IFGCounterEq24;           // IFG counter reaches 9600 ns (960 ns)
 output [3:0]  DlyCrcCnt;                // Delayed CRC counter
 output        ByteCntEq0;               // Byte counter = 0
 output        ByteCntEq1;               // Byte counter = 1
+output        ByteCntEq2;               // Byte counter = 2  
+output        ByteCntEq3;               // Byte counter = 3  
+output        ByteCntEq4;               // Byte counter = 4  
+output        ByteCntEq5;               // Byte counter = 5  
 output        ByteCntEq6;               // Byte counter = 6
+output        ByteCntEq7;               // Byte counter = 7
 output        ByteCntGreat2;            // Byte counter > 2
 output        ByteCntSmall7;            // Byte counter < 7
 output        ByteCntMaxFrame;          // Byte counter = MaxFL
@@ -142,7 +152,12 @@ end
 
 assign ByteCntEq0       = ByteCnt == 16'h0;
 assign ByteCntEq1       = ByteCnt == 16'h1;
+assign ByteCntEq2       = ByteCnt == 16'h2; 
+assign ByteCntEq3       = ByteCnt == 16'h3; 
+assign ByteCntEq4       = ByteCnt == 16'h4; 
+assign ByteCntEq5       = ByteCnt == 16'h5; 
 assign ByteCntEq6       = ByteCnt == 16'h6;
+assign ByteCntEq7       = ByteCnt == 16'h7;
 assign ByteCntGreat2    = ByteCnt >  16'h2;
 assign ByteCntSmall7    = ByteCnt <  16'h7;
 assign ByteCntMax       = ByteCnt == 16'hffff;
