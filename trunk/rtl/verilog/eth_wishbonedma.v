@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2001/10/19 11:24:29  mohor
+// Number of addresses (wb_adr_i) minimized.
+//
 // Revision 1.5  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -393,35 +396,16 @@ begin
     EnableRAM   <=#Tp EnableRAM;
 end
 
-`ifdef ETH_FPGA
-  // Xilinx BlockRAM for storing Tx and Rx buffer descriptors
+
+// Generic synchronous two-port RAM interface
+generic_tpram     #(8, 32)  i_generic_tpram 
+(
+  .clk_a(WB_CLK_I),   .rst_a(WB_RST_I),         .ce_a(1'b1),        .we_a(BDWe), 
+  .oe_a(EnableRAM),   .addr_a(WB_ADR_I[9:2]),   .di_a(WB_DAT_I),    .do_a(WB_BDDataOut),
   
-  RAMB4_S16_S16 RAM1 ( .DIA(WB_DAT_I[15:0]),     .DOA(WB_BDDataOut[15:0]),  .ADDRA(WB_ADR_I[9:2]), 
-                       .WEA(BDWe),               .CLKA(WB_CLK_I),           .ENA(1'b1), 
-                       .RSTA(WB_RST_I),          .DIB(BDDataIn[15:0]),      .DOB(BDDataOut[15:0]), 
-                       .ADDRB(BDAddress[7:0]),   .WEB(BDStatusWrite),       .CLKB(WB_CLK_I), 
-                       .ENB(EnableRAM),          .RSTB(WB_RST_I) ); 
-  RAMB4_S16_S16 RAM2 ( .DIA(WB_DAT_I[31:16]),    .DOA(WB_BDDataOut[31:16]), .ADDRA(WB_ADR_I[9:2]), 
-                       .WEA(BDWe),               .CLKA(WB_CLK_I),           .ENA(1'b1), 
-                       .RSTA(WB_RST_I),          .DIB(BDDataIn[31:16]),     .DOB(BDDataOut[31:16]), 
-                       .ADDRB(BDAddress[7:0]),   .WEB(BDStatusWrite),       .CLKB(WB_CLK_I), 
-                       .ENB(EnableRAM), .RSTB(WB_RST_I) ); 
-`else
-  // Artisan RAM (ASIC implementation) for storing Tx and Rx buffer descriptors
-  // Size will be reduced before implementation to 256 x 32
-  
-  wire [63:32] qa_dummy;
-  wire [63:32] qb_dummy;
-  art_hddp_8192x64 RAM1 ( .qa({qa_dummy[63:32], WB_BDDataOut[31:0]}), .clka(WB_CLK_I), 
-                          .cena(1'b0),                                .wena(~BDWe), 
-                          .aa({5'h0, WB_ADR_I[9:2]}),                 .da({32'h0, WB_DAT_I[31:0]}),
-                          .oena(1'b0),      
-                          .qb({qb_dummy[63:32], BDDataOut[31:0]}),    .clkb(WB_CLK_I), 
-                          .cenb(1'b0),                                .wenb(~BDStatusWrite), 
-                          .ab({5'h0, BDAddress[7:0]}),                .db({32'h0, BDDataIn[31:0]}), 
-                          .oenb(1'b0)
-                        );
-`endif
+  .clk_b(WB_CLK_I),   .rst_b(WB_RST_I),         .ce_b(EnableRAM),   .we_b(BDStatusWrite), 
+  .oe_b(EnableRAM),   .addr_b(BDAddress[7:0]),  .di_b(BDDataIn),    .do_b(BDDataOut)
+);
 
 
 // WB_CLK_I is divided by 2. This signal is used for enabling tx and rx operations sequentially

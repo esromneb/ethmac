@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2001/10/18 12:07:11  mohor
+// Status signals changed, Adress decoding changed, interrupt controller
+// added.
+//
 // Revision 1.2  2001/09/24 15:02:56  mohor
 // Defines changed (All precede with ETH_). Small changes because some
 // tools generate warnings when two operands are together. Synchronization
@@ -65,10 +69,11 @@
 //
 //
 
+// Selection of the used memory
+//`define XILINX_RAMB4                // Core is going to be implemented in Virtex FPGA and contains Virtex 
+                                      // specific elements. 
 
-`define ETH_FPGA                      // Core is going to be implemented in FPGA and contains FPGA specific elements
-                                      // Should be cleared for the ASIC implementation
-
+//`define ARTISAN_SDP                 // Core is going to be implemented in ASIC (using Artisan RAM)
 
 
 `define ETH_MODER_ADR         6'h0    // 0x0 
