@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
 ////  eth_txethmac.v                                              ////
-////                                                              ////
+///                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/projects/ethmac/                   ////
 ////                                                              ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/02/11 09:18:22  mohor
+// Tx status is written back to the BD.
+//
 // Revision 1.4  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -198,7 +201,8 @@ assign UnderRun = StateData[0] & TxUnderRun & ~Collision;
 
 assign TooBig = ~Collision & MaxFrame & (StateData[0] & ~TxUnderRun | StateFCS);
 
-assign StartTxRetry = StartJam & (ColWindow & ~RetryMax);
+// assign StartTxRetry = StartJam & (ColWindow & ~RetryMax);
+assign StartTxRetry = StartJam & (ColWindow & ~RetryMax) & ~UnderRun;
 
 assign LateCollision = StartJam & ~ColWindow & ~UnderRun;
 
