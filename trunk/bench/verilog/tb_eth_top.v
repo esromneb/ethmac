@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2001/10/19 11:24:04  mohor
+// Number of addresses (wb_adr_i) minimized.
+//
 // Revision 1.4  2001/10/19 08:46:53  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -234,7 +237,7 @@ begin
   
   WishboneWrite(32'h00000800, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 1
   WishboneWrite(32'h00000000, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 0
-  WishboneWrite(32'h00000080, {26'h0, `ETH_RX_BD_ADR_ADR<<2}); // r_RxBDAddress = 0x80
+  WishboneWrite(32'h00000080, {26'h0, `ETH_TX_BD_NUM_ADR<<2}); // r_RxBDAddress = 0x80
   WishboneWrite(32'h0002A443, {26'h0, `ETH_MODER_ADR<<2});     // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
   WishboneWrite(32'h00000004, {26'h0, `ETH_CTRLMODER_ADR<<2}); //r_TxFlow = 1
 
@@ -315,7 +318,7 @@ task WishboneWrite;
         $write("\nWrite to register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address);
       else
       if(~Address[11] & Address[10])
-        if(Address[9:2] < tb_eth_top.ethtop.r_RxBDAddress)
+        if(Address[9:2] < tb_eth_top.ethtop.r_TxBDNum)
           begin
             $write("\nWrite to TxBD (Data: 0x%x, TxBD Addr: 0x%0x)\n", Data, Address);
             if(Data[9])
@@ -371,7 +374,7 @@ task WishboneRead;
         $write("\nRead from register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address);
       else
       if(~Address[11] & Address[10])
-        if(Address[9:2] < tb_eth_top.ethtop.r_RxBDAddress)
+        if(Address[9:2] < tb_eth_top.ethtop.r_TxBDNum)
           begin
             $write("\nRead from TxBD (Data: 0x%x, TxBD Addr: 0x%0x)", Data, Address);
           end
@@ -442,7 +445,7 @@ task ReceivePacket;    // Initializes RxBD and then generates traffic on the MRx
     else
       WrapRx = 1'b0;
 
-    TempRxAddr = {22'h01, ((tb_eth_top.ethtop.r_RxBDAddress + RxBDIndex)<<2)};
+    TempRxAddr = {22'h01, ((tb_eth_top.ethtop.r_TxBDNum + RxBDIndex)<<2)};
 
     TempRxData = {LengthRx[15:0], 1'b1, 1'b0, WrapRx, 5'h0, RxBDIndex[7:0]};  // Ready and WrapRx = 1 or 0
 
