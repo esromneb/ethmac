@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2003/01/30 13:38:15  mohor
+// Underrun test fixed. Many other tests fixed.
+//
 // Revision 1.26  2003/01/22 19:40:10  tadejm
 // Backup version. Not fully working.
 //
@@ -472,10 +475,9 @@ begin
 //    test_mii(0, 17);                        // 0 - 17
   test_note("PHY generates ideal Carrier sense and Collision signals for following tests");
   eth_phy.carrier_sense_real_delay(0);
-//    test_mac_full_duplex_transmit(0, 23);    // 0 - (21)
     test_mac_full_duplex_transmit(0, 21);    // 0 - (21)
-//    test_mac_full_duplex_receive(2, 3);     // 0 - 13
-//    test_mac_full_duplex_flow_control(0, 4);  // 0 - 5   What 5 stands for ?
+    test_mac_full_duplex_receive(0, 13);     // 0 - 13
+    test_mac_full_duplex_flow_control(0, 4);  // 0 - 4
                                               // 4 is executed, everything is OK
 //    test_mac_half_duplex_flow(0, 0);
 
@@ -12119,8 +12121,8 @@ $display("mama 6");
       check_rx_bd(127, data);
       if (i_length[1] == 1'b0) // interrupt enabled no_carrier_sense_rx_fd_detect
       begin
-        if ( ((data[15:0] !== 16'h6000) && (i_length[0] == 1'b0)) ||
-             ((data[15:0] !== 16'h6000) && (i_length[0] == 1'b1)) )
+        if ( ((data[15:0] !== 16'h6080) && (i_length[0] == 1'b0)) ||
+             ((data[15:0] !== 16'h6080) && (i_length[0] == 1'b1)) )
         begin
           `TIME; $display("*E RX buffer descriptor status is not correct: %0h", data[15:0]);
           test_fail("RX buffer descriptor status is not correct");
@@ -12129,8 +12131,8 @@ $display("mama 6");
       end
       else // interrupt not enabled
       begin
-        if ( ((data[15:0] !== 16'h2000) && (i_length[0] == 1'b0)) ||
-             ((data[15:0] !== 16'h2000) && (i_length[0] == 1'b1)) )
+        if ( ((data[15:0] !== 16'h2080) && (i_length[0] == 1'b0)) ||
+             ((data[15:0] !== 16'h2080) && (i_length[0] == 1'b1)) )
         begin
           `TIME; $display("*E RX buffer descriptor status is not correct: %0h", data[15:0]);
           test_fail("RX buffer descriptor status is not correct");
@@ -12426,8 +12428,8 @@ $display("mama 6");
       check_rx_bd(127, data);
       if (i_length[1] == 1'b0) // interrupt enabled 
       begin
-        if ( ((data[15:0] !== 16'h6000) && (i_length[0] == 1'b0)) ||
-             ((data[15:0] !== 16'h6000) && (i_length[0] == 1'b1)) )
+        if ( ((data[15:0] !== 16'h6080) && (i_length[0] == 1'b0)) ||
+             ((data[15:0] !== 16'h6080) && (i_length[0] == 1'b1)) )
         begin
           `TIME; $display("*E RX buffer descriptor status is not correct: %0h", data[15:0]);
           test_fail("RX buffer descriptor status is not correct");
@@ -12436,8 +12438,8 @@ $display("mama 6");
       end
       else // interrupt not enabled
       begin
-        if ( ((data[15:0] !== 16'h2000) && (i_length[0] == 1'b0)) ||
-             ((data[15:0] !== 16'h2000) && (i_length[0] == 1'b1)) )
+        if ( ((data[15:0] !== 16'h2080) && (i_length[0] == 1'b0)) ||
+             ((data[15:0] !== 16'h2080) && (i_length[0] == 1'b1)) )
         begin
           `TIME; $display("*E RX buffer descriptor status is not correct: %0h", data[15:0]);
           test_fail("RX buffer descriptor status is not correct");
@@ -12834,8 +12836,8 @@ $display("mama 6");
       check_rx_bd(num_of_bd, data);
       if (i_length[1] == 1'b0) // interrupt enabled
       begin
-        if ( ((data[15:0] !== 16'h6000) && ((num_of_frames < 8) || ((num_of_frames - 8) == 127))) || // wrap bit
-             ((data[15:0] !== 16'h4000) && (num_of_frames >= 8) && ((num_of_frames - 8) != 127)) ) // without wrap bit
+        if ( ((data[15:0] !== 16'h6080) && ((num_of_frames < 8) || ((num_of_frames - 8) == 127))) || // wrap bit
+             ((data[15:0] !== 16'h4080) && (num_of_frames >= 8) && ((num_of_frames - 8) != 127)) ) // without wrap bit
         begin
           `TIME; $display("*E RX buffer descriptor status is not correct: %0h", data[15:0]);
           test_fail("RX buffer descriptor status is not correct");
@@ -12844,8 +12846,8 @@ $display("mama 6");
       end
       else // interrupt not enabled
       begin
-        if ( ((data[15:0] !== 16'h2000)  && ((num_of_frames < 8) || ((num_of_frames - 8) == 127))) || // wrap bit
-             ((data[15:0] !== 16'h0000) && (num_of_frames >= 8) && ((num_of_frames - 8) != 127)) ) // without wrap bit
+        if ( ((data[15:0] !== 16'h2080)  && ((num_of_frames < 8) || ((num_of_frames - 8) == 127))) || // wrap bit
+             ((data[15:0] !== 16'h0080) && (num_of_frames >= 8) && ((num_of_frames - 8) != 127)) ) // without wrap bit
         begin
           `TIME; $display("*E RX buffer descriptor status is not correct: %0h", data[15:0]);
           test_fail("RX buffer descriptor status is not correct");
@@ -13286,8 +13288,8 @@ $display("mama 6");
       check_rx_bd(num_of_bd, data);
       if (i_length[1] == 1'b0) // interrupt enabled
       begin
-        if ( ((data[15:0] !== 16'h6000) && ((num_of_frames < 8) || ((num_of_frames - 8) == 127))) || // wrap bit
-             ((data[15:0] !== 16'h4000) && (num_of_frames >= 8) && ((num_of_frames - 8) != 127)) ) // without wrap bit
+        if ( ((data[15:0] !== 16'h6080) && ((num_of_frames < 8) || ((num_of_frames - 8) == 127))) || // wrap bit
+             ((data[15:0] !== 16'h4080) && (num_of_frames >= 8) && ((num_of_frames - 8) != 127)) ) // without wrap bit
         begin
           `TIME; $display("*E RX buffer descriptor status is not correct: %0h", data[15:0]);
           test_fail("RX buffer descriptor status is not correct");
@@ -13296,8 +13298,8 @@ $display("mama 6");
       end
       else // interrupt not enabled
       begin
-        if ( ((data[15:0] !== 16'h2000)  && ((num_of_frames < 8) || ((num_of_frames - 8) == 127))) || // wrap bit
-             ((data[15:0] !== 16'h0000) && (num_of_frames >= 8) && ((num_of_frames - 8) != 127)) ) // without wrap bit
+        if ( ((data[15:0] !== 16'h2080)  && ((num_of_frames < 8) || ((num_of_frames - 8) == 127))) || // wrap bit
+             ((data[15:0] !== 16'h0080) && (num_of_frames >= 8) && ((num_of_frames - 8) != 127)) ) // without wrap bit
         begin
           `TIME; $display("*E RX buffer descriptor status is not correct: %0h", data[15:0]);
           test_fail("RX buffer descriptor status is not correct");
