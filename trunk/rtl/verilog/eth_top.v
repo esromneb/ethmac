@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2002/02/26 16:21:00  mohor
+// Interrupts changed in the top file
+//
 // Revision 1.20  2002/02/18 10:40:17  mohor
 // Small fixes.
 //
@@ -625,10 +628,7 @@ eth_wishbone wishbone
   .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ),                        .TxC_IRQ(TxC_IRQ), 
   .RxC_IRQ(RxC_IRQ), 
 
-`ifdef EXTERNAL_DMA
-`else
   .RxAbort(RxAbort), 
-`endif
 
   .InvalidSymbol(InvalidSymbol),      .LatchedCrcError(LatchedCrcError),        .RxLength(RxByteCnt),
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),

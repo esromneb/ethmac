@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2002/02/26 16:23:05  mohor
+//  WB_SEL_I was unused and removed from design
+//
 // Revision 1.14  2002/02/12 17:03:47  mohor
 // RxOverRun added to statuses.
 //
@@ -133,7 +136,9 @@ module eth_wishbonedma
     WillSendControlFrame, TxCtrlEndFrm, 
     
     // Interrupts
-    TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ, 
+    TxB_IRQ, TxE_IRQ, RxB_IRQ, RxE_IRQ, Busy_IRQ, TxC_IRQ, RxC_IRQ, 
+    
+    RxAbort, ReceivedPacketGood, 
     
     InvalidSymbol, LatchedCrcError, RxLateCollision, ShortFrame, DribbleNibble,
     ReceivedPacketTooBig, RxLength, LoadRxStatus, RetryCntLatched, RetryLimit,
@@ -213,12 +218,17 @@ input           r_DmaEn;        // DMA enable
 input           TX_BD_NUM_Wr;   // RxBDNumber written
 input           r_RecSmall;     // Receive small frames
 
+input           RxAbort;
+input           ReceivedPacketGood;
+
 // Interrupts
 output TxB_IRQ;
 output TxE_IRQ;
 output RxB_IRQ;
-output RxF_IRQ;
+output RxE_IRQ;
 output Busy_IRQ;
+output TxC_IRQ;
+output RxC_IRQ;
 
 reg             WB_REQ_O_RX;    
 reg             WB_ND_O_TX;     // New descriptor
@@ -1684,8 +1694,10 @@ end
 assign TxB_IRQ = 1'b0;
 assign TxE_IRQ = 1'b0;
 assign RxB_IRQ = 1'b0;
-assign RxF_IRQ = 1'b0;
+assign RxE_IRQ = 1'b0;
 assign Busy_IRQ = 1'b0;
+assign TxC_IRQ = 1'b0;
+assign RxC_IRQ = 1'b0;
 
 
 endmodule

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2002/02/16 13:06:59  mohor
+// EXTERNAL_DMA used instead of WISHBONE_DMA.
+//
 // Revision 1.10  2002/02/16 07:22:15  mohor
 // Testbench fixed, code simplified, unused signals removed.
 //
@@ -172,10 +175,10 @@ eth_top ethtop
 
   // WISHBONE slave
  	.wb_adr_i(WB_ADR_I[11:2]), .wb_sel_i(WB_SEL_I), .wb_we_i(WB_WE_I),   .wb_cyc_i(WB_CYC_I), 
- 	.wb_stb_i(WB_STB_I),       .wb_ack_o(WB_ACK_O), .wb_err_o(WB_ERR_O), .wb_ack_i(WB_ACK_I), 
+ 	.wb_stb_i(WB_STB_I),       .wb_ack_o(WB_ACK_O), .wb_err_o(WB_ERR_O), 
  	
 `ifdef EXTERNAL_DMA
- 	.wb_req_o(WB_REQ_O), .wb_nd_o(WB_ND_O),   .wb_rd_o(WB_RD_O), 
+ 	.wb_ack_i(WB_ACK_I), .wb_req_o(WB_REQ_O), .wb_nd_o(WB_ND_O),   .wb_rd_o(WB_RD_O), 
 `else
 // WISHBONE master
   .m_wb_adr_o(m_wb_adr_o), .m_wb_sel_o(m_wb_sel_o), .m_wb_we_o(m_wb_we_o), .m_wb_dat_i(m_wb_dat_i), 

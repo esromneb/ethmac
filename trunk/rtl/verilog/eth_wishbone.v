@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2002/02/26 16:22:07  mohor
+// Interrupts changed
+//
 // Revision 1.11  2002/02/15 17:07:39  mohor
 // Status was not written correctly when frames were discarted because of
 // address mismatch.
@@ -1847,7 +1850,7 @@ assign Busy_IRQ = 1'b0;
 // bit 10 od rx je reserved
 // bit 9  od rx je reserved
 // bit 8  od rx je reserved
-// bit 7  od rx je reserved
+// bit 7  od rx je Miss               still needs to be done
 // bit 6  od rx je RxOverrun
 // bit 5  od rx je InvalidSymbol
 // bit 4  od rx je DribbleNibble
