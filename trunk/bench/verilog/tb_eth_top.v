@@ -3,7 +3,7 @@
 ////  tb_eth_top.v                                                ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
-////  http://www.opencores.org/cores/ethmac/                      ////
+////  http://www.opencores.org/projects/ethmac/                   ////
 ////                                                              ////
 ////  Author(s):                                                  ////
 ////      - Igor Mohor (igorM@opencores.org)                      ////
@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2001/12/08 12:36:00  mohor
+// TX_BD_NUM register added instead of the RB_BD_ADDR.
+//
 // Revision 1.5  2001/10/19 11:24:04  mohor
 // Number of addresses (wb_adr_i) minimized.
 //
@@ -95,14 +98,28 @@ reg    [3:0]  WB_SEL_I;
 reg           WB_WE_I;
 reg           WB_CYC_I;
 reg           WB_STB_I;
-reg    [1:0]  WB_ACK_I;
 
 wire  [31:0]  WB_DAT_O;
 wire          WB_ACK_O;
 wire          WB_ERR_O;
+reg    [1:0]  WB_ACK_I;
+
+`ifdef WISHBONE_DMA
 wire   [1:0]  WB_REQ_O;
 wire   [1:0]  WB_ND_O;
 wire          WB_RD_O;
+`else
+// WISHBONE master
+wire    [31:0]    m_wb_adr_o;
+wire     [3:0]    m_wb_sel_o;
+wire              m_wb_we_o;
+reg     [31:0]    m_wb_dat_i;
+wire    [31:0]    m_wb_dat_o;
+wire              m_wb_cyc_o;
+wire              m_wb_stb_o;
+reg               m_wb_ack_i;
+reg               m_wb_err_i;
+`endif
 
 reg           MTxClk;
 wire   [3:0]  MTxD;
@@ -115,6 +132,7 @@ reg           MRxDV;
 reg           MRxErr;
 reg           MColl;
 reg           MCrs;
+reg           RxAbort;
 
 reg           Mdi_I;
 wire          Mdo_O;
@@ -130,7 +148,11 @@ reg StartTB;
 reg [9:0] TxBDIndex;
 reg [9:0] RxBDIndex;
 
-
+`ifdef WISHBONE_DMA
+`else
+  integer mcd1;
+  integer mcd2;
+`endif
 
 // Connecting Ethernet top module
 
@@ -141,8 +163,16 @@ eth_top ethtop
 
   // WISHBONE slave
  	.wb_adr_i(WB_ADR_I[11:2]), .wb_sel_i(WB_SEL_I), .wb_we_i(WB_WE_I),   .wb_cyc_i(WB_CYC_I), 
- 	.wb_stb_i(WB_STB_I), .wb_ack_o(WB_ACK_O), .wb_err_o(WB_ERR_O), .wb_req_o(WB_REQ_O), 
- 	.wb_ack_i(WB_ACK_I), .wb_nd_o(WB_ND_O),   .wb_rd_o(WB_RD_O), 
+ 	.wb_stb_i(WB_STB_I),       .wb_ack_o(WB_ACK_O), .wb_err_o(WB_ERR_O), .wb_ack_i(WB_ACK_I), 
+ 	
+`ifdef WISHBONE_DMA
+ 	.wb_req_o(WB_REQ_O), .wb_nd_o(WB_ND_O),   .wb_rd_o(WB_RD_O), 
+`else
+// WISHBONE master
+  .m_wb_adr_o(m_wb_adr_o), .m_wb_sel_o(m_wb_sel_o), .m_wb_we_o(m_wb_we_o), .m_wb_dat_i(m_wb_dat_i), 
+  .m_wb_dat_o(m_wb_dat_o), .m_wb_cyc_o(m_wb_cyc_o), .m_wb_stb_o(m_wb_stb_o), .m_wb_ack_i(m_wb_ack_i), 
+  .m_wb_err_i(m_wb_err_i), 
+`endif
 
   //TX
   .mtx_clk_pad_i(MTxClk), .mtxd_pad_o(MTxD), .mtxen_pad_o(MTxEn), .mtxerr_pad_o(MTxErr),
@@ -150,6 +180,8 @@ eth_top ethtop
   //RX
   .mrx_clk_pad_i(MRxClk), .mrxd_pad_i(MRxD), .mrxdv_pad_i(MRxDV), .mrxerr_pad_i(MRxErr), 
   .mcoll_pad_i(MColl), .mcrs_pad_i(MCrs), 
+  .RxAbort(RxAbort), // igor !!! Ta se mora preseliti da bo prisel iz enega izmed modulov. Tu je le zaradi
+                     // testiranja. Pove, kdaj adresa ni ustrezala in se paketi sklirajo, stevci pa resetirajo.
   
   // MIIM
   .mdc_pad_o(Mdc_O), .md_pad_i(Mdi_I), .md_pad_o(Mdo_O), .md_padoen_o(Mdo_OE),
@@ -172,7 +204,13 @@ begin
   WB_WE_I   =  1'b0;
   WB_CYC_I  =  1'b0;
   WB_STB_I  =  1'b0;
+
+`ifdef WISHBONE_DMA
   WB_ACK_I  =  2'h0;
+`else
+  m_wb_ack_i = 0;
+  m_wb_err_i = 0;
+`endif
   MTxClk    =  1'b0;
   MRxClk    =  1'b0;
   MRxD      =  4'h0;
@@ -180,6 +218,7 @@ begin
   MRxErr    =  1'b0;
   MColl     =  1'b0;
   MCrs      =  1'b0;
+  RxAbort   =  1'b0;
   Mdi_I     =  1'b0;
 
   WishboneBusy = 1'b0;
@@ -191,9 +230,12 @@ end
 // Reset pulse
 initial
 begin
-  GSR           =  1'b1;
-  WB_RST_I      =  1'b1;
-  #100 WB_RST_I =  1'b1;
+`ifdef WISHBONE_DMA
+`else
+  mcd1 = $fopen("ethernet_tx.log");
+  mcd2 = $fopen("ethernet_rx.log");
+`endif
+  WB_RST_I =  1'b1;
   GSR           =  1'b1;
   #100 WB_RST_I =  1'b0;
   GSR           =  1'b0;
@@ -208,11 +250,14 @@ assign glbl.GSR = GSR;
 // Generating WB_CLK_I clock
 always
 begin
+//  forever #2.5 WB_CLK_I = ~WB_CLK_I;  // 2*2.5 ns -> 200.0 MHz    
 //  forever #5 WB_CLK_I = ~WB_CLK_I;  // 2*5 ns -> 100.0 MHz    
 //  forever #10 WB_CLK_I = ~WB_CLK_I;  // 2*10 ns -> 50.0 MHz    
   forever #15 WB_CLK_I = ~WB_CLK_I;  // 2*10 ns -> 33.3 MHz    
 //  forever #18 WB_CLK_I = ~WB_CLK_I;  // 2*18 ns -> 27.7 MHz    
-//  forever #100 WB_CLK_I = ~WB_CLK_I;
+//  forever #25 WB_CLK_I = ~WB_CLK_I;  // 2*25 ns -> 20.0 MHz
+//  forever #50 WB_CLK_I = ~WB_CLK_I;  // 2*50 ns -> 10.0 MHz
+//  forever #55 WB_CLK_I = ~WB_CLK_I;  // 2*55 ns ->  9.1 MHz    
 end
 
 // Generating MTxClk clock
@@ -229,8 +274,7 @@ begin
 //  #16 forever #250 MRxClk = ~MRxClk;
 end
 
-
-
+`ifdef WISHBONE_DMA
 initial
 begin
   wait(StartTB);  // Start of testbench
@@ -649,6 +693,373 @@ task GetControlDataOnMRxD;
   end
 endtask
 
+`else // No WISHBONE_DMA
+
+initial
+begin
+  wait(StartTB);  // Start of testbench
+  
+  WishboneWrite(32'h00000800, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 1
+  WishboneWrite(32'h00000000, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 0
+  WishboneWrite(32'h00000080, {26'h0, `ETH_TX_BD_NUM_ADR<<2}); // r_RxBDAddress = 0x80
+
+  WishboneWrite(32'h0002A443, {26'h0, `ETH_MODER_ADR<<2});     // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
+
+  WishboneWrite(32'h00000004, {26'h0, `ETH_CTRLMODER_ADR<<2}); //r_TxFlow = 1
+
+
+  SendPacket(16'h0010, 1'b0);
+  SendPacket(16'h0011, 1'b0);
+  SendPacket(16'h0012, 1'b0);
+  SendPacket(16'h0013, 1'b0);
+  SendPacket(16'h0014, 1'b0);
+
+  SendPacket(16'h0030, 1'b0);
+  SendPacket(16'h0031, 1'b0);
+  SendPacket(16'h0032, 1'b0);
+  SendPacket(16'h0033, 1'b0);
+  SendPacket(16'h0025, 1'b0);
+  SendPacket(16'h0045, 1'b0);
+  SendPacket(16'h0025, 1'b0);
+  SendPacket(16'h0017, 1'b0);
+
+//  ReceivePacket(16'h0012, 1'b1, 1'b0);    // Initializes RxBD and then Sends a control packet on the MRxD[3:0] signals.
+  ReceivePacket(16'h0015, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0016, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0017, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0018, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+
+  repeat(5000) @ (posedge MRxClk);        // Waiting some time for all accesses to finish before reading out the statuses.
+
+  WishboneRead({26'h0, `ETH_MODER_ADR});   // Read from MODER register
+
+  WishboneRead({24'h04, (8'h0<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h1<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h2<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h3<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h4<<2)});       // Read from TxBD register
+
+  
+  WishboneRead({22'h01, (10'h80<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h81<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h82<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h83<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h84<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h85<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h86<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h87<<2)});       // Read from RxBD register
+
+  #100000 $stop;
+end
+
+//integer ijk;
+
+//initial
+//ijk = 0;    // for stoping generation of the m_wb_ack_i signal at the right moment so we get underrun
+
+// Answering to master Wishbone requests
+always @ (posedge WB_CLK_I)
+begin
+  if(m_wb_cyc_o & m_wb_stb_o) // Add valid address range
+    begin
+      repeat(3) @ (posedge WB_CLK_I);
+        begin
+//          if(ijk==41)
+//            begin
+//              repeat(1000) @ (posedge WB_CLK_I);
+//            end
+//          else
+            m_wb_ack_i <=#Tp 1'b1;
+          if(~m_wb_we_o)
+            begin
+              #Tp m_wb_dat_i = m_wb_adr_o + 1'b1; // For easier following of the data
+              $fdisplay(mcd1, "(%0t) master read (0x%0x) = 0x%0x", $time, m_wb_adr_o, m_wb_dat_i);
+//              ijk = ijk + 1;
+            end
+          else
+            $fdisplay(mcd2, "(%0t) master write (0x%0x) = 0x%0x", $time, m_wb_adr_o, m_wb_dat_o);
+        end
+      @ (posedge WB_CLK_I);
+      m_wb_ack_i <=#Tp 1'b0;
+    end
+end
+
+// Generating error
+always @ (posedge WB_CLK_I)
+begin
+  if(m_wb_cyc_o & m_wb_stb_o & ~(&m_wb_sel_o))  // Add false address range
+    m_wb_err_i <=#Tp 1'b1;
+end
+
+always @ (posedge WB_CLK_I)
+  if(tb_eth_top.ethtop.wishbone.RxStatusWrite)
+    $fdisplay(mcd2, "");  // newline added
+
+task WishboneWrite;
+  input [31:0] Data;
+  input [31:0] Address;
+  integer ii;
+
+  begin
+    wait (~WishboneBusy);
+    WishboneBusy = 1;
+    @ (posedge WB_CLK_I);
+    #1;
+    WB_ADR_I = Address;
+    WB_DAT_I = Data;
+    WB_WE_I  = 1'b1;
+    WB_CYC_I = 1'b1;
+    WB_STB_I = 1'b1;
+    WB_SEL_I = 4'hf;
+
+
+    wait(WB_ACK_O);   // waiting for acknowledge response
+
+    // Writing information about the access to the screen
+    @ (posedge WB_CLK_I);
+      if(~Address[11] & ~Address[10])
+        $write("\n(%0t) Write to register (Data: 0x%x, Reg. Addr: 0x%0x)", $time, Data, Address);
+      else
+      if(~Address[11] & Address[10])
+        if(Address[9:2] < tb_eth_top.ethtop.r_TxBDNum)
+          begin
+            $write("\n(%0t) Write to TxBD (Data: 0x%x, TxBD Addr: 0x%0x)", $time, Data, Address);
+            if(Data[9])
+              $write("(%0t) Send Control packet (PAUSE = 0x%0h)\n", $time, Data[31:16]);
+          end
+        else
+          $write("\n(%0t) Write to RxBD (Data: 0x%x, RxBD Addr: 0x%0x)", $time, Data, Address);
+      else
+        $write("\n(%0t) WB write ??????????????     Data: 0x%x      Addr: 0x%0x", $time, Data, Address);
+    #1;
+    WB_ADR_I = 32'hx;
+    WB_DAT_I = 32'hx;
+    WB_WE_I  = 1'bx;
+    WB_CYC_I = 1'b0;
+    WB_STB_I = 1'b0;
+    WB_SEL_I = 4'hx;
+    #5 WishboneBusy = 0;
+  end
+endtask
+
+
+task WishboneRead;
+  input [31:0] Address;
+
+  begin
+    wait (~WishboneBusy);
+    WishboneBusy = 1;
+    @ (posedge WB_CLK_I);
+    #1;
+    WB_ADR_I = Address;
+    WB_WE_I  = 1'b0;
+    WB_CYC_I = 1'b1;
+    WB_STB_I = 1'b1;
+    WB_SEL_I = 4'hf;
+
+    wait(WB_ACK_O);   // waiting for acknowledge response
+    @ (posedge WB_CLK_I);
+
+      if(~Address[11] & ~Address[10])
+        $write("\n(%0t) Read from register (Data: 0x%x, Reg. Addr: 0x%0x)", $time, WB_DAT_O, Address);
+      else
+      if(~Address[11] & Address[10])
+        if(Address[9:2] < tb_eth_top.ethtop.r_TxBDNum)
+          begin
+            $write("\n(%0t) Read from TxBD (Data: 0x%x, TxBD Addr: 0x%0x)", $time, WB_DAT_O, Address);
+          end
+        else
+          $write("\n(%0t) Read from RxBD (Data: 0x%x, RxBD Addr: 0x%0x)", $time, WB_DAT_O, Address);
+      else
+        $write("\n(%0t) WB read  ?????????    Data: 0x%x      Addr: 0x%0x", $time, WB_DAT_O, Address);
+    #1;
+    WB_ADR_I = 32'hx;
+    WB_WE_I  = 1'bx;
+    WB_CYC_I = 1'b0;
+    WB_STB_I = 1'b0;
+    WB_SEL_I = 4'hx;
+    #5 WishboneBusy = 0;
+  end
+endtask
+
+
+
+
+task SendPacket;
+  input [15:0]  Length;
+  input         ControlFrame;
+  reg           Wrap;
+  reg [31:0]    TempAddr;
+  reg [31:0]    TempData;
+  
+  begin
+//    if(TxBDIndex == 6)    // Only 3 buffer descriptors are used 
+//      Wrap = 1'b1;
+//    else
+      Wrap = 1'b0;    // At the moment no wrap bit is set
+
+    // Writing buffer pointer
+    TempAddr = {22'h01, ((TxBDIndex + 1'b1)<<2)};
+    TempData = 32'h78563411;
+    WishboneWrite(TempData, TempAddr); // buffer pointer
+
+
+    TempAddr = {22'h01, (TxBDIndex<<2)};  // igor !!! zbrisi spodnjo vrstico
+//    TempAddr = {22'h01, 10'b1010010100};
+
+    TempData = {Length[15:0], 1'b1, 1'b0, Wrap, 3'h0, ControlFrame, 1'b0, TxBDIndex[7:0]};  // Ready and Wrap = 1
+
+    #1;
+//    if(TxBDIndex == 6)    // Only 4 buffer descriptors are used
+//      TxBDIndex = 0;
+//    else
+      TxBDIndex = TxBDIndex + 2;
+
+    WishboneWrite(TempData, TempAddr); // Writing status to TxBD
+  end
+endtask
+
+
+
+task ReceivePacket;    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  input [15:0] LengthRx;
+  input        RxControlFrame;
+  input        Abort;
+  reg        WrapRx;
+  reg [31:0] TempRxAddr;
+  reg [31:0] TempRxData;
+  reg abc;
+  begin
+//    if(RxBDIndex == 6)    // Only 3 buffer descriptors are used
+//      WrapRx = 1'b1;
+//    else
+      WrapRx = 1'b0;
+
+    TempRxAddr = {22'h01, ((tb_eth_top.ethtop.r_TxBDNum + RxBDIndex + 1'b1)<<2)};
+    TempRxData = 32'h73507350 + RxBDIndex;
+    WishboneWrite(TempRxData, TempRxAddr); // Writing Rx pointer
+
+
+    TempRxAddr = {22'h01, ((tb_eth_top.ethtop.r_TxBDNum + RxBDIndex)<<2)};
+//    TempRxData = {LengthRx[15:0], 1'b1, 1'b0, WrapRx, 5'h0, RxBDIndex[7:0]};  // Ready and WrapRx = 1 or 0
+    TempRxData = {16'h0, 1'b1, 1'b0, WrapRx, 5'h0, RxBDIndex[7:0]};  // Ready and WrapRx = 1 or 0
+
+    #1;
+//    if(RxBDIndex == 6)    // Only 4 buffer descriptors are used
+//      RxBDIndex = 0;
+//    else
+      RxBDIndex = RxBDIndex + 2;
+
+    abc=1;
+    WishboneWrite(TempRxData, TempRxAddr); // Writing status to RxBD
+    abc=0;
+
+      begin
+        #200;
+        if(RxControlFrame)
+          GetControlDataOnMRxD(LengthRx); // LengthRx = PAUSE timer value.
+        else
+          GetDataOnMRxD(LengthRx, Abort); // LengthRx bytes is comming on MRxD[3:0] signals
+      end
+
+  end
+endtask
+
+
+task GetDataOnMRxD;
+  input [15:0] Len;
+  input abort;
+  integer tt;
+
+  begin
+    @ (posedge MRxClk);
+    MRxDV=1'b1;
+    
+    for(tt=0; tt<15; tt=tt+1)
+    begin
+      MRxD=4'h5;              // preamble
+      @ (posedge MRxClk);
+    end
+    MRxD=4'hd;                // SFD
+    
+    for(tt=1; tt<(Len+1); tt=tt+1)
+    begin
+      @ (posedge MRxClk);
+      MRxD=tt[3:0];
+      if(tt==9)
+        RxAbort<=#1 abort;
+      @ (posedge MRxClk);
+      MRxD=tt[7:4];
+      RxAbort<=#1 0;
+    end
+    @ (posedge MRxClk);
+    MRxDV=1'b0;
+  end
+endtask
+
+
+task GetControlDataOnMRxD;
+  input [15:0] Timer;
+  reg [127:0] Packet;
+  reg [127:0] Data;
+  reg [31:0] Crc;
+  integer tt;
+
+  begin
+  Packet = 128'h10082C000010_deadbeef0013_8880_0010; // 0180c2000001 + 8808 + 0001
+  Crc = 32'h6014fe08; // not a correct value
+  
+    @ (posedge MRxClk);
+    MRxDV=1'b1;
+    
+    for(tt=0; tt<15; tt=tt+1)
+    begin
+      MRxD=4'h5;              // preamble
+      @ (posedge MRxClk);
+    end
+    MRxD=4'hd;                // SFD
+    
+    for(tt=0; tt<32; tt=tt+1)
+    begin
+      Data = Packet << (tt*4);
+      @ (posedge MRxClk);
+      MRxD=Data[127:124];
+    end
+    
+    for(tt=0; tt<2; tt=tt+1)    // timer
+    begin
+      Data[15:0] = Timer << (tt*8);
+      @ (posedge MRxClk);
+      MRxD=Data[11:8];
+      @ (posedge MRxClk);
+      MRxD=Data[15:12];
+    end
+    
+    for(tt=0; tt<42; tt=tt+1)   // padding
+    begin
+      Data[7:0] = 8'h0;
+      @ (posedge MRxClk);
+      MRxD=Data[3:0];
+      @ (posedge MRxClk);
+      MRxD=Data[3:0];
+    end
+    
+    for(tt=0; tt<4; tt=tt+1)    // crc
+    begin
+      Data[31:0] = Crc << (tt*8);
+      @ (posedge MRxClk);
+      MRxD=Data[27:24];
+      @ (posedge MRxClk);
+      MRxD=Data[31:28];
+    end
+    
+    
+    
+    @ (posedge MRxClk);
+    MRxDV=1'b0;
+  end
+endtask
+`endif
 
 
 endmodule

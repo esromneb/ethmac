@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.8  2001/12/05 15:00:16  mohor
 // RX_BD_NUM changed to TX_BD_NUM (holds number of TX descriptors
 // instead of the number of RX descriptors).
@@ -100,13 +103,23 @@ module eth_top
 
   // WISHBONE slave
   wb_adr_i, wb_sel_i, wb_we_i, wb_cyc_i, wb_stb_i, wb_ack_o, wb_err_o, 
-  wb_req_o, wb_ack_i, wb_nd_o, wb_rd_o, 
+  wb_ack_i, 
+
+`ifdef WISHBONE_DMA
+  wb_req_o, wb_nd_o, wb_rd_o, 
+`else
+  // WISHBONE master
+  m_wb_adr_o, m_wb_sel_o, m_wb_we_o, 
+  m_wb_dat_o, m_wb_dat_i, m_wb_cyc_o, 
+  m_wb_stb_o, m_wb_ack_i, m_wb_err_i, 
+`endif
 
   //TX
   mtx_clk_pad_i, mtxd_pad_o, mtxen_pad_o, mtxerr_pad_o,
 
   //RX
   mrx_clk_pad_i, mrxd_pad_i, mrxdv_pad_i, mrxerr_pad_i, mcoll_pad_i, mcrs_pad_i, 
+  RxAbort, 
   
   // MIIM
   mdc_pad_o, md_pad_i, md_pad_o, md_padoen_o,
@@ -135,11 +148,25 @@ input           wb_cyc_i;     // WISHBONE cycle input
 input           wb_stb_i;     // WISHBONE strobe input
 output          wb_ack_o;     // WISHBONE acknowledge output
 
+`ifdef WISHBONE_DMA
 // DMA
-input    [1:0]  wb_ack_i;     // DMA acknowledge input
 output   [1:0]  wb_req_o;     // DMA request output
 output   [1:0]  wb_nd_o;      // DMA force new descriptor output
 output          wb_rd_o;      // DMA restart descriptor output
+`else
+// WISHBONE master
+output  [31:0]  m_wb_adr_o;
+output   [3:0]  m_wb_sel_o;
+output          m_wb_we_o;
+input   [31:0]  m_wb_dat_i;
+output  [31:0]  m_wb_dat_o;
+output          m_wb_cyc_o;
+output          m_wb_stb_o;
+input           m_wb_ack_i;
+input           m_wb_err_i;
+`endif
+
+input    [1:0]  wb_ack_i;     // DMA acknowledge input
 
 // Tx
 input           mtx_clk_pad_i; // Transmit clock (from PHY)
@@ -156,6 +183,8 @@ input           mrxerr_pad_i;  // Receive data error (from PHY)
 // Common Tx and Rx
 input           mcoll_pad_i;   // Collision (from PHY)
 input           mcrs_pad_i;    // Carrier sense (from PHY)
+input           RxAbort;       // igor !!! Ta se mora preseliti da bo prisel iz enega izmed modulov. Tu je le zaradi
+                               // testiranja. Pove, kdaj adresa ni ustrezala in se paketi sklirajo, stevci pa resetirajo.
 
 // MII Management interface
 input           md_pad_i;      // MII data input (from I/O cell)
@@ -299,6 +328,7 @@ wire  [7:0] RxData;
 wire        RxValid;
 wire        RxStartFrm;
 wire        RxEndFrm;
+wire        RxAbort;
 
 wire        WillTransmit;            // Will transmit (to RxEthMAC)
 wire        ResetCollision;          // Reset Collision (for synchronizing collision)
@@ -313,7 +343,7 @@ wire        ReceivedLengthOK;
 // Connecting MACControl
 eth_maccontrol maccontrol1
 (
-  .MTxClk(mtx_clk_pad_i),                        .TPauseRq(TPauseRq), 
+  .MTxClk(mtx_clk_pad_i),                       .TPauseRq(TPauseRq), 
   .TxPauseTV(TxPauseTV),                        .TxDataIn(TxData), 
   .TxStartFrmIn(TxStartFrm),                    .TxEndFrmIn(TxEndFrm), 
   .TxUsedDataIn(TxUsedDataIn),                  .TxDoneIn(TxDoneIn), 
@@ -495,16 +525,32 @@ end
 
 
 // Connecting WishboneDMA module
-eth_wishbonedma wbdma
+`ifdef WISHBONE_DMA
+eth_wishbonedma wishbone
+`else
+eth_wishbone wishbone
+`endif
 (
-  .WB_CLK_I(wb_clk_i),                .WB_RST_I(wb_rst_i),                      .WB_DAT_I(wb_dat_i), 
+  .WB_CLK_I(wb_clk_i),                .WB_DAT_I(wb_dat_i), 
   .WB_DAT_O(DMA_WB_DAT_O), 
 
   // WISHBONE slave
   .WB_ADR_I(wb_adr_i[9:2]),           .WB_SEL_I(wb_sel_i),                      .WB_WE_I(wb_we_i), 
   .BDCs(BDCs),                        .WB_ACK_O(BDAck), 
-  .WB_REQ_O(wb_req_o),                .WB_ACK_I(wb_ack_i),                      .WB_ND_O(wb_nd_o), 
-  .WB_RD_O(wb_rd_o), 
+
+  .Reset(wb_rst_i), 
+
+`ifdef WISHBONE_DMA
+  .WB_REQ_O(wb_req_o),                .WB_ND_O(wb_nd_o),                        .WB_RD_O(wb_rd_o), 
+  .WB_ACK_I(wb_ack_i),
+`else
+  // WISHBONE master
+  .m_wb_adr_o(m_wb_adr_o),            .m_wb_sel_o(m_wb_sel_o),                  .m_wb_we_o(m_wb_we_o), 
+  .m_wb_dat_i(m_wb_dat_i),            .m_wb_dat_o(m_wb_dat_o),                  .m_wb_cyc_o(m_wb_cyc_o), 
+  .m_wb_stb_o(m_wb_stb_o),            .m_wb_ack_i(m_wb_ack_i),                  .m_wb_err_i(m_wb_err_i), 
+`endif
+
+
 
     //TX
   .MTxClk(mtx_clk_pad_i),             .TxStartFrm(TxStartFrm),                  .TxEndFrm(TxEndFrm), 
@@ -520,9 +566,15 @@ eth_wishbonedma wbdma
 
   //RX
   .MRxClk(mrx_clk_pad_i),             .RxData(RxData),                          .RxValid(RxValid), 
-  .RxStartFrm(RxStartFrm),            .RxEndFrm(RxEndFrm), 
+  .RxStartFrm(RxStartFrm),            .RxEndFrm(RxEndFrm),                      
   .Busy_IRQ(Busy_IRQ),                .RxF_IRQ(RxF_IRQ),                        .RxB_IRQ(RxB_IRQ), 
   .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ)
+
+`ifdef WISHBONE_DMA
+`else
+  ,
+  .RxAbort(RxAbort)
+`endif
 
 );
 
@@ -531,7 +583,7 @@ eth_wishbonedma wbdma
 // Connecting MacStatus module
 eth_macstatus macstatus1 
 (
-  .MRxClk(mrx_clk_pad_i),              .Reset(r_Rst),                            .TransmitEnd(), 
+  .MRxClk(mrx_clk_pad_i),             .Reset(r_Rst),                            .TransmitEnd(), 
   .ReceiveEnd(ReceiveEnd),            .ReceivedPacketGood(ReceivedPacketGood),  .ReceivedLengthOK(ReceivedLengthOK), 
   .RxCrcError(RxCrcError),            .MRxErr(MRxErr_Lb),                       .MRxDV(MRxDV_Lb), 
   .RxStateSFD(RxStateSFD),            .RxStateData(RxStateData),                .RxStatePreamble(RxStatePreamble), 

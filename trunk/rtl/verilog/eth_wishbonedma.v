@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.9  2001/12/05 15:00:16  mohor
 // RX_BD_NUM changed to TX_BD_NUM (holds number of TX descriptors
 // instead of the number of RX descriptors).
@@ -98,7 +101,7 @@ module eth_wishbonedma
    (
 
     // WISHBONE common
-    WB_CLK_I, WB_RST_I, WB_DAT_I, WB_DAT_O, 
+    WB_CLK_I, Reset, WB_DAT_I, WB_DAT_O, 
 
     // WISHBONE slave
  		WB_ADR_I, WB_SEL_I, WB_WE_I, WB_ACK_O, 
@@ -127,7 +130,7 @@ parameter Tp = 1;
 
 // WISHBONE common
 input           WB_CLK_I;       // WISHBONE clock
-input           WB_RST_I;       // WISHBONE reset
+input           Reset;          // WISHBONE reset
 input  [31:0]   WB_DAT_I;       // WISHBONE data input
 output [31:0]   WB_DAT_O;       // WISHBONE data output
 
@@ -262,14 +265,14 @@ reg     [7:0]   RxBDAddress;
 reg             GotDataSync1;
 reg             GotDataSync2;
 wire            TPauseRqSync2;
-wire             GotDataSync3;
+wire            GotDataSync3;
 reg             GotData;
 reg             SyncGetNewTxData_wb1;
 reg             SyncGetNewTxData_wb2;
 reg             SyncGetNewTxData_wb3;
 reg             TxDoneSync1;
 reg             TxDoneSync2;
-wire             TxDoneSync3;
+wire            TxDoneSync3;
 reg             TxRetrySync1;
 reg             TxRetrySync2;
 wire            TxRetrySync3;
@@ -395,9 +398,9 @@ assign WB_ACK_O = BDWe | BDRead & BDRead_q;  // ACK is delayed one clock because
 
 
 reg EnableRAM;
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     EnableRAM   <=#Tp 1'b0;
   else
   if(BDWe)
@@ -410,18 +413,18 @@ end
 // Generic synchronous two-port RAM interface
 generic_tpram     #(8, 32)  i_generic_tpram 
 (
-  .clk_a(WB_CLK_I),   .rst_a(WB_RST_I),         .ce_a(1'b1),        .we_a(BDWe), 
+  .clk_a(WB_CLK_I),   .rst_a(Reset),            .ce_a(1'b1),        .we_a(BDWe), 
   .oe_a(EnableRAM),   .addr_a(WB_ADR_I[9:2]),   .di_a(WB_DAT_I),    .do_a(WB_BDDataOut),
   
-  .clk_b(WB_CLK_I),   .rst_b(WB_RST_I),         .ce_b(EnableRAM),   .we_b(BDStatusWrite), 
+  .clk_b(WB_CLK_I),   .rst_b(Reset),            .ce_b(EnableRAM),   .we_b(BDStatusWrite), 
   .oe_b(EnableRAM),   .addr_b(BDAddress[7:0]),  .di_b(BDDataIn),    .do_b(BDDataOut)
 );
 
 
 // WB_CLK_I is divided by 2. This signal is used for enabling tx and rx operations sequentially
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     Div2 <=#Tp 1'h0;
   else
     Div2 <=#Tp ~Div2;
@@ -434,9 +437,9 @@ assign RxEn = ~Div2 & r_RxEn;
 
 
 // Changes for tx occur every second clock. Flop is used for this manner.
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     Flop <=#Tp 1'b0;
   else
   if(TxDone | TxAbort | TxRetry_q)
@@ -448,9 +451,9 @@ end
 
 
 // Latching READY status of the Tx buffer descriptor
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxBDReady <=#Tp 1'b0;
   else
   if(TxEn & TxBDRead)
@@ -462,9 +465,9 @@ end
 
 
 // Latching READY status of the Tx buffer descriptor
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     begin
       TxPauseRq <=#Tp 1'b0;
     end
@@ -483,9 +486,9 @@ assign TxPauseTV[15:0] = TxLength[15:0];
 // Reading the Tx buffer descriptor
 assign StartTxBDRead = TxEn & ~BlockingTxBDRead & (TxRetry_wb | TxStatusWriteOccured);
 
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxBDRead <=#Tp 1'b1;
   else
   if(StartTxBDRead)
@@ -503,9 +506,9 @@ assign ResetTxDataRead = DMACycleFinishedTx | TxRestartPulse | TxAbortPulse | Tx
 
 
 // Reading data
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxDataRead <=#Tp 1'b0;
   else
   if(StartTxDataRead & r_DmaEn)
@@ -524,9 +527,9 @@ assign DMACycleFinishedTx = WB_REQ_O[0] & WB_ACK_I[0] & TxBDReady;
 assign StartTxStatusWrite = TxEn & ~BlockingTxStatusWrite & (TxDone_wb | TxAbort_wb | TxCtrlEndFrm_wb);
 assign ResetTxStatusWrite = TxStatusWrite;
 
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxStatusWrite <=#Tp 1'b0;
   else
   if(StartTxStatusWrite)
@@ -538,9 +541,9 @@ end
 
 
 // Status writing must occur only once. Meanwhile it is blocked.
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     BlockingTxStatusWrite <=#Tp 1'b0;
   else
   if(StartTxStatusWrite)
@@ -553,9 +556,9 @@ end
 
 // After a tx status write is finished, a new tx buffer descriptor is read. Signal must be
 // latched because new BD read doesn't occur immediately.
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxStatusWriteOccured <=#Tp 1'b0;
   else
   if(StartTxStatusWrite)
@@ -567,9 +570,9 @@ end
 
 
 // TxBDRead state is activated only once. 
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     BlockingTxBDRead <=#Tp 1'b0;
   else
   if(StartTxBDRead)
@@ -582,9 +585,9 @@ end
 
 // Latching status from the tx buffer descriptor
 // Data is avaliable one cycle after the access is started (at that time signal TxEn is not active)
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxStatus <=#Tp 32'h0;
   else
   if(TxBDRead & TxEn)
@@ -593,9 +596,9 @@ end
 
 
 //Latching length from the buffer descriptor;
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxLength <=#Tp 16'h0;
   else
   if(TxBDRead & TxEn)
@@ -613,9 +616,9 @@ end
 
 // Latching Rx buffer descriptor status
 // Data is avaliable one cycle after the access is started (at that time signal RxEn is not active)
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxStatus <=#Tp 16'h0;
   else
   if(RxBDRead & RxEn)
@@ -625,9 +628,9 @@ end
 
 // Signal GetNewTxData_wb that requests new data from the DMA must be latched since the DMA response
 // might be delayed.
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     GetNewTxData_wb_latched <=#Tp 1'b0;
   else
   if(GetNewTxData_wb)
@@ -639,9 +642,9 @@ end
 
 
 // New tx data is avaliable after the DMA access is finished
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     NewTxDataAvaliable_wb <=#Tp 1'b0;
   else
   if(DMACycleFinishedTx & GetNewTxData_wb_latched)
@@ -654,9 +657,9 @@ end
 
 // Tx Buffer descriptor is only read at the beginning. This signal is used for generation of the
 // TxStartFrm_wb signal.
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxBDAccessed <=#Tp 1'b0;
   else
   if(TxBDRead)
@@ -668,9 +671,9 @@ end
 
 
 // TxStartFrm_wb: indicator of the start frame (synchronized to WB_CLK_I)
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxStartFrm_wb <=#Tp 1'b0;
   else
   if(DMACycleFinishedTx & TxBDAccessed & ~TxStartFrm_wb)
@@ -686,9 +689,9 @@ assign TxEndFrm_wb = (TxLength <= 4) & TxUsedData;
 
 
 // Input latch of the end-of-frame indicator
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxEndFrm_wbLatched <=#Tp 1'b0;
   else
   if(TxEndFrm_wb)
@@ -704,9 +707,9 @@ assign TxValidBytes = (TxLength >= 4)? 2'b0 : TxLength[1:0];
 
 
 // Latching valid bytes
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxValidBytesLatched <=#Tp 2'h0;
   else
   if(TxEndFrm_wb & ~TxEndFrm_wbLatched)
@@ -718,9 +721,9 @@ end
 
 
 // Input Tx data latch 
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxDataLatched_wb <=#Tp 32'h0;
   else
   if(DMACycleFinishedTx)
@@ -729,9 +732,9 @@ end
 
 
 // TxStartFrmRequest is set when a new frame is avaliable or when new data of the same frame is avaliable)
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxStartFrmRequest <=#Tp 1'b0;
   else
   if(TxStartFrm_wb | NewTxDataAvaliable_wb)
@@ -795,9 +798,9 @@ assign TempRxBDAddress[7:0] = {8{ WrapRxStatusBit}} & (r_TxBDNum)       | // Usi
 
 
 // Latching Tx buffer descriptor address
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxBDAddress <=#Tp 8'h0;
   else
   if(TxStatusWrite)
@@ -806,9 +809,9 @@ end
 
 
 // Latching Rx buffer descriptor address
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxBDAddress <=#Tp 8'h0;
   else
   if(TX_BD_NUM_Wr)                        // When r_TxBDNum is updated, RxBDAddress is also
@@ -820,9 +823,9 @@ end
 
 
 // Selecting Tx or Rx buffer descriptor address
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     BDAddress <=#Tp 8'h0;
   else
   if(TxEn)
@@ -844,9 +847,9 @@ assign BDStatusWrite = TxStatusWrite | RxStatusWrite;
 
 
 // Generating delayed signals
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     begin
       TxRestart_wb_q        <=#Tp 1'b0;
       TxDone_wb_q           <=#Tp 1'b0;
@@ -872,9 +875,9 @@ assign TxAbortPulse   = TxAbort_wb   & ~TxAbort_wb_q;
 
 
 // Next descriptor for Tx DMA channel
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     WB_ND_O_TX <=#Tp 1'b0;
   else
   if(TxDonePulse | TxAbortPulse)
@@ -891,9 +894,9 @@ assign WB_ND_O[0] = WB_ND_O_TX;
 
 
 // Restart descriptor for DMA channel 0 (Tx)
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     WB_RD_O <=#Tp 1'b0;
   else
   if(TxRestartPulse)
@@ -905,7 +908,7 @@ end
 
 
 assign SetClearTxBDReady = ~TxUsedData & TxUsedData_q;
-assign ResetClearTxBDReady = ClearTxBDReady | WB_RST_I;
+assign ResetClearTxBDReady = ClearTxBDReady | Reset;
 
 
 always @ (posedge SetClearTxBDReady or posedge ResetClearTxBDReady)
@@ -916,9 +919,9 @@ begin
     ClearTxBDReadySync1 <=#Tp 1'b1;
 end
 
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     ClearTxBDReadySync2 <=#Tp 1'b0;
   else
   if(ClearTxBDReadySync1 & ~ClearTxBDReady)
@@ -928,9 +931,9 @@ begin
 end
 
 
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     ClearTxBDReady <=#Tp 1'b0;
   else
   if(ClearTxBDReadySync2 & ~ClearTxBDReady)
@@ -942,14 +945,14 @@ end
 
 
 // Latching and synchronizing the Tx pause request signal
-eth_sync_clk1_clk2 syn1 (.clk1(MTxClk),     .clk2(WB_CLK_I),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-                         .set2(TxPauseRq),  .sync_out(TPauseRqSync2)
+eth_sync_clk1_clk2 syn1 (.clk1(MTxClk),  .clk2(WB_CLK_I),  .reset1(Reset),    
+                         .reset2(Reset), .set2(TxPauseRq), .sync_out(TPauseRqSync2)
                         );
 
 
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TPauseRq <=#Tp 1'b0;
   else
   if(TPauseRq )
@@ -962,9 +965,9 @@ end
 
 
 // Generating delayed signals
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     begin
       TxAbort_q     <=#Tp 1'b0;
       TxDone_q      <=#Tp 1'b0;
@@ -985,8 +988,8 @@ end
 // Sinchronizing and evaluating tx data
 assign SetGotData = (TxStartFrm_wb | NewTxDataAvaliable_wb & ~TxAbort_wb & ~TxRetry_wb) & ~WB_CLK_I;
 
-eth_sync_clk1_clk2 syn2 (.clk1(MTxClk),     .clk2(WB_CLK_I),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-                         .set2(SetGotData), .sync_out(GotDataSync3));
+eth_sync_clk1_clk2 syn2 (.clk1(MTxClk),  .clk2(WB_CLK_I),   .reset1(Reset),
+                         .reset2(Reset), .set2(SetGotData), .sync_out(GotDataSync3));
 
 
 // Evaluating data. If abort or retry occured meanwhile than data is ignored.
@@ -994,9 +997,9 @@ assign GotDataEvaluate = GotDataSync3 & ~GotData & (~TxRetry & ~TxAbort | (TxRet
 
 
 // Indication of good data
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     GotData <=#Tp 1'b0;
   else
   if(GotDataEvaluate)
@@ -1007,9 +1010,9 @@ end
 
 
 // Tx start frame generation
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxStartFrm <=#Tp 1'b0;
   else
   if(TxUsedData_q | TxAbort & ~TxAbort_q | TxRetry & ~TxRetry_q)
@@ -1021,9 +1024,9 @@ end
 
 
 // Indication of the last word
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     LastWord <=#Tp 1'b0;
   else
   if((TxEndFrm | TxAbort | TxRetry) & Flop)
@@ -1035,9 +1038,9 @@ end
 
 
 // Tx end frame generation
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxEndFrm <=#Tp 1'b0;
   else
   if(Flop & TxEndFrm | TxAbort | TxRetry_q)
@@ -1057,9 +1060,9 @@ end
 
 
 // Tx data selection (latching)
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxData <=#Tp 8'h0;
   else
   if(GotData & ~TxStartFrm & ~TxUsedData)
@@ -1078,9 +1081,9 @@ end
 
 
 // Latching tx data
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxDataLatched[31:0] <=#Tp 32'h0;
   else
   if(GotData & ~TxUsedData & ~TxStartFrm)
@@ -1092,7 +1095,7 @@ end
 
 
 // Generation of the DataNotAvaliable signal which is used for the generation of the TxUnderRun signal
-assign ResetDataNotAvaliable = DMACycleFinishedTx_q | WB_RST_I;
+assign ResetDataNotAvaliable = DMACycleFinishedTx_q | Reset;
 assign SetDataNotAvaliable = GotData & ~TxUsedData & ~TxStartFrm | TxUsedData & Flop & TxByteCnt == 2'h3;
 
 always @ (posedge MTxClk or posedge ResetDataNotAvaliable)
@@ -1106,9 +1109,9 @@ end
 
 
 // Tx under run
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxUnderRun <=#Tp 1'b0;
   else
   if(TxAbort & ~TxAbort_q)
@@ -1121,9 +1124,9 @@ end
 
 
 // Tx Byte counter
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxByteCnt <=#Tp 2'h0;
   else
   if(TxAbort_q | TxRetry_q)
@@ -1138,9 +1141,9 @@ end
 
 
 // Generation of the GetNewTxData signal
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     GetNewTxData <=#Tp 1'b0;
   else
   if(GetNewTxData)
@@ -1155,9 +1158,9 @@ end
 
 
 // TxRetryLatched
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge MTxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxRetryLatched <=#Tp 1'b0;
   else
   if(TxStartFrm)
@@ -1168,14 +1171,8 @@ begin
 end    
 
 
-
-// Synchronizing request for a new tx data
-
-//ne eth_sync_clk1_clk2 syn3 (.clk1(MTxClk),     .clk2(WB_CLK_I),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-//                         .set2(SetGotData), .sync_out(GotDataSync3));
-
 // This section still needs to be changed due to ASIC demands
-assign ResetSyncGetNewTxData_wb = SyncGetNewTxData_wb3 | TxAbort_wb | TxRetry_wb | WB_RST_I;
+assign ResetSyncGetNewTxData_wb = SyncGetNewTxData_wb3 | TxAbort_wb | TxRetry_wb | Reset;
 assign SetSyncGetNewTxData_wb = GetNewTxData;
 
 
@@ -1190,9 +1187,9 @@ end
 
 
 // Sync. stage 2
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     SyncGetNewTxData_wb2 <=#Tp 1'b0;
   else
   if(SyncGetNewTxData_wb1 & ~GetNewTxData_wb & ~TxAbort_wb & ~TxRetry_wb)
@@ -1203,9 +1200,9 @@ end
 
 
 // Sync. stage 3
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     SyncGetNewTxData_wb3 <=#Tp 1'b0;
   else
   if(SyncGetNewTxData_wb2 & ~GetNewTxData_wb & ~TxAbort_wb & ~TxRetry_wb)
@@ -1216,9 +1213,9 @@ end
 
 
 // Synchronized request for a new tx data
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     GetNewTxData_wb <=#Tp 1'b0;
   else
   if(GetNewTxData_wb)
@@ -1231,15 +1228,15 @@ end
 
 // Synchronizine transmit done signal
 // Sinchronizing and evaluating tx data
-eth_sync_clk1_clk2 syn4 (.clk1(WB_CLK_I),     .clk2(MTxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-                         .set2(TxDone),       .sync_out(TxDoneSync3)
+eth_sync_clk1_clk2 syn4 (.clk1(WB_CLK_I), .clk2(MTxClk), .reset1(Reset),
+                         .reset2(Reset),  .set2(TxDone), .sync_out(TxDoneSync3)
                         );
 
 
 // Syncronized signal TxDone_wb (sync. to WISHBONE clock)
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxDone_wb <=#Tp 1'b0;
   else
   if(TxStartFrm_wb | WillSendControlFrame)
@@ -1250,7 +1247,7 @@ begin
 end
 
 
-assign ResetTxCtrlEndFrm_wb = TxCtrlEndFrm_wb | WB_RST_I;
+assign ResetTxCtrlEndFrm_wb = TxCtrlEndFrm_wb | Reset;
 assign SetTxCtrlEndFrm_wb = TxCtrlEndFrm;
 
 
@@ -1265,9 +1262,9 @@ end
 
 
 // Sync stage 2
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxCtrlEndFrm_wbSync2 <=#Tp 1'b0;
   else
   if(TxCtrlEndFrm_wbSync1 & ~TxCtrlEndFrm_wb)
@@ -1278,9 +1275,9 @@ end
 
 
 // Synchronized Tx  control end frame
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxCtrlEndFrm_wb <=#Tp 1'b0;
   else
   if(TxCtrlEndFrm_wbSync2 & ~TxCtrlEndFrm_wb)
@@ -1292,14 +1289,14 @@ end
 
 
 // Synchronizing TxRetry signal
-eth_sync_clk1_clk2 syn6 (.clk1(WB_CLK_I),       .clk2(MTxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-                         .set2(TxRetryLatched), .sync_out(TxRetrySync3));
+eth_sync_clk1_clk2 syn6 (.clk1(WB_CLK_I), .clk2(MTxClk),         .reset1(Reset),
+                         .reset2(Reset),  .set2(TxRetryLatched), .sync_out(TxRetrySync3));
 
 
 // Synchronized signal TxRetry_wb (synchronized to WISHBONE clock)
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxRetry_wb <=#Tp 1'b0;
   else
   if(TxStartFrm_wb | WillSendControlFrame)
@@ -1311,14 +1308,14 @@ end
 
 
 // Synchronizing TxAbort signal
-eth_sync_clk1_clk2 syn7 (.clk1(WB_CLK_I), .clk2(MTxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-                         .set2(TxAbort),  .sync_out(TxAbortSync3));
+eth_sync_clk1_clk2 syn7 (.clk1(WB_CLK_I), .clk2(MTxClk),  .reset1(Reset),
+                         .reset2(Reset),  .set2(TxAbort), .sync_out(TxAbortSync3));
 
 
 // Synchronized TxAbort_wb signal (synchronized to WISHBONE clock)
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     TxAbort_wb <=#Tp 1'b0;
   else
   if(TxStartFrm_wb)
@@ -1336,9 +1333,9 @@ assign ResetRxBDRead = RxBDRead & RxBDReady;          // Rx BD is read until REA
 
 
 // Latching READY status of the Rx buffer descriptor
-always @ (negedge WB_CLK_I or posedge WB_RST_I)
+always @ (negedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxBDReady <=#Tp 1'b0;
   else
   if(RxEn & RxBDRead)
@@ -1350,9 +1347,9 @@ end
 
 
 // Reading the Rx buffer descriptor
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxBDRead <=#Tp 1'b1;
   else
   if(StartRxBDRead)
@@ -1369,9 +1366,9 @@ assign StartRxStatusWrite = RxEn & RxEndFrm_wb;
 
 
 // Writing status back to the Rx buffer descriptor
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxStatusWrite <=#Tp 1'b0;
   else
   if(StartRxStatusWrite)
@@ -1386,9 +1383,9 @@ assign WB_ND_O[1] = RxStatusWrite;
 
 
 // Latched status that a status write occured.
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxStatusWriteOccured <=#Tp 1'b0;
   else
   if(StartRxStatusWrite)
@@ -1401,15 +1398,15 @@ end
 
 
 // Generation of the synchronized signal ShiftEnded that indicates end of reception
-eth_sync_clk1_clk2 syn8 (.clk1(MRxClk),       .clk2(WB_CLK_I),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-                         .set2(RxEndFrm_wb),  .sync_out(ShiftEnded)
+eth_sync_clk1_clk2 syn8 (.clk1(MRxClk),  .clk2(WB_CLK_I),    .reset1(Reset),
+                         .reset2(Reset), .set2(RxEndFrm_wb), .sync_out(ShiftEnded)
                         );
 
 
 // Indicating that last byte is being reveived
-always @ (posedge MRxClk or posedge WB_RST_I)
+always @ (posedge MRxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     LastByteIn <=#Tp 1'b0;
   else
   if(ShiftWillEnd & (&RxByteCnt))
@@ -1421,9 +1418,9 @@ end
 
 
 // Indicating that data reception will end
-always @ (posedge MRxClk or posedge WB_RST_I)
+always @ (posedge MRxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     ShiftWillEnd <=#Tp 1'b0;
   else
   if(ShiftEnded)
@@ -1435,9 +1432,9 @@ end
 
 
 // Receive byte counter
-always @ (posedge MRxClk or posedge WB_RST_I)
+always @ (posedge MRxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxByteCnt <=#Tp 2'h0;
   else
   if(ShiftEnded)
@@ -1449,9 +1446,9 @@ end
 
 
 // Indicates how many bytes are valid within the last word
-always @ (posedge MRxClk or posedge WB_RST_I)
+always @ (posedge MRxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxValidBytes <=#Tp 2'h1;
   else
   if(ShiftEnded)
@@ -1464,9 +1461,9 @@ end
 
 // There is a maximum 3 MRxClk delay between RxDataLatched2 and RxData_wb. In the meantime data
 // is stored to the RxDataLatched1. 
-always @ (posedge MRxClk or posedge WB_RST_I)
+always @ (posedge MRxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxDataLatched1       <=#Tp 16'h0;
   else
   if(RxValid & RxBDReady & ~LastByteIn & RxByteCnt == 2'h0)
@@ -1478,9 +1475,9 @@ end
 
 
 // Latching incoming data to buffer
-always @ (posedge MRxClk or posedge WB_RST_I)
+always @ (posedge MRxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxDataLatched2        <=#Tp 32'h0;
   else
   if(RxValid & RxBDReady & ~LastByteIn & RxByteCnt == 2'h2)
@@ -1492,9 +1489,9 @@ end
 
 
 // Indicating start of the reception process
-always @ (posedge MRxClk or posedge WB_RST_I)
+always @ (posedge MRxClk or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     StartShifting <=#Tp 1'b0;
   else
   if((RxValid & RxBDReady & ~RxStartFrm & (&RxByteCnt)) | (ShiftWillEnd &  LastByteIn & (&RxByteCnt)))
@@ -1507,15 +1504,15 @@ end
 // Synchronizing Rx start frame to the WISHBONE clock
 assign StartRxStartFrmSync1 = RxStartFrm & RxBDReady;
 
-eth_sync_clk1_clk2 syn9 (.clk1(WB_CLK_I),     .clk2(MRxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-                         .set2(SetGotData), .sync_out(RxStartFrmSync3)
+eth_sync_clk1_clk2 syn9 (.clk1(WB_CLK_I), .clk2(MRxClk),     .reset1(Reset),
+                         .reset2(Reset),  .set2(SetGotData), .sync_out(RxStartFrmSync3)
                         );
 
 
 // Generating synchronized Rx start frame
-always @ ( posedge WB_CLK_I or posedge WB_RST_I)
+always @ ( posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxStartFrm_wb <=#Tp 1'b0;
   else
   if(RxStartFrmSync3 & ~RxStartFrm_wb)
@@ -1525,13 +1522,8 @@ begin
 end
 
 
-//Synchronizing signal for latching data that will be written to the WISHBONE
-//eth_sync_clk1_clk2 syn10 (.clk1(WB_CLK_I),     .clk2(MRxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-//                         .set2(StartShifting), .sync_out(LatchNow_wb)
-//                        );
-
 // This section still needs to be changed due to ASIC demands
-assign ResetShifting_wb = LatchNow_wb | WB_RST_I;
+assign ResetShifting_wb = LatchNow_wb | Reset;
 assign StartShifting_wb = StartShifting;
 
 
@@ -1546,9 +1538,9 @@ end
 
 
 // Sync. stage 2
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     Shifting_wb_Sync2 <=#Tp 1'b0;
   else
   if(Shifting_wb_Sync1 & ~RxDataValid_wb)
@@ -1559,9 +1551,9 @@ end
 
 
 // Generating synchronized signal that will latch data for writing to the WISHBONE
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     LatchNow_wb <=#Tp 1'b0;
   else
   if(Shifting_wb_Sync2 & ~RxDataValid_wb)
@@ -1572,9 +1564,9 @@ end
 
 
 // Indicating that valid data is avaliable
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxDataValid_wb <=#Tp 1'b0;
   else
   if(LatchNow_wb & ~RxDataValid_wb)
@@ -1586,9 +1578,9 @@ end
 
 
 // Forcing next descriptor in the DMA (Channel 1 is used for rx)
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     WB_REQ_O_RX <=#Tp 1'b0;
   else
   if(LatchNow_wb & ~RxDataValid_wb & r_DmaEn)
@@ -1604,9 +1596,9 @@ assign DMACycleFinishedRx = WB_REQ_O[1] & WB_ACK_I[1];
 
 
 // WbWriteError is generated when the previous word is not written to the wishbone on time
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     WbWriteError <=#Tp 1'b0;
   else
   if(LatchNow_wb & ~RxDataValid_wb)
@@ -1621,9 +1613,9 @@ end
 
 
 // Assembling data that will be written to the WISHBONE
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxData_wb <=#Tp 32'h0;
   else
   if(LatchNow_wb & ~RxDataValid_wb & ~ShiftWillEnd)
@@ -1644,9 +1636,9 @@ assign WB_DAT_O[31:0] = BDRead? WB_BDDataOut : RxData_wb;
 
 
 // Generation of the end-of-frame signal
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge Reset)
 begin
-  if(WB_RST_I)
+  if(Reset)
     RxEndFrm_wb <=#Tp 1'b0;
   else
   if(LatchNow_wb & ~RxDataValid_wb & ShiftWillEnd)

@@ -41,6 +41,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/02/05 16:44:39  mohor
+// Both rx and tx part are finished. Tested with wb_clk_i between 10 and 200
+// MHz. Statuses, overrun, control frame transmission and reception still  need
+// to be fixed.
+//
 // Revision 1.2  2002/02/01 12:46:51  mohor
 // Tx part finished. TxStatus needs to be fixed. Pause request needs to be
 // added.
@@ -327,35 +332,12 @@ end
 `endif
 
 
-
-
-// Generic synchronous two-port RAM interface
-/*
-generic_tpram     #(8, 32)  i_generic_tpram 
-(
-  .clk_a(WB_CLK_I),   .rst_a(Reset),         .ce_a(1'b1),        .we_a(BDWrite), 
-  .oe_a(EnableRAM),   .addr_a(WB_ADR_I[9:2]),   .di_a(WB_DAT_I),    .do_a(WB_BDDataOut),
-  
-  .clk_b(WB_CLK_I),   .rst_b(Reset),         .ce_b(EnableRAM),   .we_b(BDStatusWrite), 
-  .oe_b(EnableRAM),   .addr_b(BDAddress[7:0]),  .di_b(BDDataIn),    .do_b(BDDataOut)
-);
-*/
-
-
-
-RAMB4_S16 ram1 (.DO(ram_do[15:0]),  .ADDR(ram_addr), .DI(ram_di[15:0]),  .EN(ram_ce), 
-                .CLK(WB_CLK_I),     .WE(ram_we),     .RST(Reset));
-RAMB4_S16 ram2 (.DO(ram_do[31:16]), .ADDR(ram_addr), .DI(ram_di[31:16]), .EN(ram_ce), 
-                .CLK(WB_CLK_I),     .WE(ram_we),     .RST(Reset));
-
-
-
-/*
+// Generic synchronous single-port RAM interface
 generic_spram #(8, 32) ram (
 	// Generic synchronous single-port RAM interface
 	.clk(WB_CLK_I), .rst(Reset), .ce(ram_ce), .we(ram_we), .oe(ram_oe), .addr(ram_addr), .di(ram_di), .do(ram_do)
 );
-*/
+
 assign ram_ce = 1'b1;
 assign ram_we = BDWrite & WbEn & WbEn_q | TxStatusWrite | RxStatusWrite;
 assign ram_oe = BDRead & WbEn & WbEn_q | TxEn & TxEn_q & (TxBDRead | TxPointerRead) | RxEn & RxEn_q & (RxBDRead | RxPointerRead);     // Tu manjka se read kadar se bere RxBD
@@ -1559,7 +1541,6 @@ end
 wire WriteRxDataToFifo_wb;
 assign WriteRxDataToFifo_wb = WriteRxDataToFifoSync1 & ~WriteRxDataToFifoSync2;
 
-reg RxAbortLatched;
 reg RxAbortSync1;
 reg RxAbortSync2;
 reg RxAbortSyncb1;
@@ -1635,21 +1616,6 @@ begin
   else
   if(RxEndFrm | RxAbort)
     RxEnableWindow <=#Tp 1'b0;
-end
-
-
-
-// Generation of the end-of-frame signal
-always @ (posedge MRxClk or posedge Reset)
-begin
-  if(Reset)
-    RxAbortLatched <=#Tp 1'b0;
-  else
-  if(RxAbort)
-    RxAbortLatched <=#Tp 1'b1;
-  else
-  if(RxAbortSyncb2 | RxStartFrm)
-    RxAbortLatched <=#Tp 1'b0;
 end
 
 
