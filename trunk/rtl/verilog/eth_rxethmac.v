@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  rxethmac.v                                                  ////
+////  eth_rxethmac.v                                              ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
 // Revision 1.1  2001/06/27 21:26:19  mohor
 // Initial release of the RxEthMAC module.
 //
@@ -51,14 +54,14 @@
 //
 //
 
-`timescale 1ns / 1ns
+`include "eth_timescale.v"
 
 
-module rxethmac (MRxClk, MRxDV, MRxD, Reset, Transmitting, MaxFL, r_IFG, HugEn, DlyCrcEn, 
-                 RxData, RxValid, RxStartFrm, RxEndFrm, CrcHash, CrcHashGood, Broadcast, 
-                 Multicast, ByteCnt, ByteCntEq0, ByteCntGreat2, ByteCntMaxFrame, 
-                 CrcError, StateIdle, StatePreamble, StateSFD, StateData
-                );
+module eth_rxethmac (MRxClk, MRxDV, MRxD, Reset, Transmitting, MaxFL, r_IFG, HugEn, DlyCrcEn, 
+                     RxData, RxValid, RxStartFrm, RxEndFrm, CrcHash, CrcHashGood, Broadcast, 
+                     Multicast, ByteCnt, ByteCntEq0, ByteCntGreat2, ByteCntMaxFrame, 
+                     CrcError, StateIdle, StatePreamble, StateSFD, StateData
+                    );
 
 parameter Tp = 1;
 
@@ -131,24 +134,24 @@ assign MRxDEq5 = MRxD == 4'h5;
 
 
 // Rx State Machine module
-rxstatem rxstatem1 (.MRxClk(MRxClk), .Reset(Reset), .MRxDV(MRxDV), .ByteCntEq0(ByteCntEq0), 
-                    .ByteCntGreat2(ByteCntGreat2), .Transmitting(Transmitting), .MRxDEq5(MRxDEq5), 
-                    .MRxDEqD(MRxDEqD), .IFGCounterEq24(IFGCounterEq24), .ByteCntMaxFrame(ByteCntMaxFrame), 
-                    .StateData(StateData), .StateIdle(StateIdle), .StatePreamble(StatePreamble), 
-                    .StateSFD(StateSFD), .StateDrop(StateDrop)
-                   );
+eth_rxstatem rxstatem1 (.MRxClk(MRxClk), .Reset(Reset), .MRxDV(MRxDV), .ByteCntEq0(ByteCntEq0), 
+                        .ByteCntGreat2(ByteCntGreat2), .Transmitting(Transmitting), .MRxDEq5(MRxDEq5), 
+                        .MRxDEqD(MRxDEqD), .IFGCounterEq24(IFGCounterEq24), .ByteCntMaxFrame(ByteCntMaxFrame), 
+                        .StateData(StateData), .StateIdle(StateIdle), .StatePreamble(StatePreamble), 
+                        .StateSFD(StateSFD), .StateDrop(StateDrop)
+                       );
 
 
 // Rx Counters module
-rxcounters rxcounters1 (.MRxClk(MRxClk), .Reset(Reset), .MRxDV(MRxDV), .StateIdle(StateIdle), 
-                        .StateSFD(StateSFD), .StateData(StateData), .StateDrop(StateDrop), 
-                        .StatePreamble(StatePreamble), .MRxDEqD(MRxDEqD), .DlyCrcEn(DlyCrcEn), 
-                        .DlyCrcCnt(DlyCrcCnt), .Transmitting(Transmitting), .MaxFL(MaxFL), .r_IFG(r_IFG), 
-                        .HugEn(HugEn), .IFGCounterEq24(IFGCounterEq24), .ByteCntEq0(ByteCntEq0), 
-                        .ByteCntEq1(ByteCntEq1), .ByteCntEq6(ByteCntEq6), .ByteCntGreat2(ByteCntGreat2), 
-                        .ByteCntSmall7(ByteCntSmall7), .ByteCntMaxFrame(ByteCntMaxFrame), 
-                        .ByteCnt(ByteCnt)
-                       );
+eth_rxcounters rxcounters1 (.MRxClk(MRxClk), .Reset(Reset), .MRxDV(MRxDV), .StateIdle(StateIdle), 
+                            .StateSFD(StateSFD), .StateData(StateData), .StateDrop(StateDrop), 
+                            .StatePreamble(StatePreamble), .MRxDEqD(MRxDEqD), .DlyCrcEn(DlyCrcEn), 
+                            .DlyCrcCnt(DlyCrcCnt), .Transmitting(Transmitting), .MaxFL(MaxFL), .r_IFG(r_IFG), 
+                            .HugEn(HugEn), .IFGCounterEq24(IFGCounterEq24), .ByteCntEq0(ByteCntEq0), 
+                            .ByteCntEq1(ByteCntEq1), .ByteCntEq6(ByteCntEq6), .ByteCntGreat2(ByteCntGreat2), 
+                            .ByteCntSmall7(ByteCntSmall7), .ByteCntMaxFrame(ByteCntMaxFrame), 
+                            .ByteCnt(ByteCnt)
+                           );
 
 
 
@@ -162,8 +165,8 @@ assign Data_Crc[3] = MRxD[0];
 
 
 // Connecting module Crc
-crc crcrx (.Clk(MRxClk), .Reset(Reset), .Data(Data_Crc), .Enable(Enable_Crc), .Initialize(Initialize_Crc), 
-           .Crc(Crc), .CrcError(CrcError)
+eth_crc crcrx (.Clk(MRxClk), .Reset(Reset), .Data(Data_Crc), .Enable(Enable_Crc), .Initialize(Initialize_Crc), 
+               .Crc(Crc), .CrcError(CrcError)
           );
 
 

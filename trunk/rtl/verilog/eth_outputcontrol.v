@@ -1,14 +1,12 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  random.v                                                    ////
+////  eth_outputcontrol.v                                         ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
 ////                                                              ////
 ////  Author(s):                                                  ////
 ////      - Igor Mohor (igorM@opencores.org)                      ////
-////      - Novan Hartadi (novan@vlsi.itb.ac.id)                  ////
-////      - Mahmud Galela (mgalela@vlsi.itb.ac.id)                ////
 ////                                                              ////
 ////  All additional information is avaliable in the Readme.txt   ////
 ////  file.                                                       ////
@@ -43,79 +41,90 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
-// Revision 1.3  2001/06/19 18:16:40  mohor
-// TxClk changed to MTxClk (as discribed in the documentation).
-// Crc changed so only one file can be used instead of two.
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
 //
-// Revision 1.2  2001/06/19 10:38:07  mohor
-// Minor changes in header.
-//
-// Revision 1.1  2001/06/19 10:27:57  mohor
-// TxEthMAC initial release.
-//
-//
+// Revision 1.3  2001/06/01 22:28:56  mohor
+// This files (MIIM) are fully working. They were thoroughly tested. The testbench is not updated.
 //
 //
 
-`timescale 1ns / 1ns
+`include "eth_timescale.v"
 
-module random (MTxClk, Reset, StateJam, StateJam_q, RetryCnt, NibCnt, ByteCnt, 
-               RandomEq0, RandomEqByteCnt);
+module eth_outputcontrol(Clk, Reset, InProgress, ShiftedBit, BitCounter, WriteOp, NoPre, MdcEn_n, Mdo, MdoEn);
 
 parameter Tp = 1;
 
-input MTxClk;
-input Reset;
-input StateJam;
-input StateJam_q;
-input [3:0] RetryCnt;
-input [15:0] NibCnt;
-input [9:0] ByteCnt;
-output RandomEq0;
-output RandomEqByteCnt;
+input         Clk;                // Host Clock
+input         Reset;              // General Reset
+input         WriteOp;            // Write Operation Latch (When asserted, write operation is in progress)
+input         NoPre;              // No Preamble (no 32-bit preamble)
+input         InProgress;         // Operation in progress
+input         ShiftedBit;         // This bit is output of the shift register and is connected to the Mdo signal
+input   [6:0] BitCounter;         // Bit Counter
+input         MdcEn_n;            // MII Management Data Clock Enable signal is asserted for one Clk period before Mdc falls.
 
-wire Feedback;
-reg [9:0] x;
-wire [9:0] Random;
-reg  [9:0] RandomLatched;
+output        Mdo;                // MII Management Data Output
+output        MdoEn;              // MII Management Data Output Enable
+
+wire          SerialEn;
+
+reg           MdoEn_2d;
+reg           MdoEn_d;
+reg           MdoEn;
+
+reg           Mdo_2d;
+reg           Mdo_d;
+reg           Mdo;                // MII Management Data Output
 
 
-always @ (posedge MTxClk or posedge Reset)
+
+// Generation of the Serial Enable signal (enables the serialization of the data)
+assign SerialEn =  WriteOp & InProgress & ( BitCounter>31 | ( ( BitCounter == 0 ) & NoPre ) )
+                | ~WriteOp & InProgress & (( BitCounter>31 & BitCounter<46 ) | ( ( BitCounter == 0 ) & NoPre )); // igor !!!  ali je tu res <46. To je veljalo, ko sem imel se >31 in napako 32 preamble bitov
+
+
+// Generation of the MdoEn signal
+always @ (posedge Clk or posedge Reset)
 begin
   if(Reset)
-    x[9:0] <= #Tp 0;
-  else
-    x[9:0] <= #Tp {x[8:0], Feedback};
-end
-
-assign Feedback = x[2] ~^ x[9];
-
-assign Random [0] = x[0];
-assign Random [1] = (RetryCnt > 1) ? x[1] : 1'b0;
-assign Random [2] = (RetryCnt > 2) ? x[2] : 1'b0;
-assign Random [3] = (RetryCnt > 3) ? x[3] : 1'b0;
-assign Random [4] = (RetryCnt > 4) ? x[4] : 1'b0;
-assign Random [5] = (RetryCnt > 5) ? x[5] : 1'b0;
-assign Random [6] = (RetryCnt > 6) ? x[6] : 1'b0;
-assign Random [7] = (RetryCnt > 7) ? x[7] : 1'b0;
-assign Random [8] = (RetryCnt > 8) ? x[8] : 1'b0;
-assign Random [9] = (RetryCnt > 9) ? x[9] : 1'b0;
-
-
-always @ (posedge MTxClk or posedge Reset)
-begin
-  if(Reset)
-    RandomLatched <= #Tp 10'h000;
+    begin
+      MdoEn_2d <= #Tp 1'b0;
+      MdoEn_d <= #Tp 1'b0;
+      MdoEn <= #Tp 1'b0;
+    end
   else
     begin
-      if(StateJam & StateJam_q)
-        RandomLatched <= #Tp Random;
+      if(MdcEn_n)
+        begin
+          MdoEn_2d <= #Tp SerialEn | InProgress & BitCounter<32;
+          MdoEn_d <= #Tp MdoEn_2d;
+          MdoEn <= #Tp MdoEn_d;
+        end
     end
 end
 
-// Random Number == 0      IEEE 802.3 page 68. If 0 we go to defer and not to backoff.
-assign RandomEq0 = RandomLatched == 10'h0; 
 
-assign RandomEqByteCnt = ByteCnt[9:0] == RandomLatched & (&NibCnt[6:0]);
+// Generation of the Mdo signal.
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    begin
+      Mdo_2d <= #Tp 1'b0;
+      Mdo_d <= #Tp 1'b0;
+      Mdo <= #Tp 1'b0;
+    end
+  else
+    begin
+      if(MdcEn_n)
+        begin
+          Mdo_2d <= #Tp ~SerialEn & BitCounter<32;
+          Mdo_d <= #Tp ShiftedBit | Mdo_2d;
+          Mdo <= #Tp Mdo_d;
+        end
+    end
+end
+
+
 
 endmodule

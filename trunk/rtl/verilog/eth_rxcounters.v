@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  rxcounters.v                                                ////
+////  eth_rxcounters.v                                            ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
 // Revision 1.1  2001/06/27 21:26:19  mohor
 // Initial release of the RxEthMAC module.
 //
@@ -53,14 +56,14 @@
 //
 
 
-`timescale 1ns / 1ns
+`include "eth_timescale.v"
 
 
-module rxcounters (MRxClk, Reset, MRxDV, StateIdle, StateSFD, StateData, StateDrop, StatePreamble, 
-                   MRxDEqD, DlyCrcEn, DlyCrcCnt, Transmitting, MaxFL, r_IFG, HugEn, IFGCounterEq24, 
-                   ByteCntEq0, ByteCntEq1, ByteCntEq6, ByteCntGreat2, ByteCntSmall7, ByteCntMaxFrame, 
-                   ByteCnt
-                  );
+module eth_rxcounters (MRxClk, Reset, MRxDV, StateIdle, StateSFD, StateData, StateDrop, StatePreamble, 
+                       MRxDEqD, DlyCrcEn, DlyCrcCnt, Transmitting, MaxFL, r_IFG, HugEn, IFGCounterEq24, 
+                       ByteCntEq0, ByteCntEq1, ByteCntEq6, ByteCntGreat2, ByteCntSmall7, ByteCntMaxFrame, 
+                       ByteCnt
+                      );
 
 parameter Tp = 1;
 

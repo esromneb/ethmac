@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  miim.v                                                      ////
+////  eth_miim.v                                                  ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/08/02 09:25:31  mohor
+// Unconnected signals are now connected.
+//
 // Revision 1.1  2001/07/30 21:23:42  mohor
 // Directory structure changed. Files checked and joind together.
 //
@@ -49,10 +52,10 @@
 //
 //
 
-`timescale 1ns / 1ns
+`include "eth_timescale.v"
 
 
-module miim
+module eth_miim
 (
   Clk,
   Reset,
@@ -400,19 +403,19 @@ assign LatchByte0_d2 = InProgress & ~WriteOp & BitCounter == 7'h3F;
 
 
 // Connecting the Clock Generator Module
-clockgen clkgen(.Clk(Clk), .Reset(Reset), .Divider(Divider[7:0]), .MdcEn(MdcEn), .MdcEn_n(MdcEn_n), .Mdc(Mdc) 
-               );
+eth_clockgen clkgen(.Clk(Clk), .Reset(Reset), .Divider(Divider[7:0]), .MdcEn(MdcEn), .MdcEn_n(MdcEn_n), .Mdc(Mdc) 
+                   );
 
 // Connecting the Shift Register Module
-shiftreg shftrg(.Clk(Clk), .Reset(Reset), .MdcEn_n(MdcEn_n), .Mdi(Mdi), .Fiad(Fiad), .Rgad(Rgad), 
-                .CtrlData(CtrlData), .WriteOp(WriteOp), .ByteSelect(ByteSelect), .LatchByte(LatchByte), 
-                .ShiftedBit(ShiftedBit), .Prsd(Prsd), .LinkFail(LinkFail)
-               );
+eth_shiftreg shftrg(.Clk(Clk), .Reset(Reset), .MdcEn_n(MdcEn_n), .Mdi(Mdi), .Fiad(Fiad), .Rgad(Rgad), 
+                    .CtrlData(CtrlData), .WriteOp(WriteOp), .ByteSelect(ByteSelect), .LatchByte(LatchByte), 
+                    .ShiftedBit(ShiftedBit), .Prsd(Prsd), .LinkFail(LinkFail)
+                   );
 
 // Connecting the Output Control Module
-outputcontrol outctrl(.Clk(Clk), .Reset(Reset), .MdcEn_n(MdcEn_n), .InProgress(InProgress), 
-                      .ShiftedBit(ShiftedBit), .BitCounter(BitCounter), .WriteOp(WriteOp), .NoPre(NoPre), 
-                      .Mdo(Mdo), .MdoEn(MdoEn)
-                     );
+eth_outputcontrol outctrl(.Clk(Clk), .Reset(Reset), .MdcEn_n(MdcEn_n), .InProgress(InProgress), 
+                          .ShiftedBit(ShiftedBit), .BitCounter(BitCounter), .WriteOp(WriteOp), .NoPre(NoPre), 
+                          .Mdo(Mdo), .MdoEn(MdoEn)
+                         );
 
 endmodule

@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  tb_ethernettop.v                                            ////
+////  tb_eth_top.v                                                ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -41,18 +41,20 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:46:09  mohor
+// Directory structure changed. Files checked and joind together.
+//
 //
 //
 //
 //
 
 
-`timescale 1ns / 1ns
 
-`include "ethdefines.v"
-//`include "../../rtl/verilog/ethdefines.v"
+`include "eth_defines.v"
+`include "eth_timescale.v"
 
-module tb_ethernettop();
+module tb_eth_top();
 
 
 parameter Tp = 1;
@@ -88,10 +90,11 @@ reg           MRxErr;
 reg           MColl;
 reg           MCrs;
 
-wire          Mdc;
+reg           Mdi_I;
+wire          Mdo_O;
+wire          Mdo_OE;
+wire          Mdc_O;
 
-reg           MDI;          // TB driving       Creating inout port MDIO
-wire          MDIO = MDI;   // Miim driving
 
 
 reg GSR;
@@ -105,41 +108,27 @@ reg [9:0] RxBDIndex;
 
 // Connecting Ethernet top module
 
-ethernettop ethtop
+eth_top ethtop
 (
   // WISHBONE common
   .WB_CLK_I(WB_CLK_I), .WB_RST_I(WB_RST_I), .WB_DAT_I(WB_DAT_I), .WB_DAT_O(WB_DAT_O), 
 
   // WISHBONE slave
- 	.WB_ADR_I(WB_ADR_I), .WB_SEL_I(WB_SEL_I), .WB_WE_I(WB_WE_I), .WB_CYC_I(WB_CYC_I), 
+ 	.WB_ADR_I(WB_ADR_I), .WB_SEL_I(WB_SEL_I), .WB_WE_I(WB_WE_I),   .WB_CYC_I(WB_CYC_I), 
  	.WB_STB_I(WB_STB_I), .WB_ACK_O(WB_ACK_O), .WB_ERR_O(WB_ERR_O), .WB_REQ_O(WB_REQ_O), 
- 	.WB_ACK_I(WB_ACK_I), .WB_ND_O(WB_ND_O), .WB_RD_O(WB_RD_O), 
+ 	.WB_ACK_I(WB_ACK_I), .WB_ND_O(WB_ND_O),   .WB_RD_O(WB_RD_O), 
 
   //TX
-  .MTxClk(MTxClk), .MTxD(MTxD), .MTxEn(MTxEn), .MTxErr(MTxErr),
+  .MTxClk_I(MTxClk), .MTxD_O(MTxD), .MTxEn_O(MTxEn), .MTxErr_O(MTxErr),
 
   //RX
-  .MRxClk(MRxClk), .MRxD(MRxD), .MRxDV(MRxDV), .MRxErr(MRxErr), .MColl(MColl), .MCrs(MCrs), 
+  .MRxClk_I(MRxClk), .MRxD_I(MRxD), .MRxDV_I(MRxDV), .MRxErr_I(MRxErr), .MColl_I(MColl), .MCrs_I(MCrs), 
   
   // MIIM
-  .Mdc(Mdc), .MDIO(MDIO) 
+  .Mdc_O(Mdc_O), .Mdi_I(Mdi_I), .Mdo_O(Mdo_O), .Mdo_OE(Mdo_OE)
 );
 
 
-/*
-// Timing simulation
-time_sim ethtop
-  (
-    .MTxClk(MTxClk),            .MRxDV(MRxDV),            .WB_DAT_I(WB_DAT_I),            .WB_ACK_I(WB_ACK_I), 
-    .WB_SEL_I(WB_SEL_I),        .WB_DAT_O(WB_DAT_O),      .MRxD(MRxD),                    .MTxD(MTxD), 
-    .WB_REQ_O(WB_REQ_O),        .WB_ND_O(WB_ND_O),        .WB_ERR_O(WB_ERR_O),            .MColl(MColl), 
-    .WB_CLK_I(WB_CLK_I),        .MTxErr(MTxErr),          .MCrs(MCrs),                    .WB_WE_I(WB_WE_I), 
-    .MRxClk(MRxClk),            .WB_CYC_I(WB_CYC_I),      .WB_RST_I(WB_RST_I),            .Mdc(Mdc), 
-    .MTxEn(MTxEn),              .WB_ACK_O(WB_ACK_O),      .WB_STB_I(WB_STB_I),            .WB_RD_O(WB_RD_O), 
-    .MRxErr(MRxErr),            
-.WB_ADR_I(WB_ADR_I)
-  );
-*/
 
 
 
@@ -162,7 +151,7 @@ begin
   MRxErr    =  1'b0;
   MColl     =  1'b0;
   MCrs      =  1'b0;
-  MDI       =  1'b0;          // TB driving       Creating inout port MDIO
+  Mdi_I     =  1'b0;
 
   WishboneBusy = 1'b0;
   TxBDIndex = 10'h0;
@@ -297,7 +286,7 @@ task WishboneWrite;
         $write("\nWrite to register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address[9:2]);
       else
       if(Address[15:12] == `BD_SPACE)
-        if(Address[9:2] < tb_ethernettop.ethtop.r_RxBDAddress)
+        if(Address[9:2] < tb_eth_top.ethtop.r_RxBDAddress)
           begin
             $write("\nWrite to TxBD (Data: 0x%x, TxBD Addr: 0x%0x)\n", Data, Address[9:2]);
             if(Data[13])
@@ -356,7 +345,7 @@ task WishboneRead;
         $write("\nRead from register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address[9:2]);
       else
       if(Address[15:12] == `BD_SPACE)
-        if(Address[9:2] < tb_ethernettop.ethtop.r_RxBDAddress)
+        if(Address[9:2] < tb_eth_top.ethtop.r_RxBDAddress)
           begin
             $write("\nRead from TxBD (Data: 0x%x, TxBD Addr: 0x%0x)", Data, Address[9:2]);
           end
@@ -429,7 +418,7 @@ task ReceivePacket;    // Initializes RxBD and then generates traffic on the MRx
     else
       WrapRx = 1'b0;
 
-    TempRxAddr = {`ETHERNET_SPACE, `BD_SPACE, 2'h0, ((tb_ethernettop.ethtop.r_RxBDAddress + RxBDIndex)<<2)};
+    TempRxAddr = {`ETHERNET_SPACE, `BD_SPACE, 2'h0, ((tb_eth_top.ethtop.r_RxBDAddress + RxBDIndex)<<2)};
 
     TempRxData = {LengthRx[15:0], 1'b1, WrapRx, 6'h0, RxBDIndex[7:0]};  // Ready and WrapRx = 1 or 0
 

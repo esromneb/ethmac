@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  txstatem.v                                                  ////
+////  eth_txstatem.v                                              ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
 // Revision 1.3  2001/06/19 18:16:40  mohor
 // TxClk changed to MTxClk (as discribed in the documentation).
 // Crc changed so only one file can be used instead of two.
@@ -58,17 +61,17 @@
 //
 
 
-`timescale 1ns / 1ns
+`include "eth_timescale.v"
 
 
-module txstatem  (MTxClk, Reset, ExcessiveDefer, CarrierSense, NibCnt, IPGT, IPGR1, 
-                  IPGR2, FullD, TxStartFrm, TxEndFrm, TxUnderRun, Collision, UnderRun, 
-                  StartTxDone, TooBig, NibCntEq7, NibCntEq15, MaxFrame, Pad, CrcEn, 
-                  NibbleMinFl, RandomEq0, ColWindow, RetryMax, NoBckof, RandomEqByteCnt,
-                  StateIdle, StateIPG, StatePreamble, StateData, StatePAD, StateFCS, 
-                  StateJam, StateJam_q, StateBackOff, StateDefer, StartFCS, StartJam, 
-                  StartBackoff, StartDefer, StartPreamble, StartData, StartIPG
-                 );
+module eth_txstatem  (MTxClk, Reset, ExcessiveDefer, CarrierSense, NibCnt, IPGT, IPGR1, 
+                      IPGR2, FullD, TxStartFrm, TxEndFrm, TxUnderRun, Collision, UnderRun, 
+                      StartTxDone, TooBig, NibCntEq7, NibCntEq15, MaxFrame, Pad, CrcEn, 
+                      NibbleMinFl, RandomEq0, ColWindow, RetryMax, NoBckof, RandomEqByteCnt,
+                      StateIdle, StateIPG, StatePreamble, StateData, StatePAD, StateFCS, 
+                      StateJam, StateJam_q, StateBackOff, StateDefer, StartFCS, StartJam, 
+                      StartBackoff, StartDefer, StartPreamble, StartData, StartIPG
+                     );
 
 parameter Tp = 1;
 

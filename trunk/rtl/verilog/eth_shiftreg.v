@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  shiftreg.v                                                  ////
+////  eth_shiftreg.v                                              ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -41,16 +41,19 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
 // Revision 1.3  2001/06/01 22:28:56  mohor
 // This files (MIIM) are fully working. They were thoroughly tested. The testbench is not updated.
 //
 //
 
-`timescale 1ns / 1ns
+`include "eth_timescale.v"
 
 
-module shiftreg(Clk, Reset, MdcEn_n, Mdi, Fiad, Rgad, CtrlData, WriteOp, ByteSelect, 
-                LatchByte, ShiftedBit, Prsd, LinkFail);
+module eth_shiftreg(Clk, Reset, MdcEn_n, Mdi, Fiad, Rgad, CtrlData, WriteOp, ByteSelect, 
+                    LatchByte, ShiftedBit, Prsd, LinkFail);
 
 
 parameter Tp=1;

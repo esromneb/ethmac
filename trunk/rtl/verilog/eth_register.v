@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  clockgen.v                                                  ////
+////  eth_register.v                                              ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -41,71 +41,41 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
-// Revision 1.3  2001/06/01 22:28:55  mohor
-// This files (MIIM) are fully working. They were thoroughly tested. The testbench is not updated.
+//
+//
+//
+//
 //
 //
 
-`timescale 1ns / 1ns
-
-module clockgen(Clk, Reset, Divider, MdcEn, MdcEn_n, Mdc);
-
-parameter Tp=1;
-
-input       Clk;              // Input clock (Host clock)
-input       Reset;            // Reset signal
-input [7:0] Divider;          // Divider (input clock will be divided by the Divider[7:0])
-
-output      Mdc;              // Output clock
-output      MdcEn;            // Enable signal is asserted for one Clk period before Mdc rises.
-output      MdcEn_n;          // Enable signal is asserted for one Clk period before Mdc falls.
-
-reg         Mdc;
-reg   [7:0] Counter;
-
-wire        CountEq0;
-wire  [7:0] CounterPreset;
-wire  [7:0] TempDivider;
+`include "eth_timescale.v"
 
 
-assign TempDivider[7:0]   = (Divider[7:0]<2)? 8'h02 : Divider[7:0]; // If smaller than 2
-assign CounterPreset[7:0] = (TempDivider[7:0]>>1) -1;               // We are counting half of period
+module eth_register(DataIn, DataOut, Write, Clk, Reset, Default);
+
+parameter WIDTH = 8; // default parameter of the register width
+
+input [WIDTH-1:0] DataIn;
+
+input Write;
+input Clk;
+input Reset;
+input [WIDTH-1:0] Default;
+
+output [WIDTH-1:0] DataOut;
+reg    [WIDTH-1:0] DataOut;
 
 
-// Counter counts half period
+
 always @ (posedge Clk or posedge Reset)
 begin
   if(Reset)
-    Counter[7:0] <= #Tp 8'h1;
+    DataOut<=#1 Default;
   else
-    begin
-      if(CountEq0)
-        begin
-          Counter[7:0] <= #Tp CounterPreset[7:0];
-        end
-      else
-        Counter[7:0] <= #Tp Counter - 8'h1;
-    end
+  if(Write)                         // write
+    DataOut<=#1 DataIn;
 end
 
 
-// Mdc is asserted every other half period
-always @ (posedge Clk or posedge Reset)
-begin
-  if(Reset)
-    Mdc <= #Tp 1'b0;
-  else
-    begin
-      if(CountEq0)
-        Mdc <= #Tp ~Mdc;
-    end
-end
 
-
-assign CountEq0 = Counter == 8'h0;
-assign MdcEn = CountEq0 & ~Mdc;
-assign MdcEn_n = CountEq0 & Mdc;
-
-endmodule
-
-
+endmodule   // Register

@@ -1,12 +1,14 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  macstatus.v                                                 ////
+////  eth_random.v                                                ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
 ////                                                              ////
 ////  Author(s):                                                  ////
 ////      - Igor Mohor (igorM@opencores.org)                      ////
+////      - Novan Hartadi (novan@vlsi.itb.ac.id)                  ////
+////      - Mahmud Galela (mgalela@vlsi.itb.ac.id)                ////
 ////                                                              ////
 ////  All additional information is avaliable in the Readme.txt   ////
 ////  file.                                                       ////
@@ -41,137 +43,82 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
+// Revision 1.3  2001/06/19 18:16:40  mohor
+// TxClk changed to MTxClk (as discribed in the documentation).
+// Crc changed so only one file can be used instead of two.
+//
+// Revision 1.2  2001/06/19 10:38:07  mohor
+// Minor changes in header.
+//
+// Revision 1.1  2001/06/19 10:27:57  mohor
+// TxEthMAC initial release.
 //
 //
 //
 //
 
-`timescale 1ns / 1ns
+`include "eth_timescale.v"
 
-
-module macstatus(
-                  MRxClk, Reset, ReceivedLengthOK, ReceiveEnd, TransmitEnd, ReceivedPacketGood, RxCrcError, 
-                  MRxErr, MRxDV, RxStateSFD, RxStateData, RxStatePreamble, RxStateIdle, Transmitting, 
-                  RxByteCnt, RxByteCntEq0, RxByteCntGreat2, RxByteCntMaxFrame, ReceivedPauseFrm
-                );
-
-
+module eth_random (MTxClk, Reset, StateJam, StateJam_q, RetryCnt, NibCnt, ByteCnt, 
+                   RandomEq0, RandomEqByteCnt);
 
 parameter Tp = 1;
 
+input MTxClk;
+input Reset;
+input StateJam;
+input StateJam_q;
+input [3:0] RetryCnt;
+input [15:0] NibCnt;
+input [9:0] ByteCnt;
+output RandomEq0;
+output RandomEqByteCnt;
 
-input         MRxClk;
-input         Reset;
-input         RxCrcError;
-input         MRxErr;
-input         MRxDV;
-
-input         RxStateSFD;
-input   [1:0] RxStateData;
-input         RxStatePreamble;
-input         RxStateIdle;
-input         Transmitting;
-input  [15:0] RxByteCnt;
-input         RxByteCntEq0;
-input         RxByteCntGreat2;
-input         RxByteCntMaxFrame;
-input         ReceivedPauseFrm;
-
-output        ReceivedLengthOK;
-output        ReceiveEnd;
-output        ReceivedPacketGood;
-output        TransmitEnd;
-
-reg           ReceiveEnd;
-
-reg           LatchedCrcError;
-reg           LatchedMRxErr;
-reg           PreloadRxStatus;
-reg    [15:0] LatchedRxByteCnt;
-
-wire          TakeSample;
+wire Feedback;
+reg [9:0] x;
+wire [9:0] Random;
+reg  [9:0] RandomLatched;
 
 
-// Crc error
-always @ (posedge MRxClk or posedge Reset)
+always @ (posedge MTxClk or posedge Reset)
 begin
   if(Reset)
-    LatchedCrcError <=#Tp 1'b0;
+    x[9:0] <= #Tp 0;
   else
-    begin 
-      if(RxStateSFD)
-        LatchedCrcError <=#Tp 1'b0;
-      else
-      if(RxStateData[0])
-        LatchedCrcError <=#Tp RxCrcError & ~RxByteCntEq0;
+    x[9:0] <= #Tp {x[8:0], Feedback};
+end
+
+assign Feedback = x[2] ~^ x[9];
+
+assign Random [0] = x[0];
+assign Random [1] = (RetryCnt > 1) ? x[1] : 1'b0;
+assign Random [2] = (RetryCnt > 2) ? x[2] : 1'b0;
+assign Random [3] = (RetryCnt > 3) ? x[3] : 1'b0;
+assign Random [4] = (RetryCnt > 4) ? x[4] : 1'b0;
+assign Random [5] = (RetryCnt > 5) ? x[5] : 1'b0;
+assign Random [6] = (RetryCnt > 6) ? x[6] : 1'b0;
+assign Random [7] = (RetryCnt > 7) ? x[7] : 1'b0;
+assign Random [8] = (RetryCnt > 8) ? x[8] : 1'b0;
+assign Random [9] = (RetryCnt > 9) ? x[9] : 1'b0;
+
+
+always @ (posedge MTxClk or posedge Reset)
+begin
+  if(Reset)
+    RandomLatched <= #Tp 10'h000;
+  else
+    begin
+      if(StateJam & StateJam_q)
+        RandomLatched <= #Tp Random;
     end
 end
 
+// Random Number == 0      IEEE 802.3 page 68. If 0 we go to defer and not to backoff.
+assign RandomEq0 = RandomLatched == 10'h0; 
 
-// LatchedMRxErr
-always @ (posedge MRxClk or posedge Reset)
-begin
-  if(Reset)
-    LatchedMRxErr <=#Tp 1'b0;
-  else
-  if(~MRxErr & MRxDV & RxStateIdle & ~Transmitting)
-    LatchedMRxErr <=#Tp 1'b0;
-  else
-  if(MRxErr & MRxDV & (RxStatePreamble | RxStateSFD | |RxStateData | RxStateIdle & ~Transmitting))
-    LatchedMRxErr <=#Tp 1'b1;
-end
-
-
-// ReceivedPacketGood
-assign ReceivedPacketGood = ~LatchedCrcError & ~LatchedMRxErr;
-
-
-// ReceivedLengthOK
-assign ReceivedLengthOK = LatchedRxByteCnt[15:0] > 63 & LatchedRxByteCnt[15:0] < 1519;
-
-
-
-// LatchedRxByteCnt[15:0]
-always @ (posedge MRxClk or posedge Reset)
-begin
-  if(Reset)
-    LatchedRxByteCnt[15:0] <=#Tp 16'h0;
-  else
-    begin 
-      if(RxStateSFD)
-        LatchedRxByteCnt[15:0] <=#Tp RxByteCnt[15:0];
-      else
-      if(RxStateData[0])
-        LatchedRxByteCnt[15:0] <=#Tp RxByteCnt[15:0];
-    end
-end
-
-
-
-// Time to take a sample
-assign TakeSample = |RxStateData     & ~MRxDV & RxByteCntGreat2  |
-                     RxStateData[0]  &  MRxDV & RxByteCntMaxFrame;
-
-
-// PreloadRxStatus
-always @ (posedge MRxClk or posedge Reset)
-begin
-  if(Reset)
-    PreloadRxStatus <=#Tp 1'b0;
-  else
-    PreloadRxStatus <=#Tp TakeSample;
-end
-
-
-
-// ReceiveEnd
-always @ (posedge MRxClk or posedge Reset)
-begin
-  if(Reset)
-    ReceiveEnd  <=#Tp 1'b0;
-  else
-    ReceiveEnd  <=#Tp PreloadRxStatus;                     
-end
-
+assign RandomEqByteCnt = ByteCnt[9:0] == RandomLatched & (&NibCnt[6:0]);
 
 endmodule

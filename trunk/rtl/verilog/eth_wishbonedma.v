@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  wishbonedma.v                                               ////
+////  eth_wishbonedma.v                                           ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -41,18 +41,20 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
 //
 //
 //
 //
 
-`timescale 1ns / 1ns
 
-`include "ethdefines.v"
-//`include "../../rtl/verilog/ethdefines.v"
+`include "eth_defines.v"
+`include "eth_timescale.v"
 
 
-module wishbonedma
+module eth_wishbonedma
    (
 
     // WISHBONE common
@@ -344,35 +346,36 @@ assign BDRead = DWord & WB_CYC_I & WB_STB_I & ~WB_WE_I & AccessToBD;
 assign WB_ACK_O = BDWe | BDRead & BDRead_q;  // ACK is delayed one clock because of BLOCKRAM properties when performing read
         
         
-// Xilinx BlockRAM for storing Tx and Rx buffer descriptors
-         
-RAMB4_S16_S16 RAM1 ( .DIA(WB_DAT_I[15:0]),     .DOA(WB_BDDataOut[15:0]),  .ADDRA(WB_ADR_I[9:2]), 
-                     .WEA(BDWe),               .CLKA(WB_CLK_I),           .ENA(1'b1), 
-                     .RSTA(WB_RST_I),          .DIB(BDDataIn[15:0]),      .DOB(BDDataOut[15:0]), 
-                     .ADDRB(BDAddress[7:0]),   .WEB(BDStatusWrite),       .CLKB(~WB_CLK_I), 
-                     .ENB(1'b1), .RSTB(WB_RST_I) ); 
-RAMB4_S16_S16 RAM2 ( .DIA(WB_DAT_I[31:16]),    .DOA(WB_BDDataOut[31:16]), .ADDRA(WB_ADR_I[9:2]), 
-                     .WEA(BDWe),               .CLKA(WB_CLK_I),           .ENA(1'b1), 
-                     .RSTA(WB_RST_I),          .DIB(BDDataIn[31:16]),     .DOB(BDDataOut[31:16]), 
-                     .ADDRB(BDAddress[7:0]),   .WEB(BDStatusWrite),       .CLKB(~WB_CLK_I), 
-                     .ENB(1'b1), .RSTB(WB_RST_I) ); 
 
-/*
-// Artisan RAM (ASIC implementation) for storing Tx and Rx buffer descriptors
-// Size will be reduced before implementation to 256 x 32
-
-wire [63:32] qa_dummy;
-wire [63:32] qb_dummy;
-art_hddp_8192x64 RAM1 ( .qa({qa_dummy[63:32], WB_BDDataOut[31:0]}), .clka(WB_CLK_I), 
-                        .cena(1'b0),                                .wena(~BDWe), 
-                        .aa({5'h0, WB_ADR_I[9:2]}),                 .da({32'h0, WB_DAT_I[31:0]}),
-                        .oena(1'b0),      
-                        .qb({qb_dummy[63:32], BDDataOut[31:0]}),    .clkb(~WB_CLK_I), 
-                        .cenb(1'b0),                                .wenb(~BDStatusWrite), 
-                        .ab({5'h0, BDAddress[7:0]}),                .db({32'h0, BDDataIn[31:0]}), 
-                        .oenb(1'b0)
-                      );
-*/
+`ifdef FPGA
+  // Xilinx BlockRAM for storing Tx and Rx buffer descriptors
+  
+  RAMB4_S16_S16 RAM1 ( .DIA(WB_DAT_I[15:0]),     .DOA(WB_BDDataOut[15:0]),  .ADDRA(WB_ADR_I[9:2]), 
+                       .WEA(BDWe),               .CLKA(WB_CLK_I),           .ENA(1'b1), 
+                       .RSTA(WB_RST_I),          .DIB(BDDataIn[15:0]),      .DOB(BDDataOut[15:0]), 
+                       .ADDRB(BDAddress[7:0]),   .WEB(BDStatusWrite),       .CLKB(~WB_CLK_I), 
+                       .ENB(1'b1), .RSTB(WB_RST_I) ); 
+  RAMB4_S16_S16 RAM2 ( .DIA(WB_DAT_I[31:16]),    .DOA(WB_BDDataOut[31:16]), .ADDRA(WB_ADR_I[9:2]), 
+                       .WEA(BDWe),               .CLKA(WB_CLK_I),           .ENA(1'b1), 
+                       .RSTA(WB_RST_I),          .DIB(BDDataIn[31:16]),     .DOB(BDDataOut[31:16]), 
+                       .ADDRB(BDAddress[7:0]),   .WEB(BDStatusWrite),       .CLKB(~WB_CLK_I), 
+                       .ENB(1'b1), .RSTB(WB_RST_I) ); 
+`else
+  // Artisan RAM (ASIC implementation) for storing Tx and Rx buffer descriptors
+  // Size will be reduced before implementation to 256 x 32
+  
+  wire [63:32] qa_dummy;
+  wire [63:32] qb_dummy;
+  art_hddp_8192x64 RAM1 ( .qa({qa_dummy[63:32], WB_BDDataOut[31:0]}), .clka(WB_CLK_I), 
+                          .cena(1'b0),                                .wena(~BDWe), 
+                          .aa({5'h0, WB_ADR_I[9:2]}),                 .da({32'h0, WB_DAT_I[31:0]}),
+                          .oena(1'b0),      
+                          .qb({qb_dummy[63:32], BDDataOut[31:0]}),    .clkb(~WB_CLK_I), 
+                          .cenb(1'b0),                                .wenb(~BDStatusWrite), 
+                          .ab({5'h0, BDAddress[7:0]}),                .db({32'h0, BDDataIn[31:0]}), 
+                          .oenb(1'b0)
+                        );
+`endif
 
 
 // WB_CLK_I is divided by 2. This signal is used for enabling tx and rx operations sequentially

@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  ethdefines.v                                                ////
+////  eth_defines.v                                               ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -41,14 +41,20 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
 //
 //
 //
 //
+//
+
+
+`define FPGA                        // Core is going to be implemented in FPGA and contains FPGA specific elements
+                                    // Should be cleared for the ASIC implementation
 
 
 // Address is {`ETHERNET_SPACE, REG_SPACE, 12'hx}
-
 `define ETHERNET_SPACE    16'hf000  // Ethernet space is allocated from 0xF0000000 to 0xF000FFFF
 `define REG_SPACE         4'h0      // Register space is allocated to 0xF0000000
 `define BD_SPACE          4'h1      // Buffer descriptor space is allocated to 0xF0001000

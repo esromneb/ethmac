@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  maccontrol.v                                                ////
+////  eth_maccontrol.v                                            ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
 // Revision 1.1  2001/07/03 12:51:54  mohor
 // Initial release of the MAC Control module.
 //
@@ -49,16 +52,16 @@
 //
 
 
-`timescale 1ns / 1ns
+`include "eth_timescale.v"
 
 
-module maccontrol (MTxClk, MRxClk, TxReset, RxReset, TPauseRq, TxDataIn, TxStartFrmIn, TxUsedDataIn, 
-                   TxEndFrmIn, TxDoneIn, TxAbortIn, RxData, RxValid, RxStartFrm, RxEndFrm, ReceiveEnd, 
-                   ReceivedPacketGood, ReceivedLengthOK, TxFlow, RxFlow, PassAll, DlyCrcEn, TxPauseTV, 
-                   MAC, PadIn, PadOut, CrcEnIn, CrcEnOut, TxDataOut, TxStartFrmOut, TxEndFrmOut, 
-                   TxDoneOut, TxAbortOut, TxUsedDataOut, WillSendControlFrame, TxCtrlEndFrm, 
-                   ReceivedPauseFrm
-                  );
+module eth_maccontrol (MTxClk, MRxClk, TxReset, RxReset, TPauseRq, TxDataIn, TxStartFrmIn, TxUsedDataIn, 
+                       TxEndFrmIn, TxDoneIn, TxAbortIn, RxData, RxValid, RxStartFrm, RxEndFrm, ReceiveEnd, 
+                       ReceivedPacketGood, ReceivedLengthOK, TxFlow, RxFlow, PassAll, DlyCrcEn, TxPauseTV, 
+                       MAC, PadIn, PadOut, CrcEnIn, CrcEnOut, TxDataOut, TxStartFrmOut, TxEndFrmOut, 
+                       TxDoneOut, TxAbortOut, TxUsedDataOut, WillSendControlFrame, TxCtrlEndFrm, 
+                       ReceivedPauseFrm
+                      );
 
 
 parameter   Tp = 1;
@@ -207,7 +210,7 @@ assign CrcEnOut = CrcEnIn | SendingCtrlFrm;
 
 
 // Connecting receivecontrol module
-receivecontrol receivecontrol1 
+eth_receivecontrol receivecontrol1 
 (
  .MTxClk(MTxClk), .MRxClk(MRxClk), .TxReset(TxReset), .RxReset(RxReset), .RxData(RxData), 
  .RxValid(RxValid), .RxStartFrm(RxStartFrm), .RxEndFrm(RxEndFrm), .RxFlow(RxFlow), 
@@ -218,7 +221,7 @@ receivecontrol receivecontrol1
 );
 
 
-transmitcontrol transmitcontrol1
+eth_transmitcontrol transmitcontrol1
 (
  .MTxClk(MTxClk), .TxReset(TxReset), .TxUsedDataIn(TxUsedDataIn), .TxUsedDataOut(TxUsedDataOut), 
  .TxDoneIn(TxDoneIn), .TxAbortIn(TxAbortIn), .TxStartFrmIn(TxStartFrmIn), .TPauseRq(TPauseRq), 

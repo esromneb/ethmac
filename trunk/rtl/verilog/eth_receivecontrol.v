@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  receivecontrol.v                                            ////
+////  eth_receivecontrol.v                                        ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
 // Revision 1.1  2001/07/03 12:51:54  mohor
 // Initial release of the MAC Control module.
 //
@@ -50,14 +53,14 @@
 //
 
 
-`timescale 1ns / 1ns
+`include "eth_timescale.v"
 
 
-module receivecontrol (MTxClk, MRxClk, TxReset, RxReset, RxData, RxValid, RxStartFrm, 
-                       RxEndFrm, RxFlow, ReceiveEnd, MAC, PassAll, DlyCrcEn, TxDoneIn, 
-                       TxAbortIn, TxStartFrmOut, ReceivedLengthOK, ReceivedPacketGood, 
-                       TxUsedDataOutDetected, Pause, ReceivedPauseFrm
-                      );
+module eth_receivecontrol (MTxClk, MRxClk, TxReset, RxReset, RxData, RxValid, RxStartFrm, 
+                           RxEndFrm, RxFlow, ReceiveEnd, MAC, PassAll, DlyCrcEn, TxDoneIn, 
+                           TxAbortIn, TxStartFrmOut, ReceivedLengthOK, ReceivedPacketGood, 
+                           TxUsedDataOutDetected, Pause, ReceivedPauseFrm
+                          );
 
 parameter Tp = 1;
 

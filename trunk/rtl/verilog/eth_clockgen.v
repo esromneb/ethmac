@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  outputcontrol.v                                             ////
+////  eth_clockgen.v                                              ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/cores/ethmac/                      ////
@@ -41,87 +41,74 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
-// Revision 1.3  2001/06/01 22:28:56  mohor
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
+// Revision 1.3  2001/06/01 22:28:55  mohor
 // This files (MIIM) are fully working. They were thoroughly tested. The testbench is not updated.
 //
 //
 
-`timescale 1ns / 1ns
+`include "eth_timescale.v"
 
-module outputcontrol(Clk, Reset, InProgress, ShiftedBit, BitCounter, WriteOp, NoPre, MdcEn_n, Mdo, MdoEn);
+module eth_clockgen(Clk, Reset, Divider, MdcEn, MdcEn_n, Mdc);
 
-parameter Tp = 1;
+parameter Tp=1;
 
-input         Clk;                // Host Clock
-input         Reset;              // General Reset
-input         WriteOp;            // Write Operation Latch (When asserted, write operation is in progress)
-input         NoPre;              // No Preamble (no 32-bit preamble)
-input         InProgress;         // Operation in progress
-input         ShiftedBit;         // This bit is output of the shift register and is connected to the Mdo signal
-input   [6:0] BitCounter;         // Bit Counter
-input         MdcEn_n;            // MII Management Data Clock Enable signal is asserted for one Clk period before Mdc falls.
+input       Clk;              // Input clock (Host clock)
+input       Reset;            // Reset signal
+input [7:0] Divider;          // Divider (input clock will be divided by the Divider[7:0])
 
-output        Mdo;                // MII Management Data Output
-output        MdoEn;              // MII Management Data Output Enable
+output      Mdc;              // Output clock
+output      MdcEn;            // Enable signal is asserted for one Clk period before Mdc rises.
+output      MdcEn_n;          // Enable signal is asserted for one Clk period before Mdc falls.
 
-wire          SerialEn;
+reg         Mdc;
+reg   [7:0] Counter;
 
-reg           MdoEn_2d;
-reg           MdoEn_d;
-reg           MdoEn;
-
-reg           Mdo_2d;
-reg           Mdo_d;
-reg           Mdo;                // MII Management Data Output
+wire        CountEq0;
+wire  [7:0] CounterPreset;
+wire  [7:0] TempDivider;
 
 
-
-// Generation of the Serial Enable signal (enables the serialization of the data)
-assign SerialEn =  WriteOp & InProgress & ( BitCounter>31 | ( ( BitCounter == 0 ) & NoPre ) )
-                | ~WriteOp & InProgress & (( BitCounter>31 & BitCounter<46 ) | ( ( BitCounter == 0 ) & NoPre )); // igor !!!  ali je tu res <46. To je veljalo, ko sem imel se >31 in napako 32 preamble bitov
+assign TempDivider[7:0]   = (Divider[7:0]<2)? 8'h02 : Divider[7:0]; // If smaller than 2
+assign CounterPreset[7:0] = (TempDivider[7:0]>>1) -1;               // We are counting half of period
 
 
-// Generation of the MdoEn signal
+// Counter counts half period
 always @ (posedge Clk or posedge Reset)
 begin
   if(Reset)
-    begin
-      MdoEn_2d <= #Tp 1'b0;
-      MdoEn_d <= #Tp 1'b0;
-      MdoEn <= #Tp 1'b0;
-    end
+    Counter[7:0] <= #Tp 8'h1;
   else
     begin
-      if(MdcEn_n)
+      if(CountEq0)
         begin
-          MdoEn_2d <= #Tp SerialEn | InProgress & BitCounter<32;
-          MdoEn_d <= #Tp MdoEn_2d;
-          MdoEn <= #Tp MdoEn_d;
+          Counter[7:0] <= #Tp CounterPreset[7:0];
         end
+      else
+        Counter[7:0] <= #Tp Counter - 8'h1;
     end
 end
 
 
-// Generation of the Mdo signal.
+// Mdc is asserted every other half period
 always @ (posedge Clk or posedge Reset)
 begin
   if(Reset)
-    begin
-      Mdo_2d <= #Tp 1'b0;
-      Mdo_d <= #Tp 1'b0;
-      Mdo <= #Tp 1'b0;
-    end
+    Mdc <= #Tp 1'b0;
   else
     begin
-      if(MdcEn_n)
-        begin
-          Mdo_2d <= #Tp ~SerialEn & BitCounter<32;
-          Mdo_d <= #Tp ShiftedBit | Mdo_2d;
-          Mdo <= #Tp Mdo_d;
-        end
+      if(CountEq0)
+        Mdc <= #Tp ~Mdc;
     end
 end
 
 
+assign CountEq0 = Counter == 8'h0;
+assign MdcEn = CountEq0 & ~Mdc;
+assign MdcEn_n = CountEq0 & Mdc;
 
 endmodule
+
+
