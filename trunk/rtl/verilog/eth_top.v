@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.34  2002/10/10 16:49:50  mohor
+// Signals for WISHBONE B3 compliant interface added.
+//
 // Revision 1.33  2002/10/10 16:29:30  mohor
 // BIST added.
 //
@@ -753,9 +756,9 @@ eth_wishbone wishbone
   .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood)
   
 `ifdef ETH_BIST
-  , 
+  ,
   .trst(trst),                        .SO(SO),                                  .SI(SI), 
-  .shift_DR(.shift_DR),               .capture_DR(capture_DR),                  .extest(extest), 
+  .shift_DR(shift_DR),                .capture_DR(capture_DR),                  .extest(extest),
   .tck(tck)
 `endif
 );
