@@ -8,12 +8,12 @@
 ////  Author(s):                                                  ////
 ////      - Igor Mohor (igorM@opencores.org)                      ////
 ////                                                              ////
-////  All additional information is avaliable in the Readme.txt   ////
+////  All additional information is available in the Readme.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2001 Authors                                   ////
+//// Copyright (C) 2001, 2002 Authors                             ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2002/09/04 18:36:49  mohor
+// Defines for control registers added (ETH_TXCTRL and ETH_RXCTRL).
+//
 // Revision 1.21  2002/08/16 22:09:47  mohor
 // Defines for register width added. mii_rst signal in MIIMODER register
 // changed.
@@ -138,7 +141,7 @@
 // Selection of the used memory for Buffer descriptors
 //`define ETH_XILINX_RAMB4            // Core is going to be implemented in Virtex FPGA and contains Virtex 
                                       // specific elements. 
-
+//`define ETH_VIRTUAL_SILICON_RAM     // Virtual Silicon RAMS used storing buffer decriptors (ASIC implementation)
 
 
 `define ETH_MODER_ADR         8'h0    // 0x0 
