@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2002/02/15 17:07:39  mohor
+// Status was not written correctly when frames were discarted because of
+// address mismatch.
+//
 // Revision 1.10  2002/02/15 12:17:39  mohor
 // RxStartFrm cleared when abort or retry comes.
 //
@@ -78,14 +82,10 @@
 //
 //
 
-// igor !!!
-// Napravi, pause frame
-
-// Poskusi spremeniti vse signale na wb strani da bodo imeli enake koncnice (npr _wb),
-// vsi na MTxClk strani pa _txclk   
-// Evaluiraj dato da pre start framom ni prisel abort ali kaj podobnega (kot je bilo v GotData, ki ga zbrisi)
-
-// Naj m_wb_err_i vzge status underrun ali uverrun
+// Build pause frame
+// Check GotData and evaluate data (abort or something like that comes before StartFrm)
+// m_wb_err_i should start status underrun or uverrun
+// r_RecSmall not used
 
 `include "eth_defines.v"
 `include "timescale.v"
@@ -98,7 +98,7 @@ module eth_wishbone
     WB_CLK_I, WB_DAT_I, WB_DAT_O, 
 
     // WISHBONE slave
- 		WB_ADR_I, WB_SEL_I, WB_WE_I, WB_ACK_O, 
+ 		WB_ADR_I, WB_WE_I, WB_ACK_O, 
     BDCs, 
 
     Reset, 
@@ -117,16 +117,16 @@ module eth_wishbone
     MRxClk, RxData, RxValid, RxStartFrm, RxEndFrm, RxAbort, 
     
     // Register
-    r_TxEn, r_RxEn, r_TxBDNum, r_DmaEn, TX_BD_NUM_Wr, r_RecSmall, 
+    r_TxEn, r_RxEn, r_TxBDNum, TX_BD_NUM_Wr, r_RecSmall, 
 
     WillSendControlFrame, TxCtrlEndFrm, // igor !!! WillSendControlFrame gre najbrz ven
     
     // Interrupts
-    TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ,
+    TxB_IRQ, TxE_IRQ, RxB_IRQ, RxE_IRQ, Busy_IRQ, TxC_IRQ, RxC_IRQ, 
     
     // Rx Status
     InvalidSymbol, LatchedCrcError, RxLateCollision, ShortFrame, DribbleNibble,
-    ReceivedPacketTooBig, RxLength, LoadRxStatus,
+    ReceivedPacketTooBig, RxLength, LoadRxStatus, ReceivedPacketGood, 
     
     // Tx Status
     RetryCntLatched, RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost
@@ -143,7 +143,6 @@ output [31:0]   WB_DAT_O;       // WISHBONE data output
 
 // WISHBONE slave
 input   [9:2]   WB_ADR_I;       // WISHBONE address input
-input   [3:0]   WB_SEL_I;       // WISHBONE byte select input
 input           WB_WE_I;        // WISHBONE write enable input
 input           BDCs;           // Buffer descriptors are selected
 output          WB_ACK_O;       // WISHBONE acknowledge output
@@ -170,6 +169,7 @@ input           DribbleNibble;    // Extra nibble received
 input           ReceivedPacketTooBig;// Received packet is bigger than r_MaxFL
 input    [15:0] RxLength;         // Length of the incoming frame
 input           LoadRxStatus;     // Rx status was loaded
+input           ReceivedPacketGood;// Received packet's length and CRC are good
 
 // Tx Status signals
 input     [3:0] RetryCntLatched;  // Latched Retry Counter
@@ -207,7 +207,6 @@ input           RxAbort;        // This signal is set when address doesn't match
 input           r_TxEn;         // Transmit enable
 input           r_RxEn;         // Receive enable
 input   [7:0]   r_TxBDNum;      // Receive buffer descriptor number
-input           r_DmaEn;        // DMA enable
 input           TX_BD_NUM_Wr;   // RxBDNumber written
 input           r_RecSmall;     // Receive small frames igor !!! tega uporabi
 
@@ -215,8 +214,17 @@ input           r_RecSmall;     // Receive small frames igor !!! tega uporabi
 output TxB_IRQ;
 output TxE_IRQ;
 output RxB_IRQ;
-output RxF_IRQ;
+output RxE_IRQ;
 output Busy_IRQ;
+output TxC_IRQ;
+output RxC_IRQ;
+
+
+reg TxB_IRQ;
+reg TxE_IRQ;
+reg RxB_IRQ;
+reg RxE_IRQ;
+
 
 reg             TxStartFrm;
 reg             TxEndFrm;
@@ -304,6 +312,7 @@ wire            StartTxBDRead;
 wire            TxIRQEn;
 wire            WrapTxStatusBit;
 
+wire            RxIRQEn;
 wire            WrapRxStatusBit;
 
 wire    [1:0]   TxValidBytes;
@@ -407,6 +416,8 @@ begin
       TxEn <=#Tp 1'b0;
       ram_addr <=#Tp 8'h0;
       ram_di <=#Tp 32'h0;
+      BDRead <=#Tp 1'b0;
+      BDWrite <=#Tp 1'b0;
     end
   else
     begin
@@ -962,9 +973,9 @@ assign TxIRQEn          = TxStatus[14];
 assign WrapTxStatusBit  = TxStatus[13];
 assign PerPacketPad     = TxStatus[12];
 assign PerPacketCrcEn   = TxStatus[11];
-//assign TxPauseRq      = TxStatus[9];      // already used     Ta gre ven, ker bo stvar izvedena preko registrov
 
 
+assign RxIRQEn         = RxStatus[14];
 assign WrapRxStatusBit = RxStatus[13];
 
 
@@ -991,7 +1002,7 @@ begin
   if(Reset)
     RxBDAddress <=#Tp 8'h0;
   else
-  if(TX_BD_NUM_Wr)                        // When r_TxBDNum is updated, RxBDAddress is also igor !!! ta del bi se lahko popravil
+  if(TX_BD_NUM_Wr)                        // When r_TxBDNum is updated, RxBDAddress is also
     RxBDAddress <=#Tp WB_DAT_I[7:0];
   else
   if(RxStatusWrite)
@@ -1693,18 +1704,6 @@ begin
 end
 
 
-
-
-
-// Interrupts
-assign TxB_IRQ = 1'b0;
-assign TxE_IRQ = 1'b0;
-assign RxB_IRQ = 1'b0;
-assign RxF_IRQ = 1'b0;
-assign Busy_IRQ = 1'b0;
-
-
-
 reg LoadStatusBlocked;
 
 always @ (posedge MRxClk or posedge Reset)
@@ -1754,6 +1753,73 @@ begin
   if(RxBufferFull & WriteRxDataToFifo_wb)
     RxOverrun <=#Tp 1'b1;
 end
+
+
+
+wire TxError;
+assign TxError = TxUnderRun | RetryLimit | LateCollLatched | CarrierSenseLost;
+
+wire RxError;
+assign RxError = |RxStatusInLatched[6:0];
+
+// Tx Done Interrupt
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    TxB_IRQ <=#Tp 1'b0;
+  else
+  if(TxStatusWrite & TxIRQEn)
+    TxB_IRQ <=#Tp ~TxError;
+  else
+    TxB_IRQ <=#Tp 1'b0;
+end
+
+
+// Tx Error Interrupt
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    TxE_IRQ <=#Tp 1'b0;
+  else
+  if(TxStatusWrite & TxIRQEn)
+    TxE_IRQ <=#Tp TxError;
+  else
+    TxE_IRQ <=#Tp 1'b0;
+end
+
+
+// Rx Done Interrupt
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    RxB_IRQ <=#Tp 1'b0;
+  else
+  if(RxStatusWrite & RxIRQEn)
+    RxB_IRQ <=#Tp ReceivedPacketGood;
+  else
+    RxB_IRQ <=#Tp 1'b0;
+end
+
+
+// Rx Error Interrupt
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    RxE_IRQ <=#Tp 1'b0;
+  else
+  if(RxStatusWrite & RxIRQEn)
+    RxE_IRQ <=#Tp RxError;
+  else
+    RxE_IRQ <=#Tp 1'b0;
+end
+
+
+assign RxC_IRQ = 1'b0;
+assign TxC_IRQ = 1'b0;
+assign Busy_IRQ = 1'b0;
+
+
+
 
          
 // TX
