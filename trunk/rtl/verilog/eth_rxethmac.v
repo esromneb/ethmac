@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/11 14:17:00  mohor
+// Few little NCSIM warnings fixed.
+//
 // Revision 1.1  2001/08/06 14:44:29  mohor
 // A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
 // Include files fixed to contain no path.
@@ -64,7 +67,7 @@
 //
 //
 
-`include "eth_timescale.v"
+`include "timescale.v"
 
 
 module eth_rxethmac (MRxClk, MRxDV, MRxD, Reset, Transmitting, MaxFL, r_IFG, HugEn, DlyCrcEn, 

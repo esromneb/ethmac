@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2001/10/18 12:07:11  mohor
+// Status signals changed, Adress decoding changed, interrupt controller
+// added.
+//
 // Revision 1.3  2001/09/24 15:02:56  mohor
 // Defines changed (All precede with ETH_). Small changes because some
 // tools generate warnings when two operands are together. Synchronization
@@ -72,7 +76,7 @@
 
 
 `include "eth_defines.v"
-`include "eth_timescale.v"
+`include "timescale.v"
 
 
 module eth_top

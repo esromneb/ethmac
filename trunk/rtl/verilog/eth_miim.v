@@ -41,6 +41,16 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/08/06 14:44:29  mohor
+// A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
+// Include files fixed to contain no path.
+// File names and module names changed ta have a eth_ prologue in the name.
+// File eth_timescale.v is used to define timescale
+// All pin names on the top module are changed to contain _I, _O or _OE at the end.
+// Bidirectional signal MDIO is changed to three signals (Mdc_O, Mdi_I, Mdo_O
+// and Mdo_OE. The bidirectional signal must be created on the top level. This
+// is done due to the ASIC tools.
+//
 // Revision 1.2  2001/08/02 09:25:31  mohor
 // Unconnected signals are now connected.
 //
@@ -52,7 +62,7 @@
 //
 //
 
-`include "eth_timescale.v"
+`include "timescale.v"
 
 
 module eth_miim

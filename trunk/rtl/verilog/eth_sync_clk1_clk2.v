@@ -41,12 +41,18 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/09/24 15:02:56  mohor
+// Defines changed (All precede with ETH_). Small changes because some
+// tools generate warnings when two operands are together. Synchronization
+// between two clocks domains in eth_wishbonedma.v is changed (due to ASIC
+// demands).
+//
 //
 //
 //
 // 
 
-`include "eth_timescale.v"
+`include "timescale.v"
 
 // FF in clock domain 1 is being set by a signal from the clock domain 2
 module eth_sync_clk1_clk2 (clk1, clk2, reset1, reset2, set2, sync_out);

@@ -43,6 +43,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2001/10/18 12:07:11  mohor
+// Status signals changed, Adress decoding changed, interrupt controller
+// added.
+//
 // Revision 1.2  2001/09/11 14:17:00  mohor
 // Few little NCSIM warnings fixed.
 //
@@ -71,7 +75,7 @@
 //
 
 
-`include "eth_timescale.v"
+`include "timescale.v"
 
 
 module eth_rxstatem (MRxClk, Reset, MRxDV, ByteCntEq0, ByteCntGreat2, Transmitting, MRxDEq5, MRxDEqD, 

@@ -1,4 +1,4 @@
-//////////////////////////////////////////////////////////////////////
+///////////3///////////////////////////////////////////////////////////
 ////                                                              ////
 ////  tb_eth_top.v                                                ////
 ////                                                              ////
@@ -41,6 +41,12 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2001/09/24 14:55:49  mohor
+// Defines changed (All precede with ETH_). Small changes because some
+// tools generate warnings when two operands are together. Synchronization
+// between two clocks domains in eth_wishbonedma.v is changed (due to ASIC
+// demands).
+//
 // Revision 1.2  2001/08/15 14:04:30  mohor
 // Signal names changed on the top level for easier pad insertion (ASIC).
 //
@@ -65,7 +71,7 @@
 
 
 `include "eth_defines.v"
-`include "eth_timescale.v"
+`include "timescale.v"
 
 module tb_eth_top();
 
@@ -139,7 +145,9 @@ eth_top ethtop
   .mcoll_pad_i(MColl), .mcrs_pad_i(MCrs), 
   
   // MIIM
-  .mdc_pad_o(Mdc_O), .md_pad_i(Mdi_I), .md_pad_o(Mdo_O), .md_padoen_o(Mdo_OE)
+  .mdc_pad_o(Mdc_O), .md_pad_i(Mdi_I), .md_pad_o(Mdo_O), .md_padoen_o(Mdo_OE),
+  
+  .int_o()
 );
 
 
@@ -220,11 +228,11 @@ initial
 begin
   wait(StartTB);  // Start of testbench
   
-  WishboneWrite(32'h00000800, {`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_MODER_ADR<<2});    // r_Rst = 1
-  WishboneWrite(32'h00000000, {`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_MODER_ADR<<2});    // r_Rst = 0
-  WishboneWrite(32'h00000080, {`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_RX_BD_ADR_ADR<<2});// r_RxBDAddress = 0x80
-  WishboneWrite(32'h0002A443, {`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_MODER_ADR<<2});    // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
-  WishboneWrite(32'h00000004, {`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_CTRLMODER_ADR<<2});//r_TxFlow = 1
+  WishboneWrite(32'h00000800, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 1
+  WishboneWrite(32'h00000000, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 0
+  WishboneWrite(32'h00000080, {26'h0, `ETH_RX_BD_ADR_ADR<<2}); // r_RxBDAddress = 0x80
+  WishboneWrite(32'h0002A443, {26'h0, `ETH_MODER_ADR<<2});     // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
+  WishboneWrite(32'h00000004, {26'h0, `ETH_CTRLMODER_ADR<<2}); //r_TxFlow = 1
 
 
 
@@ -243,19 +251,19 @@ begin
   ReceivePacket(16'h0018, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
 
 
-  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_MODER_ADR<<2});   // Read from MODER register
+  WishboneRead({26'h0, `ETH_MODER_ADR});   // Read from MODER register
 
-  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h0<<2)});       // Read from TxBD register
-  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h1<<2)});       // Read from TxBD register
-  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h2<<2)});       // Read from TxBD register
-  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h3<<2)});       // Read from TxBD register
-  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h4<<2)});       // Read from TxBD register
+  WishboneRead({24'h100, (8'h0<<2)});       // Read from TxBD register
+  WishboneRead({24'h100, (8'h1<<2)});       // Read from TxBD register
+  WishboneRead({24'h100, (8'h2<<2)});       // Read from TxBD register
+  WishboneRead({24'h100, (8'h3<<2)});       // Read from TxBD register
+  WishboneRead({24'h100, (8'h4<<2)});       // Read from TxBD register
     
-  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h80<<2)});       // Read from RxBD register
-  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h81<<2)});       // Read from RxBD register
-  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h82<<2)});       // Read from RxBD register
-  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h83<<2)});       // Read from RxBD register
-  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h84<<2)});       // Read from RxBD register
+  WishboneRead({22'h40, (10'h80<<2)});       // Read from RxBD register
+  WishboneRead({22'h40, (10'h81<<2)});       // Read from RxBD register
+  WishboneRead({22'h40, (10'h82<<2)});       // Read from RxBD register
+  WishboneRead({22'h40, (10'h83<<2)});       // Read from RxBD register
+  WishboneRead({22'h40, (10'h84<<2)});       // Read from RxBD register
 
   #10000 $stop;
 end
@@ -299,23 +307,20 @@ task WishboneWrite;
 
     // Writing information about the access to the screen
     @ (posedge WB_CLK_I);
-    if(Address[31:16] == `ETH_ETHERNET_SPACE)
-      if(Address[15:12] == `ETH_REG_SPACE)
-        $write("\nWrite to register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address[9:2]);
+      if(~Address[17] & ~Address[16])
+        $write("\nWrite to register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address);
       else
-      if(Address[15:12] == `ETH_BD_SPACE)
+      if(~Address[17] & Address[16])
         if(Address[9:2] < tb_eth_top.ethtop.r_RxBDAddress)
           begin
-            $write("\nWrite to TxBD (Data: 0x%x, TxBD Addr: 0x%0x)\n", Data, Address[9:2]);
+            $write("\nWrite to TxBD (Data: 0x%x, TxBD Addr: 0x%0x)\n", Data, Address);
             if(Data[13])
               $write("Send Control packet (PAUSE = 0x%0h)\n", Data[31:16]);
           end
         else
-          $write("\nWrite to RxBD (Data: 0x%x, RxBD Addr: 0x%0x)", Data, Address[9:2]);
+          $write("\nWrite to RxBD (Data: 0x%x, RxBD Addr: 0x%0x)", Data, Address);
       else
-        $write("\nWB write      Data: 0x%x      Addr: 0x%0x", Data, Address);
-    else
-      $write("\nWARNING !!! WB write to non-ethernet space (Data: 0x%x, Addr: 0x%0x)", Data, Address);
+        $write("\nWB write ??????????????     Data: 0x%x      Addr: 0x%0x", Data, Address);
     #1;
     WB_ADR_I = 32'hx;
     WB_DAT_I = 32'hx;
@@ -358,21 +363,18 @@ task WishboneRead;
       end
 
     @ (posedge WB_CLK_I);
-    if(Address[31:16] == `ETH_ETHERNET_SPACE)
-      if(Address[15:12] == `ETH_REG_SPACE)
-        $write("\nRead from register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address[9:2]);
+      if(~Address[17] & ~Address[16])
+        $write("\nRead from register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address);
       else
-      if(Address[15:12] == `ETH_BD_SPACE)
+      if(~Address[17] & Address[16])
         if(Address[9:2] < tb_eth_top.ethtop.r_RxBDAddress)
           begin
-            $write("\nRead from TxBD (Data: 0x%x, TxBD Addr: 0x%0x)", Data, Address[9:2]);
+            $write("\nRead from TxBD (Data: 0x%x, TxBD Addr: 0x%0x)", Data, Address);
           end
         else
-          $write("\nRead from RxBD (Data: 0x%x, RxBD Addr: 0x%0x)", Data, Address[9:2]);
+          $write("\nRead from RxBD (Data: 0x%x, RxBD Addr: 0x%0x)", Data, Address);
       else
-        $write("\nWB read      Data: 0x%x      Addr: 0x%0x", Data, Address);
-    else
-      $write("\nWARNING !!! WB read to non-ethernet space (Data: 0x%x, Addr: 0x%0x)", Data, Address);
+        $write("\nWB read  ?????????    Data: 0x%x      Addr: 0x%0x", Data, Address);
     #1;
     WB_ADR_I = 32'hx;
     WB_WE_I  = 1'bx;
@@ -399,8 +401,8 @@ task SendPacket;
     else
       Wrap = 1'b0;
 
-    TempAddr = {`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (TxBDIndex<<2)};
-    TempData = {Length[15:0], 1'b1, Wrap, ControlFrame, 5'h0, TxBDIndex[7:0]};  // Ready and Wrap = 1
+    TempAddr = {22'h40, (TxBDIndex<<2)};
+    TempData = {Length[15:0], 1'b1, 1'b0, Wrap, 3'h0, ControlFrame, 1'b0, TxBDIndex[7:0]};  // Ready and Wrap = 1
 
     #1;
     if(TxBDIndex == 3)    // Only 4 buffer descriptors are used
@@ -436,9 +438,9 @@ task ReceivePacket;    // Initializes RxBD and then generates traffic on the MRx
     else
       WrapRx = 1'b0;
 
-    TempRxAddr = {`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, ((tb_eth_top.ethtop.r_RxBDAddress + RxBDIndex)<<2)};
+    TempRxAddr = {22'h40, ((tb_eth_top.ethtop.r_RxBDAddress + RxBDIndex)<<2)};
 
-    TempRxData = {LengthRx[15:0], 1'b1, WrapRx, 6'h0, RxBDIndex[7:0]};  // Ready and WrapRx = 1 or 0
+    TempRxData = {LengthRx[15:0], 1'b1, 1'b0, WrapRx, 5'h0, RxBDIndex[7:0]};  // Ready and WrapRx = 1 or 0
 
     #1;
     if(RxBDIndex == 3)    // Only 4 buffer descriptors are used
@@ -489,7 +491,7 @@ task WaitingForTxDMARequest;
     WishboneBusy = 1;
     #1;
     WB_DAT_I = {a, b, c, d};
-    WB_ADR_I = {`ETH_ETHERNET_SPACE, `ETH_TX_DATA, pp[11:0]};
+    WB_ADR_I = {20'h20, pp[11:0]};
     $display("task WaitingForTxDMARequest: pp=%0d, WB_ADR_I=0x%0h, WB_DAT_I=0x%0h", pp, WB_ADR_I, WB_DAT_I);
 
     WB_WE_I  = 1'b1;
@@ -525,7 +527,7 @@ task WaitingForRxDMARequest;
     wait (~WishboneBusy);
     WishboneBusy = 1;
     #1;
-    WB_ADR_I = {`ETH_ETHERNET_SPACE, `ETH_RX_DATA, rr[11:0]};
+    WB_ADR_I = {20'h20, rr[11:0]};
     $display("task WaitingForRxDMARequest: rr=%0d, WB_ADR_I=0x%0h, WB_DAT_O=0x%0h", rr, WB_ADR_I, WB_DAT_O);
 
     WB_WE_I  = 1'b1;
