@@ -13,7 +13,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2001 Authors                                   ////
+//// Copyright (C) 2001, 2002 Authors                             ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/02/26 16:18:08  mohor
+// Reset values are passed to registers through parameters
+//
 // Revision 1.3  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -71,7 +74,7 @@
 module eth_register(DataIn, DataOut, Write, Clk, Reset);
 
 parameter WIDTH = 8; // default parameter of the register width
-parameter ResetValue = 0;
+parameter RESET_VALUE = 0;
 
 input [WIDTH-1:0] DataIn;
 
@@ -87,7 +90,7 @@ reg    [WIDTH-1:0] DataOut;
 always @ (posedge Clk or posedge Reset)
 begin
   if(Reset)
-    DataOut<=#1 ResetValue;
+    DataOut<=#1 RESET_VALUE;
   else
   if(Write)                         // write
     DataOut<=#1 DataIn;
