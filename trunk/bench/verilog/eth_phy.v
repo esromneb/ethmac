@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/09/13 14:50:15  mohor
+// Bug in MIIM fixed.
+//
 // Revision 1.2  2002/09/13 12:29:14  mohor
 // Headers changed.
 //
@@ -822,10 +825,18 @@ reg             mtxen_d;
 reg             task_mcoll;
   // carrier sense signal set or rest within task for controling carrier sense
 reg             task_mcrs;
+reg             task_mcrs_lost;
+  // do not generate collision in half duplex - not normal operation
+reg             no_collision_in_half_duplex;
   // generate collision in full-duplex mode also - not normal operation
 reg             collision_in_full_duplex;
+  // do not generate carrier sense in half duplex mode - not normal operation
+reg             no_carrier_sense_in_tx_half_duplex;
+reg             no_carrier_sense_in_rx_half_duplex;
   // generate carrier sense during TX in full-duplex mode also - not normal operation
 reg             carrier_sense_in_tx_full_duplex;
+  // do not generate carrier sense during RX in full-duplex mode - not normal operation
+reg             no_carrier_sense_in_rx_full_duplex;
   // on RX: delay after carrier sense signal; on TX: carrier sense delayed (delay is one clock period)
 reg             real_carrier_sense;
 
@@ -835,14 +846,19 @@ begin
   mcrs_tx = 0;
   task_mcoll = 0;
   task_mcrs = 0;
+  task_mcrs_lost = 0;
+  no_collision_in_half_duplex = 0;
   collision_in_full_duplex = 0;
+  no_carrier_sense_in_tx_half_duplex = 0;
+  no_carrier_sense_in_rx_half_duplex = 0;
   carrier_sense_in_tx_full_duplex = 0;
+  no_carrier_sense_in_rx_full_duplex = 0;
   real_carrier_sense = 0;
 end
 
 // Collision
 always@(m_rst_n_i or control_bit8_0 or collision_in_full_duplex or 
-        mcrs_rx or mcrs_tx or task_mcoll
+        mcrs_rx or mcrs_tx or task_mcoll or no_collision_in_half_duplex
         )
 begin
   if (!m_rst_n_i)
@@ -853,7 +869,7 @@ begin
     begin
       if (collision_in_full_duplex) // collision is usually not asserted in full duplex
       begin
-        mcoll_o = (mcrs_rx && mcrs_tx) || task_mcoll;
+        mcoll_o = ((mcrs_rx && mcrs_tx) || task_mcoll);
         `ifdef VERBOSE
         if (mcrs_rx && mcrs_tx)
           $fdisplay(phy_log, "   (%0t)(%m) Collision set in FullDuplex!", $time);
@@ -872,7 +888,8 @@ begin
     end
     else // half duplex
     begin
-      mcoll_o = (mcrs_rx && mcrs_tx) || task_mcoll;
+      mcoll_o = ((mcrs_rx && mcrs_tx && !no_collision_in_half_duplex) || 
+                  task_mcoll);
       `ifdef VERBOSE
       if (mcrs_rx && mcrs_tx)
         $fdisplay(phy_log, "   (%0t)(%m) Collision set in HalfDuplex!", $time);
@@ -885,7 +902,10 @@ end
 
 // Carrier sense
 always@(m_rst_n_i or control_bit8_0 or carrier_sense_in_tx_full_duplex or
-        mcrs_rx or mcrs_tx or task_mcrs
+        no_carrier_sense_in_rx_full_duplex or
+        no_carrier_sense_in_tx_half_duplex or 
+        no_carrier_sense_in_rx_half_duplex or 
+        mcrs_rx or mcrs_tx or task_mcrs or task_mcrs_lost
         )
 begin
   if (!m_rst_n_i)
@@ -895,13 +915,17 @@ begin
     if (control_bit8_0[8]) // full duplex
     begin
       if (carrier_sense_in_tx_full_duplex) // carrier sense is usually not asserted during TX in full duplex
-        mcrs_o = mcrs_rx || mcrs_tx || task_mcrs;
+        mcrs_o = ((mcrs_rx && !no_carrier_sense_in_rx_full_duplex) || 
+                   mcrs_tx || task_mcrs) && !task_mcrs_lost;
       else
-        mcrs_o = mcrs_rx || task_mcrs;
+        mcrs_o = ((mcrs_rx && !no_carrier_sense_in_rx_full_duplex) || 
+                   task_mcrs) && !task_mcrs_lost;
     end
     else // half duplex
     begin
-      mcrs_o = mcrs_rx || mcrs_tx || task_mcrs;
+      mcrs_o = ((mcrs_rx && !no_carrier_sense_in_rx_half_duplex) || 
+                (mcrs_tx && !no_carrier_sense_in_tx_half_duplex) || 
+                 task_mcrs) && !task_mcrs_lost;
     end
   end
 end
@@ -1267,11 +1291,43 @@ begin
 end
 endtask
 
+// Carrier sense lost - higher priority than Carrier sense task
+task carrier_sense_lost;
+  input   test_op;
+begin
+  #1 task_mcrs_lost = test_op;
+end
+endtask
+
+// No collision detection in half duplex
+task no_collision_hd_detect;
+  input   test_op;
+begin
+  #1 no_collision_in_half_duplex = test_op;
+end
+endtask
+
 // Collision detection in full duplex also
 task collision_fd_detect;
   input   test_op;
 begin
   #1 collision_in_full_duplex = test_op;
+end
+endtask
+
+// No carrier sense detection at TX in half duplex
+task no_carrier_sense_tx_hd_detect;
+  input   test_op;
+begin
+  #1 no_carrier_sense_in_tx_half_duplex = test_op;
+end
+endtask
+
+// No carrier sense detection at RX in half duplex
+task no_carrier_sense_rx_hd_detect;
+  input   test_op;
+begin
+  #1 no_carrier_sense_in_rx_half_duplex = test_op;
 end
 endtask
 
@@ -1283,7 +1339,15 @@ begin
 end
 endtask
 
-// Set real delay on carrier sense signal
+// No carrier sense detection at RX in full duplex
+task no_carrier_sense_rx_fd_detect;
+  input   test_op;
+begin
+  #1 no_carrier_sense_in_rx_full_duplex = test_op;
+end
+endtask
+
+// Set real delay on carrier sense signal (and therefor collision signal)
 task carrier_sense_real_delay;
   input   test_op;
 begin
