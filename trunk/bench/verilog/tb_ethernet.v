@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/07/19 14:02:47  mohor
+// Clock mrx_clk set to 2.5 MHz.
+//
 // Revision 1.1  2002/07/19 13:57:53  mohor
 // Testing environment also includes traffic cop, memory interface and host
 // interface.
@@ -87,6 +90,11 @@ integer tx_log;
 integer rx_log;
 
 reg StartTB;
+
+`ifdef ETH_XILINX_RAMB4
+  reg gsr;
+`endif
+
 
 integer packet_ready_cnt, send_packet_cnt;
 
@@ -215,9 +223,18 @@ begin
   tx_log = $fopen("ethernet_tx.log");
   rx_log = $fopen("ethernet_rx.log");
   wb_rst_o =  1'b1;
+`ifdef ETH_XILINX_RAMB4
+  gsr           =  1'b0;
+  #100 gsr      =  1'b1;
+  #100 gsr      =  1'b0;
+`endif
   #100 wb_rst_o =  1'b0;
   #100 StartTB  =  1'b1;
 end
+
+`ifdef ETH_XILINX_RAMB4
+  assign glbl.GSR = gsr;
+`endif
 
 
 
