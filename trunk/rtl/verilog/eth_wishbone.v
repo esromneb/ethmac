@@ -41,6 +41,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.33  2002/09/04 18:47:57  mohor
+// Debug registers reg1, 2, 3, 4 connected. Synchronization of many signals
+// changed (bugs fixed). Access to un-alligned buffers fixed. RxAbort signal
+// was not used OK.
+//
 // Revision 1.32  2002/08/14 19:31:48  mohor
 // Register TX_BD_NUM is changed so it contains value of the Tx buffer descriptors. No
 // need to multiply or devide any more.
@@ -149,12 +154,6 @@
 //
 //
 //
-//
-
-// Build pause frame
-// Check GotData and evaluate data (abort or something like that comes before StartFrm)
-// m_wb_err_i should start status underrun or uverrun
-// r_RecSmall not used
 
 `include "eth_defines.v"
 `include "timescale.v"
@@ -348,7 +347,6 @@ reg             TxUsedData_q;
 
 reg    [31:0]   RxDataLatched2;
 
-// reg    [23:0]   RxDataLatched1;
 reg    [31:8]   RxDataLatched1;     // Big Endian Byte Ordering
 
 reg     [1:0]   RxValidBytes;
@@ -420,23 +418,15 @@ wire StartRxPointerRead;
 reg RxPointerRead; 
 
 
-always @ (posedge WB_CLK_I or posedge Reset)
+always @ (posedge WB_CLK_I)
 begin
-  if(Reset)
-    begin
-      WB_ACK_O <=#Tp 1'b0;
-    end
-  else
-    begin
-      WB_ACK_O <=#Tp BDWrite & WbEn & WbEn_q | BDRead & WbEn & ~WbEn_q;
-    end
+  WB_ACK_O <=#Tp BDWrite & WbEn & WbEn_q | BDRead & WbEn & ~WbEn_q;
 end
 
 assign WB_DAT_O = ram_do;
 
 // Generic synchronous single-port RAM interface
 eth_spram_256x32 bd_ram (
-	// Generic synchronous single-port RAM interface
 	.clk(WB_CLK_I), .rst(Reset), .ce(ram_ce), .we(ram_we), .oe(ram_oe), .addr(ram_addr), .di(ram_di), .do(ram_do)
 );
 
@@ -636,6 +626,28 @@ begin
 end
 
 
+reg BlockingTxStatusWrite_sync1;
+reg BlockingTxStatusWrite_sync2;
+
+// Synchronizing BlockingTxStatusWrite to MTxClk
+always @ (posedge MTxClk or posedge Reset)
+begin
+  if(Reset)
+    BlockingTxStatusWrite_sync1 <=#Tp 1'b0;
+  else
+    BlockingTxStatusWrite_sync1 <=#Tp BlockingTxStatusWrite;
+end
+
+// Synchronizing BlockingTxStatusWrite to MTxClk
+always @ (posedge MTxClk or posedge Reset)
+begin
+  if(Reset)
+    BlockingTxStatusWrite_sync2 <=#Tp 1'b0;
+  else
+    BlockingTxStatusWrite_sync2 <=#Tp BlockingTxStatusWrite_sync1;
+end
+
+
 // TxBDRead state is activated only once. 
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
@@ -677,11 +689,11 @@ wire TxLengthEq0;
 wire TxLengthLt4;
 
 reg BlockingIncrementTxPointer;
-reg [31:0] TxPointer;
-reg [1:0]  TxPointerLatched;
-reg [1:0]  TxPointerLatched_rst;
-reg [31:0] RxPointer;
-reg [1:0]  RxPointerLatched;
+reg [31:2] TxPointerMSB;
+reg [1:0]  TxPointerLSB;
+reg [1:0]  TxPointerLSB_rst;
+reg [31:2] RxPointerMSB;
+reg [1:0]  RxPointerLSB_rst;
 
 wire RxBurstAcc;
 wire RxWordAcc;
@@ -702,16 +714,16 @@ begin
       if(TxLengthLt4)
         TxLength <=#Tp 16'h0;
       else
-      if(TxPointerLatched_rst==2'h0)
+      if(TxPointerLSB_rst==2'h0)
         TxLength <=#Tp TxLength - 3'h4;    // Length is subtracted at the data request
       else
-      if(TxPointerLatched_rst==2'h1)
+      if(TxPointerLSB_rst==2'h1)
         TxLength <=#Tp TxLength - 3'h3;    // Length is subtracted at the data request
       else
-      if(TxPointerLatched_rst==2'h2)
+      if(TxPointerLSB_rst==2'h2)
         TxLength <=#Tp TxLength - 3'h2;    // Length is subtracted at the data request
       else
-      if(TxPointerLatched_rst==2'h3)
+      if(TxPointerLSB_rst==2'h3)
         TxLength <=#Tp TxLength - 3'h1;    // Length is subtracted at the data request
     end
 end
@@ -735,46 +747,53 @@ reg cyc_cleared;
 reg IncrTxPointer;
 
 
-//Latching Tx buffer pointer from buffer descriptor;
+// Latching Tx buffer pointer from buffer descriptor. Only 30 MSB bits are latched
+// because TxPointerMSB is only used for word-aligned accesses.
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    TxPointer <=#Tp 0;
+    TxPointerMSB <=#Tp 30'h0;
   else
   if(TxEn & TxEn_q & TxPointerRead)
-    TxPointer <=#Tp ram_do;
+    TxPointerMSB <=#Tp ram_do[31:2];
   else
   if(IncrTxPointer & ~BlockingIncrementTxPointer)
-      TxPointer <=#Tp TxPointer + 3'h4; // Word access
+    TxPointerMSB <=#Tp TxPointerMSB + 1'b1;     // TxPointer is word-aligned
 end
 
 
-//Latching last addresses from buffer descriptor (used as byte-half-word indicator);
+// Latching 2 MSB bits of the buffer descriptor. Since word accesses are performed,
+// valid data does not necesserly start at byte 0 (could be byte 0, 1, 2 or 3). This
+// signals are used for proper selection of the start byte (TxData and TxByteCnt) are
+// set by this two bits.
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    TxPointerLatched[1:0] <=#Tp 0;
+    TxPointerLSB[1:0] <=#Tp 0;
   else
   if(TxEn & TxEn_q & TxPointerRead)
-    TxPointerLatched[1:0] <=#Tp ram_do[1:0];
+    TxPointerLSB[1:0] <=#Tp ram_do[1:0];
 end
 
 
-//Latching last addresses from buffer descriptor (used as byte-half-word indicator);
+// Latching 2 MSB bits of the buffer descriptor. 
+// After the read access, TxLength needs to be decremented for the number of the valid
+// bytes (1 to 4 bytes are valid in the first word). After the first read all bytes are 
+// valid so this two bits are reset to zero. 
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    TxPointerLatched_rst[1:0] <=#Tp 0;
+    TxPointerLSB_rst[1:0] <=#Tp 0;
   else
   if(TxEn & TxEn_q & TxPointerRead)
-    TxPointerLatched_rst[1:0] <=#Tp ram_do[1:0];
+    TxPointerLSB_rst[1:0] <=#Tp ram_do[1:0];
   else
   if(MasterWbTX & m_wb_ack_i)                 // After first access pointer is word alligned
-    TxPointerLatched_rst[1:0] <=#Tp 0;
+    TxPointerLSB_rst[1:0] <=#Tp 0;
 end
 
 
-reg  [3:0] m_wb_sel_tmp_rx;
+reg  [3:0] RxByteSel;
 wire MasterAccessFinished;
 
 
@@ -834,13 +853,12 @@ end
 
 
 assign MasterAccessFinished = m_wb_ack_i | m_wb_err_i;
-reg [3:0] state;
+
 // Enabling master wishbone access to the memory for two devices TX and RX.
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
     begin
- state <=#Tp 4'h0;
       MasterWbTX <=#Tp 1'b0;
       MasterWbRX <=#Tp 1'b0;
       m_wb_adr_o <=#Tp 32'h0;
@@ -857,22 +875,20 @@ begin
       casex ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished, cyc_cleared})  // synopsys parallel_case
         6'b00_01_0_x, 6'b00_11_0_x :
           begin
- state <=#Tp 4'h1;
             MasterWbTX <=#Tp 1'b0;  // idle and master write is needed (data write to rx buffer)
             MasterWbRX <=#Tp 1'b1;
-            m_wb_adr_o <=#Tp RxPointer;
+            m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b1;
-            m_wb_sel_o <=#Tp m_wb_sel_tmp_rx;
+            m_wb_sel_o <=#Tp RxByteSel;
             IncrTxPointer<=#Tp 1'b0;
           end
         6'b00_10_0_x, 6'b00_10_1_x :
           begin
- state <=#Tp 4'h2;
             MasterWbTX <=#Tp 1'b1;  // idle and master read is needed (data read from tx buffer)
             MasterWbRX <=#Tp 1'b0;
-            m_wb_adr_o <=#Tp {TxPointer[31:2], 2'h0};
+            m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
@@ -881,10 +897,9 @@ begin
           end
         6'b10_10_0_1 :
           begin
- state <=#Tp 4'h3;
             MasterWbTX <=#Tp 1'b1;  // master read and master read is needed (data read from tx buffer)
             MasterWbRX <=#Tp 1'b0;
-            m_wb_adr_o <=#Tp {TxPointer[31:2], 2'h0};
+            m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
@@ -894,36 +909,33 @@ begin
           end
         6'b01_01_0_1 :
           begin
- state <=#Tp 4'h4;
             MasterWbTX <=#Tp 1'b0;  // master write and master write is needed (data write to rx buffer)
             MasterWbRX <=#Tp 1'b1;
-            m_wb_adr_o <=#Tp RxPointer;
+            m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b1;
-            m_wb_sel_o <=#Tp m_wb_sel_tmp_rx;
+            m_wb_sel_o <=#Tp RxByteSel;
             cyc_cleared<=#Tp 1'b0;
             IncrTxPointer<=#Tp 1'b0;
           end
         6'b10_01_0_1, 6'b10_11_0_1 :
           begin
- state <=#Tp 4'h5;
             MasterWbTX <=#Tp 1'b0;  // master read and master write is needed (data write to rx buffer)
             MasterWbRX <=#Tp 1'b1;
-            m_wb_adr_o <=#Tp RxPointer;
+            m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b1;
-            m_wb_sel_o <=#Tp m_wb_sel_tmp_rx;
+            m_wb_sel_o <=#Tp RxByteSel;
             cyc_cleared<=#Tp 1'b0;
             IncrTxPointer<=#Tp 1'b0;
           end
         6'b01_10_0_1, 6'b01_11_0_1 :
           begin
- state <=#Tp 4'h6;
             MasterWbTX <=#Tp 1'b1;  // master write and master read is needed (data read from tx buffer)
             MasterWbRX <=#Tp 1'b0;
-            m_wb_adr_o <=#Tp {TxPointer[31:2], 2'h0};
+            m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
@@ -933,7 +945,6 @@ begin
           end
         6'b10_10_1_0, 6'b01_01_1_0, 6'b10_01_1_0, 6'b10_11_1_0, 6'b01_10_1_0, 6'b01_11_1_0 :
           begin
- state <=#Tp 4'h7;
             m_wb_cyc_o <=#Tp 1'b0;  // whatever and master read or write is needed. We need to clear m_wb_cyc_o before next access is started
             m_wb_stb_o <=#Tp 1'b0;
             cyc_cleared<=#Tp 1'b1;
@@ -941,7 +952,6 @@ begin
           end
         6'b10_00_1_x, 6'b01_00_1_x :
           begin
- state <=#Tp 4'h8;
             MasterWbTX <=#Tp 1'b0;  // whatever and no master read or write is needed (ack or err comes finishing previous access)
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b0;
@@ -950,7 +960,6 @@ begin
           end
         6'b10_00_0_1, 6'b01_00_0_1 :
           begin
- state <=#Tp 4'h9;
             MasterWbTX <=#Tp 1'b0;  // Between cyc_cleared request was cleared
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b0;
@@ -1270,14 +1279,14 @@ begin
     TxData <=#Tp 0;
   else
   if(TxStartFrm_sync2 & ~TxStartFrm)
-    case(TxPointerLatched)  // synopsys parallel_case
+    case(TxPointerLSB)  // synopsys parallel_case
       2'h0 : TxData <=#Tp TxData_wb[31:24];                  // Big Endian Byte Ordering
       2'h1 : TxData <=#Tp TxData_wb[23:16];                  // Big Endian Byte Ordering
       2'h2 : TxData <=#Tp TxData_wb[15:08];                  // Big Endian Byte Ordering
       2'h3 : TxData <=#Tp TxData_wb[07:00];                  // Big Endian Byte Ordering
     endcase
   else
-  if(TxStartFrm & TxUsedData & TxPointerLatched==2'h3)
+  if(TxStartFrm & TxUsedData & TxPointerLSB==2'h3)
     TxData <=#Tp TxData_wb[31:24];                           // Big Endian Byte Ordering
   else
   if(TxUsedData & Flop)
@@ -1317,17 +1326,32 @@ begin
 end
 
 
+reg TxUnderRun_sync1;
+
+// Tx under run
+always @ (posedge MTxClk or posedge Reset)
+begin
+  if(Reset)
+    TxUnderRun_sync1 <=#Tp 1'b0;
+  else
+  if(TxUnderRun_wb)
+    TxUnderRun_sync1 <=#Tp 1'b1;
+  else
+  if(BlockingTxStatusWrite_sync2)
+    TxUnderRun_sync1 <=#Tp 1'b0;
+end
+
 // Tx under run
 always @ (posedge MTxClk or posedge Reset)
 begin
   if(Reset)
     TxUnderRun <=#Tp 1'b0;
   else
-  if(TxUnderRun_wb)
-    TxUnderRun <=#Tp 1'b1;
-  else
-  if(BlockingTxStatusWrite)
+  if(BlockingTxStatusWrite_sync2)
     TxUnderRun <=#Tp 1'b0;
+  else
+  if(TxUnderRun_sync1)
+    TxUnderRun <=#Tp 1'b1;
 end
 
 
@@ -1341,7 +1365,7 @@ begin
     TxByteCnt <=#Tp 2'h0;
   else
   if(TxStartFrm & ~TxUsedData)
-    case(TxPointerLatched)  // synopsys parallel_case
+    case(TxPointerLSB)  // synopsys parallel_case
       2'h0 : TxByteCnt <=#Tp 2'h1;
       2'h1 : TxByteCnt <=#Tp 2'h2;
       2'h2 : TxByteCnt <=#Tp 2'h3;
@@ -1352,71 +1376,6 @@ begin
     TxByteCnt <=#Tp TxByteCnt + 1'b1;
 end
 
-/*
-// Start: Generation of the ReadTxDataFromFifo_tck signal and synchronization to the WB_CLK_I
-reg ReadTxDataFromFifo_sync1;
-reg ReadTxDataFromFifo_sync2;
-reg ReadTxDataFromFifo_sync3;
-reg ReadTxDataFromFifo_syncb1;
-reg ReadTxDataFromFifo_syncb2;
-
-
-always @ (posedge MTxClk or posedge Reset)
-begin
-  if(Reset)
-    ReadTxDataFromFifo_tck <=#Tp 1'b0;
-  else
-  if(TxStartFrm_sync2 & ~TxStartFrm | TxUsedData & Flop & TxByteCnt == 2'h3 & ~LastWord | TxStartFrm & TxUsedData & Flop & TxByteCnt == 2'h0)
-     ReadTxDataFromFifo_tck <=#Tp 1'b1;
-  else
-  if(ReadTxDataFromFifo_syncb2)
-    ReadTxDataFromFifo_tck <=#Tp 1'b0;
-end
-
-// Synchronizing TxStartFrm_wb to MTxClk
-always @ (posedge WB_CLK_I or posedge Reset)
-begin
-  if(Reset)
-    ReadTxDataFromFifo_sync1 <=#Tp 1'b0;
-  else
-    ReadTxDataFromFifo_sync1 <=#Tp ReadTxDataFromFifo_tck;
-end
-
-always @ (posedge WB_CLK_I or posedge Reset)
-begin
-  if(Reset)
-    ReadTxDataFromFifo_sync2 <=#Tp 1'b0;
-  else
-    ReadTxDataFromFifo_sync2 <=#Tp ReadTxDataFromFifo_sync1;
-end
-
-always @ (posedge MTxClk or posedge Reset)
-begin
-  if(Reset)
-    ReadTxDataFromFifo_syncb1 <=#Tp 1'b0;
-  else
-    ReadTxDataFromFifo_syncb1 <=#Tp ReadTxDataFromFifo_sync2;
-end
-
-always @ (posedge MTxClk or posedge Reset)
-begin
-  if(Reset)
-    ReadTxDataFromFifo_syncb2 <=#Tp 1'b0;
-  else
-    ReadTxDataFromFifo_syncb2 <=#Tp ReadTxDataFromFifo_syncb1;
-end
-
-always @ (posedge WB_CLK_I or posedge Reset)
-begin
-  if(Reset)
-    ReadTxDataFromFifo_sync3 <=#Tp 1'b0;
-  else
-    ReadTxDataFromFifo_sync3 <=#Tp ReadTxDataFromFifo_sync2;
-end
-
-assign ReadTxDataFromFifo_wb = ReadTxDataFromFifo_sync2 & ~ReadTxDataFromFifo_sync3;
-// End: Generation of the ReadTxDataFromFifo_tck signal and synchronization to the WB_CLK_I
-*/
 
 // Start: Generation of the ReadTxDataFromFifo_tck signal and synchronization to the WB_CLK_I
 reg ReadTxDataFromFifo_sync1;
@@ -1622,13 +1581,13 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    RxPointer <=#Tp 32'h0;
+    RxPointerMSB <=#Tp 30'h0;
   else
   if(RxEn & RxEn_q & RxPointerRead)
-    RxPointer <=#Tp {ram_do[31:2], 2'h0};
+    RxPointerMSB <=#Tp ram_do[31:2];
   else
   if(MasterWbRX & m_wb_ack_i)
-      RxPointer <=#Tp RxPointer + 3'h4; // Word access  (always word access. m_wb_sel_o are used for selecting bytes)
+      RxPointerMSB <=#Tp RxPointerMSB + 1; // Word access  (always word access. m_wb_sel_o are used for selecting bytes)
 end
 
 
@@ -1636,23 +1595,23 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    RxPointerLatched[1:0] <=#Tp 0;
+    RxPointerLSB_rst[1:0] <=#Tp 0;
   else
-  if(MasterWbRX & m_wb_ack_i)                 // After first write all m_wb_sel_tmp_rx are active
-    RxPointerLatched[1:0] <=#Tp 0;
+  if(MasterWbRX & m_wb_ack_i)                 // After first write all RxByteSel are active
+    RxPointerLSB_rst[1:0] <=#Tp 0;
   else
   if(RxEn & RxEn_q & RxPointerRead)
-    RxPointerLatched[1:0] <=#Tp ram_do[1:0];
+    RxPointerLSB_rst[1:0] <=#Tp ram_do[1:0];
 end
 
 
-always @ (RxPointerLatched)
+always @ (RxPointerLSB_rst)
 begin
-  case(RxPointerLatched[1:0])  // synopsys parallel_case
-    2'h0 : m_wb_sel_tmp_rx[3:0] = 4'hf;
-    2'h1 : m_wb_sel_tmp_rx[3:0] = 4'h7;
-    2'h2 : m_wb_sel_tmp_rx[3:0] = 4'h3;
-    2'h3 : m_wb_sel_tmp_rx[3:0] = 4'h1;
+  case(RxPointerLSB_rst[1:0])  // synopsys parallel_case
+    2'h0 : RxByteSel[3:0] = 4'hf;
+    2'h1 : RxByteSel[3:0] = 4'h7;
+    2'h2 : RxByteSel[3:0] = 4'h3;
+    2'h3 : RxByteSel[3:0] = 4'h1;
   endcase
 end
 
@@ -1716,7 +1675,7 @@ begin
     LastByteIn <=#Tp 1'b1;
 end
 
-reg ShiftEnded_tck;
+reg ShiftEnded_rck;
 reg ShiftEndedSync1;
 reg ShiftEndedSync2;
 reg ShiftEndedSync3;
@@ -1724,7 +1683,6 @@ reg ShiftEndedSync_c1;
 reg ShiftEndedSync_c2;
 
 wire StartShiftWillEnd;
-//assign StartShiftWillEnd = LastByteIn & (&RxByteCnt) | RxValid & RxEndFrm & (&RxByteCnt) & RxEnableWindow;
 assign StartShiftWillEnd = LastByteIn  | RxValid & RxEndFrm & (&RxByteCnt) & RxEnableWindow;
 
 // Indicating that data reception will end
@@ -1733,7 +1691,7 @@ begin
   if(Reset)
     ShiftWillEnd <=#Tp 1'b0;
   else
-  if(ShiftEnded_tck | RxAbort)
+  if(ShiftEnded_rck | RxAbort)
     ShiftWillEnd <=#Tp 1'b0;
   else
   if(StartShiftWillEnd)
@@ -1748,11 +1706,11 @@ begin
   if(Reset)
     RxByteCnt <=#Tp 2'h0;
   else
-  if(ShiftEnded_tck | RxAbort)
+  if(ShiftEnded_rck | RxAbort)
     RxByteCnt <=#Tp 2'h0;
   else
   if(RxValid & RxStartFrm & RxBDReady)
-    case(RxPointerLatched)  // synopsys parallel_case
+    case(RxPointerLSB_rst)  // synopsys parallel_case
       2'h0 : RxByteCnt <=#Tp 2'h1;
       2'h1 : RxByteCnt <=#Tp 2'h2;
       2'h2 : RxByteCnt <=#Tp 2'h3;
@@ -1771,7 +1729,7 @@ begin
     RxValidBytes <=#Tp 2'h1;
   else
   if(RxValid & RxStartFrm)
-    case(RxPointerLatched)  // synopsys parallel_case
+    case(RxPointerLSB_rst)  // synopsys parallel_case
       2'h0 : RxValidBytes <=#Tp 2'h1;
       2'h1 : RxValidBytes <=#Tp 2'h2;
       2'h2 : RxValidBytes <=#Tp 2'h3;
@@ -1791,7 +1749,7 @@ begin
   if(RxValid & RxBDReady & ~LastByteIn)
     if(RxStartFrm)
     begin
-      case(RxPointerLatched)     // synopsys parallel_case
+      case(RxPointerLSB_rst)     // synopsys parallel_case
         2'h0:        RxDataLatched1[31:24] <=#Tp RxData;            // Big Endian Byte Ordering
         2'h1:        RxDataLatched1[23:16] <=#Tp RxData;
         2'h2:        RxDataLatched1[15:8]  <=#Tp RxData;
@@ -1822,10 +1780,6 @@ begin
   else
   if(SetWriteRxDataToFifo & ShiftWillEnd)
     case(RxValidBytes)  // synopsys parallel_case
-//      0 : RxDataLatched2 <=#Tp {RxDataLatched1[31:8],  RxData};       // Big Endian Byte Ordering
-//      1 : RxDataLatched2 <=#Tp {RxDataLatched1[31:24], 24'h0};
-//      2 : RxDataLatched2 <=#Tp {RxDataLatched1[31:16], 16'h0};
-//      3 : RxDataLatched2 <=#Tp {RxDataLatched1[31:8],   8'h0};
       0 : RxDataLatched2 <=#Tp {RxDataLatched1[31:8],  RxData};       // Big Endian Byte Ordering
       1 : RxDataLatched2 <=#Tp {RxDataLatched1[31:24], 24'h0};
       2 : RxDataLatched2 <=#Tp {RxDataLatched1[31:16], 16'h0};
@@ -1840,45 +1794,7 @@ reg WriteRxDataToFifoSync3;
 
 
 // Indicating start of the reception process
-//assign SetWriteRxDataToFifo = (RxValid & RxBDReady & ~RxStartFrm & RxEnableWindow & (&RxByteCnt)) | (ShiftWillEnd & LastByteIn & (&RxByteCnt));
-assign SetWriteRxDataToFifo = (RxValid & RxBDReady & ~RxStartFrm & RxEnableWindow & (&RxByteCnt)) | (RxValid & RxBDReady & RxStartFrm & (&RxPointerLatched)) | (ShiftWillEnd & LastByteIn & (&RxByteCnt));
-/*
-always @ (posedge MRxClk or posedge Reset)
-begin
-  if(Reset)
-    WriteRxDataToFifo <=#Tp 1'b0;
-  else
-  if(SetWriteRxDataToFifo & ~RxAbort)
-    WriteRxDataToFifo <=#Tp 1'b1;
-  else
-  if(WriteRxDataToFifoSync1 | RxAbort)
-    WriteRxDataToFifo <=#Tp 1'b0;
-end
-
-
-
-always @ (posedge WB_CLK_I or posedge Reset)
-begin
-  if(Reset)
-    WriteRxDataToFifoSync1 <=#Tp 1'b0;
-  else
-  if(WriteRxDataToFifo)
-    WriteRxDataToFifoSync1 <=#Tp 1'b1;
-  else
-    WriteRxDataToFifoSync1 <=#Tp 1'b0;
-end
-
-always @ (posedge WB_CLK_I or posedge Reset)
-begin
-  if(Reset)
-    WriteRxDataToFifoSync2 <=#Tp 1'b0;
-  else
-    WriteRxDataToFifoSync2 <=#Tp WriteRxDataToFifoSync1;
-end
-
-wire WriteRxDataToFifo_wb;
-assign WriteRxDataToFifo_wb = WriteRxDataToFifoSync1 & ~WriteRxDataToFifoSync2;
-*/
+assign SetWriteRxDataToFifo = (RxValid & RxBDReady & ~RxStartFrm & RxEnableWindow & (&RxByteCnt)) | (RxValid & RxBDReady & RxStartFrm & (&RxPointerLSB_rst)) | (ShiftWillEnd & LastByteIn & (&RxByteCnt));
 
 always @ (posedge MRxClk or posedge Reset)
 begin
@@ -1994,13 +1910,13 @@ assign WriteRxDataToMemory = ~RxBufferEmpty & ~MasterWbRX;
 always @ (posedge MRxClk or posedge Reset)
 begin
   if(Reset)
-    ShiftEnded_tck <=#Tp 1'b0;
+    ShiftEnded_rck <=#Tp 1'b0;
   else
   if(~RxAbort & SetWriteRxDataToFifo & StartShiftWillEnd)
-    ShiftEnded_tck <=#Tp 1'b1;
+    ShiftEnded_rck <=#Tp 1'b1;
   else
   if(RxAbort | ShiftEndedSync_c1 & ShiftEndedSync_c2)
-    ShiftEnded_tck <=#Tp 1'b0;
+    ShiftEnded_rck <=#Tp 1'b0;
 end
 
 always @ (posedge WB_CLK_I or posedge Reset)
@@ -2008,7 +1924,7 @@ begin
   if(Reset)
     ShiftEndedSync1 <=#Tp 1'b0;
   else
-    ShiftEndedSync1 <=#Tp ShiftEnded_tck;
+    ShiftEndedSync1 <=#Tp ShiftEnded_rck;
 end
 
 always @ (posedge WB_CLK_I or posedge Reset)
@@ -2136,28 +2052,12 @@ begin
     RxAbortLatched <=#Tp 1'b1;
 end
 
-/*
-reg LoadStatusBlocked;
 
-always @ (posedge MRxClk or posedge Reset)
-begin
-  if(Reset)
-    LoadStatusBlocked <=#Tp 1'b0;
-  else
-  if(LoadRxStatus & ~RxAbortLatched)
-    LoadStatusBlocked <=#Tp 1'b1;
-  else
-  if(RxStatusWrite_rck | RxStartFrm)
-    LoadStatusBlocked <=#Tp 1'b0;
-end
-*/
-// LatchedRxLength[15:0]
 always @ (posedge MRxClk or posedge Reset)
 begin
   if(Reset)
     LatchedRxLength[15:0] <=#Tp 16'h0;
   else
-//  if(LoadRxStatus & ~RxAbortLatched & ~LoadStatusBlocked)
   if(LoadRxStatus)
     LatchedRxLength[15:0] <=#Tp RxLength[15:0];
 end
@@ -2170,7 +2070,6 @@ begin
   if(Reset)
     RxStatusInLatched <=#Tp 'h0;
   else
-//  if(LoadRxStatus & ~RxAbortLatched & ~LoadStatusBlocked)
   if(LoadRxStatus)
     RxStatusInLatched <=#Tp RxStatusIn;
 end
@@ -2289,7 +2188,7 @@ assign Busy_IRQ = 1'b0;
 // bit 1  od rx je LatchedCrcError
 // bit 0  od rx je RxLateCollision
 
-assign reg1 = RxPointer[31:0];                  /* 0x58 */
+assign reg1 = {RxPointerMSB[31:2], 2'h0};                  /* 0x58 */
 
 assign reg2 = {                                 /* 0x5c */
   RxStatusWriteLatched,         // 31
@@ -2305,9 +2204,9 @@ assign reg2 = {                                 /* 0x5c */
   LastByteIn,                   // 21
   ShiftWillEnd,                 // 20
   2'h0, RxByteCnt[1:0],         // 19:16
-  2'h0, RxPointerLatched[1:0],  // 15:12
+  2'h0, RxPointerLSB_rst[1:0],      // 15:12
   RxBDAddress[7:0],             // 11:4
-  state[3:0]                    // 3:0
+  4'h0                          // 3:0
 };
 
 assign reg3 = {                                 /* 0x60 */
@@ -2326,7 +2225,7 @@ assign reg3 = {                                 /* 0x60 */
   RxEnableWindow,               // 21
   StartShiftWillEnd,            // 20
   ShiftWillEnd,                 // 19
-  ShiftEnded_tck,               // 18
+  ShiftEnded_rck,               // 18
   SetWriteRxDataToFifo,         // 17
   WriteRxDataToFifo,            // 16
   WriteRxDataToFifoSync3,       // 15
