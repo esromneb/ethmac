@@ -8,7 +8,7 @@
 ////  Author(s):                                                  ////
 ////      - Igor Mohor (igorM@opencores.org)                      ////
 ////                                                              ////
-////  All additional information is avaliable in the Readme.txt   ////
+////  All additional information is available in the Readme.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/09/13 11:57:20  mohor
+// New testbench. Thanks to Tadej M - "The Spammer".
+//
 // Revision 1.3  2002/07/19 13:57:53  mohor
 // Testing environment also includes traffic cop, memory interface and host
 // interface.
@@ -59,8 +62,6 @@
 
 
 //`define VERBOSE                       // if log files of device modules are written
-
-//`define EXTERNAL_DMA                  // Using DMA
 
 `define MULTICAST_XFR          0
 `define UNICAST_XFR            1
@@ -134,6 +135,8 @@
 `define ETH_MAC_ADDR1  `ETH_BASE + 32'h44 /* MAC Individual Address Register 1 */
 `define ETH_HASH_ADDR0 `ETH_BASE + 32'h48 /* Hash Register 0 */
 `define ETH_HASH_ADDR1 `ETH_BASE + 32'h4C /* Hash Register 1 */
+`define ETH_TX_CTRL    `ETH_BASE + 32'h50 /* Tx Control Register */
+
 
 /* MODER Register */
 `define ETH_MODER_RXEN     32'h00000001 /* Receive Enable  */

@@ -2,7 +2,7 @@
 ////                                                              ////
 ////  File name: eth_phy.v                                        ////
 ////                                                              ////
-////  This file is part of the "Ethernet MAC" project             ////
+////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/projects/ethmac/                   ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -11,10 +11,9 @@
 ////  All additional information is available in the README.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
-////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2002, Authors                                  ////
+//// Copyright (C) 2002  Authors                                  ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -42,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2002/09/13 11:57:20  mohor
+// New testbench. Thanks to Tadej M - "The Spammer".
+//
 //
 //
 

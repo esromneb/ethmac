@@ -2,7 +2,7 @@
 ////                                                              ////
 ////  File name: eth_phy_defines.v                                ////
 ////                                                              ////
-////  This file is part of the "Ethernet MAC" project             ////
+////  This file is part of the Ethernet IP core project           ////
 ////  http://www.opencores.org/projects/ethmac/                   ////
 ////                                                              ////
 ////  Author(s):                                                  ////
@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2002/09/13 11:57:20  mohor
+// New testbench. Thanks to Tadej M - "The Spammer".
+//
 //
 //
 

@@ -7,6 +7,7 @@
 ////                                                              ////
 ////  Author(s):                                                  ////
 ////      - Tadej Markovic, tadej@opencores.org                   ////
+////      - Igor Mohor,     igormM@opencores.org                  ////
 ////                                                              ////
 ////  All additional information is available in the Readme.txt   ////
 ////  file.                                                       ////
@@ -41,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/09/13 11:57:20  mohor
+// New testbench. Thanks to Tadej M - "The Spammer".
+//
 // Revision 1.2  2002/07/19 14:02:47  mohor
 // Clock mrx_clk set to 2.5 MHz.
 //

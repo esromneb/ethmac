@@ -2,19 +2,19 @@
 ////                                                              ////
 ////  File name: wb_slave_behavioral.v                            ////
 ////                                                              ////
-////  This file is part of the "PCI bridge" project               ////
-////  http://www.opencores.org/cores/pci/                         ////
+////  This file is part of the Ethernet IP core project           ////
+////  http://www.opencores.org/projects/ethmac/                   ////
 ////                                                              ////
 ////  Author(s):                                                  ////
 ////      - Tadej Markovic, tadej@opencores.org                   ////
 ////                                                              ////
-////  All additional information is avaliable in the README.txt   ////
+////  All additional information is available in the README.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2000 Tadej Markovic, tadej@opencores.org       ////
+//// Copyright (C) 2002 Tadej Markovic, tadej@opencores.org       ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2002/09/13 11:57:21  mohor
+// New testbench. Thanks to Tadej M - "The Spammer".
+//
 // Revision 1.2  2002/03/06 09:10:56  mihad
 // Added missing include statements
 //
