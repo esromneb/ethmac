@@ -43,6 +43,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2002/11/19 17:35:35  mohor
+// AddressMiss status is connecting to the Rx BD. AddressMiss is identifying
+// that a frame was received because of the promiscous mode.
+//
 // Revision 1.8  2002/02/16 07:15:27  mohor
 // Testbench fixed, code simplified, unused signals removed.
 //
@@ -92,7 +96,7 @@
 module eth_rxethmac (MRxClk, MRxDV, MRxD, Reset, Transmitting, MaxFL, r_IFG, HugEn, DlyCrcEn, 
                      RxData, RxValid, RxStartFrm, RxEndFrm, ByteCnt, ByteCntEq0, ByteCntGreat2, 
                      ByteCntMaxFrame, CrcError, StateIdle, StatePreamble, StateSFD, StateData,
-                     MAC, r_Pro, r_Bro,r_HASH0, r_HASH1, RxAbort, AddressMiss
+                     MAC, r_Pro, r_Bro,r_HASH0, r_HASH1, RxAbort, AddressMiss, PassAll, ControlFrmAddressOK
                     );
 
 parameter Tp = 1;
@@ -113,6 +117,9 @@ input         r_Bro;   //  broadcast disable
 input         r_Pro;   //  promiscuous enable 
 input [31:0]  r_HASH0; //  lower 4 bytes Hash Table
 input [31:0]  r_HASH1; //  upper 4 bytes Hash Table
+input         PassAll;
+input         ControlFrmAddressOK;
+
 output  [7:0] RxData;
 output        RxValid;
 output        RxStartFrm;
@@ -196,14 +203,15 @@ eth_rxcounters rxcounters1 (.MRxClk(MRxClk), .Reset(Reset), .MRxDV(MRxDV), .Stat
 // Rx Address Check
 
 eth_rxaddrcheck rxaddrcheck1
-              (.MRxClk(MRxClk),         .Reset( Reset),          .RxData(RxData), 
-               .Broadcast (Broadcast),  .r_Bro (r_Bro),          .r_Pro(r_Pro),
-               .ByteCntEq6(ByteCntEq6), .ByteCntEq7(ByteCntEq7), .ByteCntEq2(ByteCntEq2), 
-               .ByteCntEq3(ByteCntEq3), .ByteCntEq4(ByteCntEq4), .ByteCntEq5(ByteCntEq5), 
+              (.MRxClk(MRxClk),         .Reset( Reset),             .RxData(RxData), 
+               .Broadcast (Broadcast),  .r_Bro (r_Bro),             .r_Pro(r_Pro),
+               .ByteCntEq6(ByteCntEq6), .ByteCntEq7(ByteCntEq7),    .ByteCntEq2(ByteCntEq2), 
+               .ByteCntEq3(ByteCntEq3), .ByteCntEq4(ByteCntEq4),    .ByteCntEq5(ByteCntEq5), 
                .HASH0(r_HASH0),         .HASH1(r_HASH1),           
-               .CrcHash(CrcHash[5:0]),  .CrcHashGood(CrcHashGood),.StateData(StateData),
-               .Multicast(Multicast),   .MAC(MAC),               .RxAbort(RxAbort),
-               .RxEndFrm(RxEndFrm),     .AddressMiss(AddressMiss)
+               .CrcHash(CrcHash[5:0]),  .CrcHashGood(CrcHashGood),  .StateData(StateData),
+               .Multicast(Multicast),   .MAC(MAC),                  .RxAbort(RxAbort),
+               .RxEndFrm(RxEndFrm),     .AddressMiss(AddressMiss),  .PassAll(PassAll),
+               .ControlFrmAddressOK(ControlFrmAddressOK)
               );
 
 

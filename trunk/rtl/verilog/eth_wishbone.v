@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.45  2002/11/19 17:33:34  mohor
+// AddressMiss status is connecting to the Rx BD. AddressMiss is identifying
+// that a frame was received because of the promiscous mode.
+//
 // Revision 1.44  2002/11/13 22:21:40  tadejm
 // RxError is not generated when small frame reception is enabled and small
 // frames are received.
@@ -232,7 +236,7 @@ module eth_wishbone
     MRxClk, RxData, RxValid, RxStartFrm, RxEndFrm, RxAbort, 
     
     // Register
-    r_TxEn, r_RxEn, r_TxBDNum, TX_BD_NUM_Wr, 
+    r_TxEn, r_RxEn, r_TxBDNum, TX_BD_NUM_Wr, r_RxFlow, 
 
     // Interrupts
     TxB_IRQ, TxE_IRQ, RxB_IRQ, RxE_IRQ, Busy_IRQ, 
@@ -240,6 +244,7 @@ module eth_wishbone
     // Rx Status
     InvalidSymbol, LatchedCrcError, RxLateCollision, ShortFrame, DribbleNibble,
     ReceivedPacketTooBig, RxLength, LoadRxStatus, ReceivedPacketGood, AddressMiss, 
+    ReceivedPauseFrm, 
     
     // Tx Status
     RetryCntLatched, RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost
@@ -304,6 +309,8 @@ input    [15:0] RxLength;         // Length of the incoming frame
 input           LoadRxStatus;     // Rx status was loaded
 input           ReceivedPacketGood;// Received packet's length and CRC are good
 input           AddressMiss;      // When a packet is received AddressMiss status is written to the Rx BD
+input           r_RxFlow;
+input           ReceivedPauseFrm;
 
 // Tx Status signals
 input     [3:0] RetryCntLatched;  // Latched Retry Counter
@@ -468,8 +475,8 @@ wire            GotDataEvaluate;
 
 reg             WB_ACK_O;
 
-wire    [7:0]   RxStatusIn;
-reg     [7:0]   RxStatusInLatched;
+wire    [8:0]   RxStatusIn;
+reg     [8:0]   RxStatusInLatched;
 
 reg WbEn, WbEn_q;
 reg RxEn, RxEn_q;
@@ -1348,7 +1355,7 @@ end
 
 wire [8:0] TxStatusInLatched = {TxUnderRun, RetryCntLatched[3:0], RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost};
 
-assign RxBDDataIn = {LatchedRxLength, 1'b0, RxStatus, 5'h0, RxStatusInLatched};
+assign RxBDDataIn = {LatchedRxLength, 1'b0, RxStatus, 4'h0, RxStatusInLatched};
 assign TxBDDataIn = {LatchedTxLength, 1'b0, TxStatus, 2'h0, TxStatusInLatched};
 
 
@@ -2364,7 +2371,7 @@ begin
 end
 
 
-assign RxStatusIn = {AddressMiss, RxOverrun, InvalidSymbol, DribbleNibble, ReceivedPacketTooBig, ShortFrame, LatchedCrcError, RxLateCollision};
+assign RxStatusIn = {ReceivedPauseFrm, AddressMiss, RxOverrun, InvalidSymbol, DribbleNibble, ReceivedPacketTooBig, ShortFrame, LatchedCrcError, RxLateCollision};
 
 always @ (posedge MRxClk or posedge Reset)
 begin
@@ -2435,7 +2442,7 @@ begin
     RxB_IRQ <=#Tp 1'b0;
   else
   if(RxStatusWrite & RxIRQEn)
-    RxB_IRQ <=#Tp ReceivedPacketGood & ~RxError;
+    RxB_IRQ <=#Tp ReceivedPacketGood & (~RxError) & (~r_RxFlow); // When r_RxFlow is set, RXC irq is set.
   else
     RxB_IRQ <=#Tp 1'b0;
 end

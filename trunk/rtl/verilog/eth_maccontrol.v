@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/11/21 00:14:39  mohor
+// TxDone and TxAbort changed so they're not propagated to the wishbone
+// module when control frame is transmitted.
+//
 // Revision 1.4  2002/11/19 17:37:32  mohor
 // When control frame (PAUSE) was sent, status was written in the
 // eth_wishbone module and both TXB and TXC interrupts were set. Fixed.
@@ -79,10 +83,10 @@
 
 module eth_maccontrol (MTxClk, MRxClk, TxReset, RxReset, TPauseRq, TxDataIn, TxStartFrmIn, TxUsedDataIn, 
                        TxEndFrmIn, TxDoneIn, TxAbortIn, RxData, RxValid, RxStartFrm, RxEndFrm, ReceiveEnd, 
-                       ReceivedPacketGood, ReceivedLengthOK, TxFlow, RxFlow, PassAll, DlyCrcEn, TxPauseTV, 
+                       ReceivedPacketGood, ReceivedLengthOK, TxFlow, RxFlow, DlyCrcEn, TxPauseTV, 
                        MAC, PadIn, PadOut, CrcEnIn, CrcEnOut, TxDataOut, TxStartFrmOut, TxEndFrmOut, 
                        TxDoneOut, TxAbortOut, TxUsedDataOut, WillSendControlFrame, TxCtrlEndFrm, 
-                       ReceivedPauseFrm
+                       ReceivedPauseFrm, ControlFrmAddressOK, LoadRxStatus, SetPauseTimer
                       );
 
 
@@ -111,10 +115,10 @@ input         ReceivedPacketGood;       // Received packet is good
 input         ReceivedLengthOK;         // Length of the received packet is OK
 input         TxFlow;                   // Tx flow control (from registers)
 input         RxFlow;                   // Rx flow control (from registers)
-input         PassAll;                  // Pass All received frames (from registers)
 input         DlyCrcEn;                 // Delayed CRC enabled (from registers)
 input  [15:0] TxPauseTV;                // Transmit Pause Timer Value (from registers)
 input  [47:0] MAC;                      // MAC address (from registers)
+input         LoadRxStatus;
 
 output  [7:0] TxDataOut;                // Transmit Packet Data (to TxEthMAC)
 output        TxStartFrmOut;            // Transmit packet start frame (output to TxEthMAC)
@@ -127,6 +131,8 @@ output        CrcEnOut;                 // Crc append (output to TxEthMAC)
 output        WillSendControlFrame;
 output        TxCtrlEndFrm;
 output        ReceivedPauseFrm;
+output        ControlFrmAddressOK;
+output        SetPauseTimer;
 
 reg           TxUsedDataOutDetected;    
 reg           TxAbortInLatched;         
@@ -238,10 +244,11 @@ eth_receivecontrol receivecontrol1
 (
  .MTxClk(MTxClk), .MRxClk(MRxClk), .TxReset(TxReset), .RxReset(RxReset), .RxData(RxData), 
  .RxValid(RxValid), .RxStartFrm(RxStartFrm), .RxEndFrm(RxEndFrm), .RxFlow(RxFlow), 
- .ReceiveEnd(ReceiveEnd), .MAC(MAC), .PassAll(PassAll), .DlyCrcEn(DlyCrcEn), .TxDoneIn(TxDoneIn), 
+ .ReceiveEnd(ReceiveEnd), .MAC(MAC), .DlyCrcEn(DlyCrcEn), .TxDoneIn(TxDoneIn), 
  .TxAbortIn(TxAbortIn), .TxStartFrmOut(TxStartFrmOut), .ReceivedLengthOK(ReceivedLengthOK), 
  .ReceivedPacketGood(ReceivedPacketGood), .TxUsedDataOutDetected(TxUsedDataOutDetected), 
- .Pause(Pause), .ReceivedPauseFrm(ReceivedPauseFrm)
+ .Pause(Pause), .ReceivedPauseFrm(ReceivedPauseFrm), .AddressOK(ControlFrmAddressOK), 
+ .LoadRxStatus(LoadRxStatus), .SetPauseTimer(SetPauseTimer)
 );
 
 

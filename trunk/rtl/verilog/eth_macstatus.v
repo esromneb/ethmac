@@ -41,6 +41,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2002/11/13 22:30:58  tadejm
+// Late collision is reported only when not in the full duplex.
+// Sample is taken (for status) as soon as MRxDV is not valid (regardless
+// of the received byte cnt).
+//
 // Revision 1.12  2002/09/12 14:50:16  mohor
 // CarrierSenseLost bug fixed when operating in full duplex mode.
 //
@@ -100,7 +105,7 @@
 module eth_macstatus(
                       MRxClk, Reset, ReceivedLengthOK, ReceiveEnd, ReceivedPacketGood, RxCrcError, 
                       MRxErr, MRxDV, RxStateSFD, RxStateData, RxStatePreamble, RxStateIdle, Transmitting, 
-                      RxByteCnt, RxByteCntEq0, RxByteCntGreat2, RxByteCntMaxFrame, ReceivedPauseFrm,
+                      RxByteCnt, RxByteCntEq0, RxByteCntGreat2, RxByteCntMaxFrame, 
                       InvalidSymbol, MRxD, LatchedCrcError, Collision, CollValid, RxLateCollision,
                       r_RecSmall, r_MinFL, r_MaxFL, ShortFrame, DribbleNibble, ReceivedPacketTooBig, r_HugEn,
                       LoadRxStatus, StartTxDone, StartTxAbort, RetryCnt, RetryCntLatched, MTxClk, MaxCollisionOccured, 
@@ -129,7 +134,6 @@ input  [15:0] RxByteCnt;
 input         RxByteCntEq0;
 input         RxByteCntGreat2;
 input         RxByteCntMaxFrame;
-input         ReceivedPauseFrm;
 input   [3:0] MRxD;
 input         Collision;
 input   [5:0] CollValid;

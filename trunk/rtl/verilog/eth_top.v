@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.42  2002/11/21 00:09:19  mohor
+// TPauseRq synchronized to tx_clk.
+//
 // Revision 1.41  2002/11/19 18:13:49  mohor
 // r_MiiMRst is not used for resetting the MIIM module. wb_rst used instead.
 //
@@ -490,7 +493,7 @@ eth_registers ethreg1
   .r_HASH0(r_HASH0),                      .r_HASH1(r_HASH1),                          .r_TxPauseRq(r_TxPauseRq), 
   .r_TxPauseTV(r_TxPauseTV),              .RstTxPauseRq(RstTxPauseRq),                .TxCtrlEndFrm(TxCtrlEndFrm), 
   .StartTxDone(StartTxDone),              .TxClk(mtx_clk_pad_i),                      .RxClk(mrx_clk_pad_i), 
-  .ReceivedPauseFrm(ReceivedPauseFrm)
+  .SetPauseTimer(SetPauseTimer)
   
 );
 
@@ -531,7 +534,7 @@ eth_maccontrol maccontrol1
   .RxData(RxData),                              .RxValid(RxValid), 
   .RxStartFrm(RxStartFrm),                      .RxEndFrm(RxEndFrm),
   .ReceiveEnd(ReceiveEnd),                      .ReceivedPacketGood(ReceivedPacketGood),
-  .PassAll(r_PassAll),                          .TxFlow(r_TxFlow), 
+  .TxFlow(r_TxFlow), 
   .RxFlow(r_RxFlow),                            .DlyCrcEn(r_DlyCrcEn),
   .MAC(r_MAC),                                  .PadIn(r_Pad | PerPacketPad), 
   .PadOut(PadOut),                              .CrcEnIn(r_CrcEn | PerPacketCrcEn), 
@@ -541,7 +544,8 @@ eth_maccontrol maccontrol1
   .TxEndFrmOut(TxEndFrmOut),                    .TxUsedDataOut(TxUsedData), 
   .TxDoneOut(TxDone),                           .TxAbortOut(TxAbort), 
   .WillSendControlFrame(WillSendControlFrame),  .TxCtrlEndFrm(TxCtrlEndFrm), 
-  .ReceivedPauseFrm(ReceivedPauseFrm)
+  .ReceivedPauseFrm(ReceivedPauseFrm),          .ControlFrmAddressOK(ControlFrmAddressOK),
+  .LoadRxStatus(LoadRxStatus),                  .SetPauseTimer(SetPauseTimer)
 );
 
 
@@ -620,7 +624,7 @@ eth_rxethmac rxethmac1
   .StateSFD(RxStateSFD),                .StateData(RxStateData),
   .MAC(r_MAC),                          .r_Pro(r_Pro),                        .r_Bro(r_Bro),
   .r_HASH0(r_HASH0),                    .r_HASH1(r_HASH1),                    .RxAbort(RxAbort), 
-  .AddressMiss(AddressMiss)
+  .AddressMiss(AddressMiss),            .PassAll(r_PassAll),                  .ControlFrmAddressOK(ControlFrmAddressOK)
 );
 
 
@@ -770,6 +774,54 @@ begin
 end
 
 
+wire LatchedMRxErr;
+reg RxAbort_latch;
+reg RxAbort_sync1;
+reg RxAbort_sync2;
+reg RxAbort_wb;
+reg RxAbortRst_sync1;
+reg RxAbortRst;
+
+// Synchronizing RxAbort to the WISHBONE clock
+always @ (posedge mrx_clk_pad_i or posedge wb_rst_i)
+begin
+  if(wb_rst_i)
+    RxAbort_latch <= #Tp 1'b0;
+  else if(RxAbort | (ShortFrame & ~r_RecSmall) | LatchedMRxErr & ~InvalidSymbol | (ReceivedPauseFrm & (~r_PassAll)))
+    RxAbort_latch <= #Tp 1'b1;
+  else if(RxAbortRst)
+    RxAbort_latch <= #Tp 1'b0;
+end
+
+always @ (posedge wb_clk_i or posedge wb_rst_i)
+begin
+  if(wb_rst_i)
+    begin
+      RxAbort_sync1 <= #Tp 1'b0;
+      RxAbort_wb    <= #Tp 1'b0;
+      RxAbort_wb    <= #Tp 1'b0;
+    end
+  else
+    begin
+      RxAbort_sync1 <= #Tp RxAbort_latch;
+      RxAbort_wb    <= #Tp RxAbort_sync1;
+    end
+end
+
+always @ (posedge mrx_clk_pad_i or posedge wb_rst_i)
+begin
+  if(wb_rst_i)
+    begin
+      RxAbortRst_sync1 <= #Tp 1'b0;
+      RxAbortRst       <= #Tp 1'b0;
+    end
+  else
+    begin
+      RxAbortRst_sync1 <= #Tp RxAbort_wb;
+      RxAbortRst       <= #Tp RxAbortRst_sync1;
+    end
+end
+
 
 
 // Connecting Wishbone module
@@ -803,7 +855,7 @@ eth_wishbone wishbone
 
   // Register
   .r_TxEn(r_TxEn),                    .r_RxEn(r_RxEn),                          .r_TxBDNum(r_TxBDNum), 
-  .TX_BD_NUM_Wr(TX_BD_NUM_Wr), 
+  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),        .r_RxFlow(r_RxFlow), 
 
   //RX
   .MRxClk(mrx_clk_pad_i),             .RxData(RxData),                          .RxValid(RxValid), 
@@ -811,13 +863,14 @@ eth_wishbone wishbone
   .Busy_IRQ(Busy_IRQ),                .RxE_IRQ(RxE_IRQ),                        .RxB_IRQ(RxB_IRQ), 
   .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ), 
 
-  .RxAbort(RxAbort | (ShortFrame & ~r_RecSmall) | LatchedMRxErr & ~InvalidSymbol | ReceivedPauseFrm & ~r_PassAll), 
+  .RxAbort(RxAbort_wb), 
 
   .InvalidSymbol(InvalidSymbol),      .LatchedCrcError(LatchedCrcError),        .RxLength(RxByteCnt),
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
   .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus),     .RetryCntLatched(RetryCntLatched),
   .RetryLimit(RetryLimit),            .LateCollLatched(LateCollLatched),        .DeferLatched(DeferLatched),   
-  .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood),  .AddressMiss(AddressMiss) 
+  .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood),  .AddressMiss(AddressMiss),
+  .ReceivedPauseFrm(ReceivedPauseFrm)
   
 `ifdef ETH_BIST
   ,
@@ -840,7 +893,7 @@ eth_macstatus macstatus1
   .RxStateSFD(RxStateSFD),            .RxStateData(RxStateData),                   .RxStatePreamble(RxStatePreamble), 
   .RxStateIdle(RxStateIdle),          .Transmitting(Transmitting),                 .RxByteCnt(RxByteCnt), 
   .RxByteCntEq0(RxByteCntEq0),        .RxByteCntGreat2(RxByteCntGreat2),           .RxByteCntMaxFrame(RxByteCntMaxFrame), 
-  .ReceivedPauseFrm(ReceivedPauseFrm),.InvalidSymbol(InvalidSymbol),
+  .InvalidSymbol(InvalidSymbol),
   .MRxD(MRxD_Lb),                     .LatchedCrcError(LatchedCrcError),           .Collision(mcoll_pad_i),
   .CollValid(r_CollValid),            .RxLateCollision(RxLateCollision),           .r_RecSmall(r_RecSmall),
   .r_MinFL(r_MinFL),                  .r_MaxFL(r_MaxFL),                           .ShortFrame(ShortFrame),

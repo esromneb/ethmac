@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2002/11/19 18:13:49  mohor
+// r_MiiMRst is not used for resetting the MIIM module. wb_rst used instead.
+//
 // Revision 1.22  2002/11/14 18:37:20  mohor
 // r_Rst signal does not reset any module any more and is removed from the design.
 //
@@ -153,7 +156,7 @@ module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut,
                       LinkFail, r_MAC, WCtrlDataStart, RStatStart,
                       UpdateMIIRX_DATAReg, Prsd, r_TxBDNum, TX_BD_NUM_Wr, int_o,
                       r_HASH0, r_HASH1, r_TxPauseTV, r_TxPauseRq, RstTxPauseRq, TxCtrlEndFrm, 
-                      StartTxDone, TxClk, RxClk, ReceivedPauseFrm
+                      StartTxDone, TxClk, RxClk, SetPauseTimer
                     );
 
 parameter Tp = 1;
@@ -244,7 +247,7 @@ input        TxCtrlEndFrm;
 input        StartTxDone;
 input        TxClk;
 input        RxClk;
-input        ReceivedPauseFrm;      // sinhroniziraj tale shit da bo delal interrupt. Pazi na PassAll bit
+input        SetPauseTimer;
 
 reg          irq_txb;
 reg          irq_txe;
@@ -262,7 +265,9 @@ reg ResetTxCIrq_sync1, ResetTxCIrq_sync2;
 reg SetRxCIrq_rxclk;
 reg SetRxCIrq_sync1, SetRxCIrq_sync2, SetRxCIrq_sync3;
 reg SetRxCIrq;
-reg ResetRxCIrq_sync1, ResetRxCIrq_sync2;
+reg ResetRxCIrq_sync1;
+reg ResetRxCIrq_sync2;
+reg ResetRxCIrq_sync3;
 
 wire Write = Cs &  Rw;
 wire Read  = Cs & ~Rw;
@@ -781,10 +786,10 @@ begin
   if(Reset)
     SetRxCIrq_rxclk <=#Tp 1'b0;
   else
-  if(ReceivedPauseFrm & r_RxFlow)
+  if(SetPauseTimer & r_RxFlow)
     SetRxCIrq_rxclk <=#Tp 1'b1;
   else
-  if(ResetRxCIrq_sync2)
+  if(ResetRxCIrq_sync2 & (~ResetRxCIrq_sync3))
     SetRxCIrq_rxclk <=#Tp 1'b0;
 end
 
@@ -829,17 +834,21 @@ begin
     ResetRxCIrq_sync1 <=#Tp SetRxCIrq_sync2;
 end
 
-always @ (posedge TxClk or posedge Reset)
+always @ (posedge RxClk or posedge Reset)
 begin
   if(Reset)
     ResetRxCIrq_sync2 <=#Tp 1'b0;
   else
-    ResetRxCIrq_sync2 <=#Tp SetRxCIrq_sync1;
+    ResetRxCIrq_sync2 <=#Tp ResetRxCIrq_sync1;
 end
 
-
-
-
+always @ (posedge RxClk or posedge Reset)
+begin
+  if(Reset)
+    ResetRxCIrq_sync3 <=#Tp 1'b0;
+  else
+    ResetRxCIrq_sync3 <=#Tp ResetRxCIrq_sync2;
+end
 
 
 

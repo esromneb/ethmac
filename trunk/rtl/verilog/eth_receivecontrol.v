@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.2  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -71,9 +74,10 @@
 
 
 module eth_receivecontrol (MTxClk, MRxClk, TxReset, RxReset, RxData, RxValid, RxStartFrm, 
-                           RxEndFrm, RxFlow, ReceiveEnd, MAC, PassAll, DlyCrcEn, TxDoneIn, 
+                           RxEndFrm, RxFlow, ReceiveEnd, MAC, DlyCrcEn, TxDoneIn, 
                            TxAbortIn, TxStartFrmOut, ReceivedLengthOK, ReceivedPacketGood, 
-                           TxUsedDataOutDetected, Pause, ReceivedPauseFrm
+                           TxUsedDataOutDetected, Pause, ReceivedPauseFrm, AddressOK, 
+                           LoadRxStatus, SetPauseTimer
                           );
 
 parameter Tp = 1;
@@ -90,7 +94,6 @@ input       RxEndFrm;
 input       RxFlow;
 input       ReceiveEnd;
 input [47:0]MAC;
-input       PassAll;
 input       DlyCrcEn;
 input       TxDoneIn;
 input       TxAbortIn;
@@ -98,9 +101,12 @@ input       TxStartFrmOut;
 input       ReceivedLengthOK;
 input       ReceivedPacketGood;
 input       TxUsedDataOutDetected;
+input       LoadRxStatus;
 
 output      Pause;
 output      ReceivedPauseFrm;
+output      AddressOK;
+output      SetPauseTimer;
 
 reg         Pause;
 reg         AddressOK;                // Multicast or unicast address detected
@@ -136,7 +142,6 @@ wire        ByteCntEq15;              // ByteCnt = 15
 wire        ByteCntEq16;              // ByteCnt = 16
 wire        ByteCntEq17;              // ByteCnt = 17
 wire        ByteCntEq18;              // ByteCnt = 18
-wire        SetPauseTimer;            // 
 wire        DecrementPauseTimer;      // 
 wire        PauseTimerEq0;            // 
 wire        ResetSlotTimer;           // 
@@ -271,7 +276,7 @@ begin
   if(RxReset)
     LatchedTimerValue[15:0] <= #Tp 16'h0;
   else
-  if(~PassAll & DetectionWindow &  ReceivedPauseFrmWAddr &  ByteCntEq18)
+  if(DetectionWindow &  ReceivedPauseFrmWAddr &  ByteCntEq18)
     LatchedTimerValue[15:0] <= #Tp AssembledTimerValue[15:0];
   else
   if(ReceiveEnd)
@@ -419,7 +424,7 @@ begin
   if(ByteCntEq16 & TypeLengthOK & OpCodeOK)
     ReceivedPauseFrm <=#Tp 1'b1;        
   else
-  if(ReceiveEnd)
+  if(RxStartFrm)
     ReceivedPauseFrm <=#Tp 1'b0;
 end
 

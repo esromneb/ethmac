@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2002/11/19 17:34:52  mohor
+// AddressMiss status is connecting to the Rx BD. AddressMiss is identifying
+// that a frame was received because of the promiscous mode.
+//
 // Revision 1.7  2002/09/04 18:41:06  mohor
 // Bug when last byte of destination address was not checked fixed.
 //
@@ -67,7 +71,8 @@ module eth_rxaddrcheck(MRxClk,  Reset, RxData, Broadcast ,r_Bro ,r_Pro,
                        ByteCntEq2, ByteCntEq3, ByteCntEq4, ByteCntEq5,
                        ByteCntEq6, ByteCntEq7, HASH0, HASH1, 
                        CrcHash,    CrcHashGood, StateData, RxEndFrm,
-                       Multicast, MAC, RxAbort, AddressMiss
+                       Multicast, MAC, RxAbort, AddressMiss, PassAll,
+                       ControlFrmAddressOK
                       );
 
 parameter Tp = 1;
@@ -92,6 +97,8 @@ parameter Tp = 1;
   input [47:0] MAC;
   input [1:0]  StateData;
   input        RxEndFrm;
+  input        PassAll;
+  input        ControlFrmAddressOK;
   
   output       RxAbort;
   output       AddressMiss;
@@ -137,7 +144,7 @@ begin
   if(Reset)
     AddressMiss <= #Tp 1'b0;
   else if(ByteCntEq7 & RxCheckEn)
-    AddressMiss <= #Tp (~(UnicastOK | BroadcastOK | MulticastOK));
+    AddressMiss <= #Tp (~(UnicastOK | BroadcastOK | MulticastOK | (PassAll & ControlFrmAddressOK)));
 end
 
 
