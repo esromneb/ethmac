@@ -43,6 +43,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/02/14 20:19:41  billditt
+// Modified for Address Checking,
+// addition of eth_addrcheck.v
+//
 // Revision 1.3  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -78,10 +82,8 @@
 
 module eth_rxcounters (MRxClk, Reset, MRxDV, StateIdle, StateSFD, StateData, StateDrop, StatePreamble, 
                        MRxDEqD, DlyCrcEn, DlyCrcCnt, Transmitting, MaxFL, r_IFG, HugEn, IFGCounterEq24, 
-                       ByteCntEq0, ByteCntEq1, 
-					    ByteCntEq2,ByteCntEq3,ByteCntEq4,ByteCntEq5, ByteCntEq6,
-					   ByteCntEq7, ByteCntGreat2, ByteCntSmall7, ByteCntMaxFrame, 
-                       ByteCnt
+                       ByteCntEq0, ByteCntEq1, ByteCntEq2,ByteCntEq3,ByteCntEq4,ByteCntEq5, ByteCntEq6,
+                       ByteCntEq7, ByteCntGreat2, ByteCntSmall7, ByteCntMaxFrame, ByteCnt
                       );
 
 parameter Tp = 1;
