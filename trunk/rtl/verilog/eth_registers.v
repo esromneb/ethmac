@@ -41,6 +41,12 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/24 15:02:56  mohor
+// Defines changed (All precede with ETH_). Small changes because some
+// tools generate warnings when two operands are together. Synchronization
+// between two clocks domains in eth_wishbonedma.v is changed (due to ASIC
+// demands).
+//
 // Revision 1.1  2001/08/06 14:44:29  mohor
 // A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
 // Include files fixed to contain no path.
@@ -70,14 +76,14 @@
 module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut, r_DmaEn, 
                       r_RecSmall, r_Pad, r_HugEn, r_CrcEn, r_DlyCrcEn, 
                       r_Rst, r_FullD, r_ExDfrEn, r_NoBckof, r_LoopBck, r_IFG, 
-                      r_Pro, r_Iam, r_Bro, r_NoPre, r_TxEn, r_RxEn, Busy_IRQ, RxF_IRQ, 
-                      RxB_IRQ, TxE_IRQ, TxB_IRQ, Busy_MASK, RxF_MASK, RxB_MASK, TxE_MASK, 
-                      TxB_MASK, r_IPGT, r_IPGR1, r_IPGR2, r_MinFL, r_MaxFL, r_MaxRet, 
+                      r_Pro, r_Iam, r_Bro, r_NoPre, r_TxEn, r_RxEn, 
+                      TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ, 
+                      r_IPGT, r_IPGR1, r_IPGR2, r_MinFL, r_MaxFL, r_MaxRet, 
                       r_CollValid, r_TxFlow, r_RxFlow, r_PassAll, 
                       r_MiiMRst, r_MiiNoPre, r_ClkDiv, r_WCtrlData, r_RStat, r_ScanStat, 
                       r_RGAD, r_FIAD, r_CtrlData, NValid_stat, Busy_stat, 
                       LinkFail, r_MAC, WCtrlDataStart, RStatStart,
-                      UpdateMIIRX_DATAReg, Prsd, r_RxBDAddress, RX_BD_ADR_Wr 
+                      UpdateMIIRX_DATAReg, Prsd, r_RxBDAddress, RX_BD_ADR_Wr, int_o 
                     );
 
 parameter Tp = 1;
@@ -118,17 +124,11 @@ output r_NoPre;
 output r_TxEn;
 output r_RxEn;
 
-output Busy_IRQ;
-output RxF_IRQ;
-output RxB_IRQ;
-output TxE_IRQ;
-output TxB_IRQ;
-
-output Busy_MASK;
-output RxF_MASK;
-output RxB_MASK;
-output TxE_MASK;
-output TxB_MASK;
+input TxB_IRQ;
+input TxE_IRQ;
+input RxB_IRQ;
+input RxF_IRQ;
+input Busy_IRQ;
 
 output [6:0] r_IPGT;
 
@@ -157,43 +157,46 @@ output r_ScanStat;
 output [4:0] r_RGAD;
 output [4:0] r_FIAD;
 
-output [15:0] r_CtrlData;
+output [15:0]r_CtrlData;
 
 
 input NValid_stat;
 input Busy_stat;
 input LinkFail;
 
-output [47:0] r_MAC;
-
+output [47:0]r_MAC;
 output [7:0] r_RxBDAddress;
-
 output       RX_BD_ADR_Wr;
+output       int_o;
 
-
+reg          irq_txb;
+reg          irq_txe;
+reg          irq_rxb;
+reg          irq_rxf;
+reg          irq_busy;
 
 wire Write = Cs &  Rw;
 wire Read  = Cs & ~Rw;
 
-wire MODER_Wr       = (Address == `ETH_MODER_ADR)       & Write;
-wire INT_SOURCE_Wr  = (Address == `ETH_INT_SOURCE_ADR)  & Write;
-wire INT_MASK_Wr    = (Address == `ETH_INT_MASK_ADR)    & Write;
-wire IPGT_Wr        = (Address == `ETH_IPGT_ADR)        & Write;
-wire IPGR1_Wr       = (Address == `ETH_IPGR1_ADR)       & Write;
-wire IPGR2_Wr       = (Address == `ETH_IPGR2_ADR)       & Write;
-wire PACKETLEN_Wr   = (Address == `ETH_PACKETLEN_ADR)   & Write;
-wire COLLCONF_Wr    = (Address == `ETH_COLLCONF_ADR)    & Write;
-
-wire CTRLMODER_Wr   = (Address == `ETH_CTRLMODER_ADR)   & Write;
-wire MIIMODER_Wr    = (Address == `ETH_MIIMODER_ADR)    & Write;
-wire MIICOMMAND_Wr  = (Address == `ETH_MIICOMMAND_ADR)  & Write;
-wire MIIADDRESS_Wr  = (Address == `ETH_MIIADDRESS_ADR)  & Write;
-wire MIITX_DATA_Wr  = (Address == `ETH_MIITX_DATA_ADR)  & Write;
-wire MIIRX_DATA_Wr  = UpdateMIIRX_DATAReg;
-wire MIISTATUS_Wr   = (Address == `ETH_MIISTATUS_ADR)   & Write;
-wire MAC_ADDR0_Wr   = (Address == `ETH_MAC_ADDR0_ADR)   & Write;
-wire MAC_ADDR1_Wr   = (Address == `ETH_MAC_ADDR1_ADR)   & Write;
-assign RX_BD_ADR_Wr = (Address == `ETH_RX_BD_ADR_ADR)   & Write;
+wire MODER_Wr       = (Address == `ETH_MODER_ADR       )  & Write;
+wire INT_SOURCE_Wr  = (Address == `ETH_INT_SOURCE_ADR  )  & Write;
+wire INT_MASK_Wr    = (Address == `ETH_INT_MASK_ADR    )  & Write;
+wire IPGT_Wr        = (Address == `ETH_IPGT_ADR        )  & Write;
+wire IPGR1_Wr       = (Address == `ETH_IPGR1_ADR       )  & Write;
+wire IPGR2_Wr       = (Address == `ETH_IPGR2_ADR       )  & Write;
+wire PACKETLEN_Wr   = (Address == `ETH_PACKETLEN_ADR   )  & Write;
+wire COLLCONF_Wr    = (Address == `ETH_COLLCONF_ADR    )  & Write;
+     
+wire CTRLMODER_Wr   = (Address == `ETH_CTRLMODER_ADR   )  & Write;
+wire MIIMODER_Wr    = (Address == `ETH_MIIMODER_ADR    )  & Write;
+wire MIICOMMAND_Wr  = (Address == `ETH_MIICOMMAND_ADR  )  & Write;
+wire MIIADDRESS_Wr  = (Address == `ETH_MIIADDRESS_ADR  )  & Write;
+wire MIITX_DATA_Wr  = (Address == `ETH_MIITX_DATA_ADR  )  & Write;
+wire MIIRX_DATA_Wr  = UpdateMIIRX_DATAReg;     
+wire MIISTATUS_Wr   = (Address == `ETH_MIISTATUS_ADR   )  & Write;
+wire MAC_ADDR0_Wr   = (Address == `ETH_MAC_ADDR0_ADR   )  & Write;
+wire MAC_ADDR1_Wr   = (Address == `ETH_MAC_ADDR1_ADR   )  & Write;
+assign RX_BD_ADR_Wr = (Address == `ETH_RX_BD_ADR_ADR   )  & Write;
 
 
 
@@ -217,7 +220,6 @@ wire [31:0] MAC_ADDR1Out;
 wire [31:0] RX_BD_ADROut;
 
 eth_register #(32) MODER       (.DataIn(DataIn), .DataOut(MODEROut),      .Write(MODER_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_MODER_DEF));
-eth_register #(32) INT_SOURCE  (.DataIn(DataIn), .DataOut(INT_SOURCEOut), .Write(INT_SOURCE_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_INT_SOURCE_DEF));
 eth_register #(32) INT_MASK    (.DataIn(DataIn), .DataOut(INT_MASKOut),   .Write(INT_MASK_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_INT_MASK_DEF));
 eth_register #(32) IPGT        (.DataIn(DataIn), .DataOut(IPGTOut),       .Write(IPGT_Wr),       .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGT_DEF));
 eth_register #(32) IPGR1       (.DataIn(DataIn), .DataOut(IPGR1Out),      .Write(IPGR1_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGR1_DEF));
@@ -332,18 +334,6 @@ assign r_NoPre            = MODEROut[2];
 assign r_TxEn             = MODEROut[1];
 assign r_RxEn             = MODEROut[0];
 
-assign Busy_IRQ           = INT_SOURCEOut[4];
-assign RxF_IRQ            = INT_SOURCEOut[3];
-assign RxB_IRQ            = INT_SOURCEOut[2];
-assign TxE_IRQ            = INT_SOURCEOut[1];
-assign TxB_IRQ            = INT_SOURCEOut[0];
-
-assign Busy_MASK          = INT_MASKOut[4];
-assign RxF_MASK           = INT_MASKOut[3];
-assign RxB_MASK           = INT_MASKOut[2];
-assign TxE_MASK           = INT_MASKOut[1];
-assign TxB_MASK           = INT_MASKOut[0];
-
 assign r_IPGT[6:0]        = IPGTOut[6:0];
 
 assign r_IPGR1[6:0]       = IPGR1Out[6:0];
@@ -385,6 +375,76 @@ assign r_MAC[31:0]        = MAC_ADDR0Out[31:0];
 assign r_MAC[47:32]       = MAC_ADDR1Out[15:0];
 
 assign r_RxBDAddress[7:0] = RX_BD_ADROut[7:0];
+
+
+// Interrupt generation
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    irq_txb <= 1'b0;
+  else
+  if(TxB_IRQ & INT_MASKOut[0])
+    irq_txb <= #Tp 1'b1;
+  else
+  if(INT_SOURCE_Wr & DataIn[0])
+    irq_txb <= #Tp 1'b0;
+end
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    irq_txe <= 1'b0;
+  else
+  if(TxE_IRQ & INT_MASKOut[1])
+    irq_txe <= #Tp 1'b1;
+  else
+  if(INT_SOURCE_Wr & DataIn[1])
+    irq_txe <= #Tp 1'b0;
+end
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    irq_rxb <= 1'b0;
+  else
+  if(RxB_IRQ & INT_MASKOut[2])
+    irq_rxb <= #Tp 1'b1;
+  else
+  if(INT_SOURCE_Wr & DataIn[2])
+    irq_rxb <= #Tp 1'b0;
+end
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    irq_rxf <= 1'b0;
+  else
+  if(RxF_IRQ & INT_MASKOut[3])
+    irq_rxf <= #Tp 1'b1;
+  else
+  if(INT_SOURCE_Wr & DataIn[3])
+    irq_rxf <= #Tp 1'b0;
+end
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    irq_busy <= 1'b0;
+  else
+  if(Busy_IRQ & INT_MASKOut[4])
+    irq_busy <= #Tp 1'b1;
+  else
+  if(INT_SOURCE_Wr & DataIn[4])
+    irq_busy <= #Tp 1'b0;
+end
+
+// Generating interrupt signal
+assign int_o = irq_txb | irq_txe | irq_rxb | irq_rxf | irq_busy;
+
+// For reading interrupt status
+assign INT_SOURCEOut = {28'h0, irq_busy, irq_rxf, irq_rxb, irq_txe, irq_txb};
+
 
 
 endmodule

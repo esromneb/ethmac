@@ -41,6 +41,12 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2001/09/24 15:02:56  mohor
+// Defines changed (All precede with ETH_). Small changes because some
+// tools generate warnings when two operands are together. Synchronization
+// between two clocks domains in eth_wishbonedma.v is changed (due to ASIC
+// demands).
+//
 // Revision 1.2  2001/08/08 08:28:21  mohor
 // "else" was missing within the always block in file eth_wishbonedma.v.
 //
@@ -74,8 +80,8 @@ module eth_wishbonedma
     WB_CLK_I, WB_RST_I, WB_DAT_I, WB_DAT_O, 
 
     // WISHBONE slave
- 		WB_ADR_I, WB_SEL_I, WB_WE_I, WB_CYC_I, WB_STB_I, WB_ACK_O, 
- 		WB_REQ_O, WB_ACK_I, WB_ND_O, WB_RD_O, 
+ 		WB_ADR_I, WB_SEL_I, WB_WE_I, WB_ACK_O, 
+ 		WB_REQ_O, WB_ACK_I, WB_ND_O, WB_RD_O, BDCs, 
 
     //TX
     MTxClk, TxStartFrm, TxEndFrm, TxUsedData, TxData, StatusIzTxEthMACModula, 
@@ -88,7 +94,10 @@ module eth_wishbonedma
     // Register
     r_TxEn, r_RxEn, r_RxBDAddress, r_DmaEn, RX_BD_ADR_Wr, 
 
-    WillSendControlFrame, TxCtrlEndFrm
+    WillSendControlFrame, TxCtrlEndFrm, 
+    
+    // Interrupts
+    TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ
 
 		);
 
@@ -105,8 +114,7 @@ output [31:0]   WB_DAT_O;       // WISHBONE data output
 input  [31:0]   WB_ADR_I;       // WISHBONE address input
 input   [3:0]   WB_SEL_I;       // WISHBONE byte select input
 input           WB_WE_I;        // WISHBONE write enable input
-input           WB_CYC_I;       // WISHBONE cycle input
-input           WB_STB_I;       // WISHBONE strobe input
+input           BDCs;           // Buffer descriptors are selected
 output          WB_ACK_O;       // WISHBONE acknowledge output
 
 // DMA
@@ -147,6 +155,13 @@ input   [7:0]   r_RxBDAddress;  // Receive buffer descriptor address
 input           r_DmaEn;        // DMA enable
 input           RX_BD_ADR_Wr;   // RxBDAddress written
 
+// Interrupts
+output TxB_IRQ;
+output TxE_IRQ;
+output RxB_IRQ;
+output RxF_IRQ;
+output Busy_IRQ;
+
 reg             WB_REQ_O_RX;    
 reg             WB_ND_O_TX;     // New descriptor
 reg             WB_RD_O;        // Restart descriptor
@@ -175,7 +190,7 @@ reg     [1:0]   TxValidBytesLatched;
 reg             TxEndFrm_wbLatched;
 
 reg    [15:0]   TxLength;
-reg    [15:0]   TxStatus;
+reg    [31:0]   TxStatus;
 
 reg    [15:0]   RxStatus;
 
@@ -226,7 +241,6 @@ reg     [7:0]   RxBDAddress;
 reg             GotDataSync1;
 reg             GotDataSync2;
 wire            TPauseRqSync2;
-//reg             GotDataSync3;
 wire             GotDataSync3;
 reg             GotData;
 reg             SyncGetNewTxData_wb1;
@@ -234,15 +248,12 @@ reg             SyncGetNewTxData_wb2;
 reg             SyncGetNewTxData_wb3;
 reg             TxDoneSync1;
 reg             TxDoneSync2;
-//reg             TxDoneSync3;
 wire             TxDoneSync3;
 reg             TxRetrySync1;
 reg             TxRetrySync2;
-//reg             TxRetrySync3;
 wire            TxRetrySync3;
 reg             TxAbortSync1;
 reg             TxAbortSync2;
-//reg             TxAbortSync3;
 wire            TxAbortSync3;
 
 reg             TxAbort_q;
@@ -261,17 +272,14 @@ reg             StartShifting;
 reg             Shifting_wb_Sync1;
 reg             Shifting_wb_Sync2;
 reg             LatchNow_wb;
-//wire            LatchNow_wb;
 
 reg             ShiftEndedSync1;
 reg             ShiftEndedSync2;
 reg             ShiftEndedSync3;
-//reg             ShiftEnded;
 wire            ShiftEnded;
 
 reg             RxStartFrmSync1;
 reg             RxStartFrmSync2;
-//reg             RxStartFrmSync3;
 wire            RxStartFrmSync3;
 
 reg             DMACycleFinishedTx_q;
@@ -321,7 +329,10 @@ wire            StartTxDataRead;
 wire            ResetTxDataRead;
 wire            StartTxStatusWrite;
 wire            ResetTxStatusWrite;
+
+wire            TxIRQEn;
 wire            WrapTxStatusBit;
+
 wire            WrapRxStatusBit;
 
 wire    [1:0]   TxValidBytes;
@@ -350,19 +361,14 @@ wire            StartRxStartFrmSync1;
 wire            SetClearTxBDReady;
 wire            ResetClearTxBDReady;
 
-wire            AccessToBD;
-
 wire            ResetTxCtrlEndFrm_wb;
 wire            SetTxCtrlEndFrm_wb;
      
      
      
       
-assign AccessToBD = WB_ADR_I[15:12] == `ETH_BD_SPACE;
-      
-assign DWord = &WB_SEL_I;
-assign BDWe = DWord & WB_CYC_I & WB_STB_I & WB_WE_I & AccessToBD;
-assign BDRead = DWord & WB_CYC_I & WB_STB_I & ~WB_WE_I & AccessToBD;
+assign BDWe   = BDCs &  WB_WE_I;
+assign BDRead = BDCs & ~WB_WE_I;
 assign WB_ACK_O = BDWe | BDRead & BDRead_q;  // ACK is delayed one clock because of BLOCKRAM properties when performing read
 
 
@@ -386,7 +392,7 @@ end
                        .WEA(BDWe),               .CLKA(WB_CLK_I),           .ENA(1'b1), 
                        .RSTA(WB_RST_I),          .DIB(BDDataIn[15:0]),      .DOB(BDDataOut[15:0]), 
                        .ADDRB(BDAddress[7:0]),   .WEB(BDStatusWrite),       .CLKB(WB_CLK_I), 
-                       .ENB(EnableRAM), .RSTB(WB_RST_I) ); 
+                       .ENB(EnableRAM),          .RSTB(WB_RST_I) ); 
   RAMB4_S16_S16 RAM2 ( .DIA(WB_DAT_I[31:16]),    .DOA(WB_BDDataOut[31:16]), .ADDRA(WB_ADR_I[9:2]), 
                        .WEA(BDWe),               .CLKA(WB_CLK_I),           .ENA(1'b1), 
                        .RSTA(WB_RST_I),          .DIB(BDDataIn[31:16]),     .DOB(BDDataOut[31:16]), 
@@ -446,7 +452,7 @@ begin
     TxBDReady <=#Tp 1'b0;
   else
   if(TxEn & TxBDRead)
-    TxBDReady <=#Tp BDDataOut[15];    // TxBDReady is sampled only once at the beginning
+    TxBDReady <=#Tp BDDataOut[15]; // TxBDReady=BDDataOut[15]   // TxBDReady is sampled only once at the beginning
   else
   if(TxDone & ~TxDone_q | TxAbort & ~TxAbort_q | TxRetry & ~TxRetry_q | ClearTxBDReady | TxPauseRq)
     TxBDReady <=#Tp 1'b0;
@@ -463,7 +469,7 @@ begin
   else
   if(TxEn & TxBDRead)
     begin
-      TxPauseRq <=#Tp BDDataOut[13];    // Tx PAUSE request
+      TxPauseRq <=#Tp BDDataOut[9];    // Tx PAUSE request
     end
   else
       TxPauseRq <=#Tp 1'b0;
@@ -500,7 +506,7 @@ begin
   if(WB_RST_I)
     TxDataRead <=#Tp 1'b0;
   else
-  if(StartTxDataRead)
+  if(StartTxDataRead & r_DmaEn)
     TxDataRead <=#Tp 1'b1;
   else
   if(ResetTxDataRead)
@@ -508,7 +514,7 @@ begin
 end
 
 // Requesting tx data from the DMA
-assign WB_REQ_O[0] = TxDataRead & r_DmaEn;
+assign WB_REQ_O[0] = TxDataRead;
 assign DMACycleFinishedTx = WB_REQ_O[0] & WB_ACK_I[0] & TxBDReady;
 
 
@@ -577,10 +583,10 @@ end
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
-    TxStatus <=#Tp 16'h0;
+    TxStatus <=#Tp 32'h0;
   else
   if(TxBDRead & TxEn)
-    TxStatus <=#Tp BDDataOut[15:0];
+    TxStatus <=#Tp BDDataOut;
 end
 
 
@@ -733,10 +739,51 @@ end
 
 // Bit 14 is used as a wrap bit. When active it indicates the last buffer descriptor in a row. After
 // using this descriptor, first BD will be used again.
-assign WrapTxStatusBit = TxStatus[14];
-assign WrapRxStatusBit = RxStatus[14];
-assign PerPacketCrcEn  = RxStatus[13] & RxStatus[12];
-assign PerPacketPad    = RxStatus[11];
+
+
+
+// TX
+// bit 15 od tx je ready
+// bit 14 od tx je interrupt (Tx buffer ali tx error bit se postavi v interrupt registru, ko se ta buffer odda)
+// bit 13 od tx je wrap
+// bit 12 od tx je pad
+// bit 11 od tx je crc
+// bit 10 od tx je last (crc se doda le ce je bit 11 in hkrati bit 10)
+// bit 9  od tx je pause request (control frame)
+    // Vsi zgornji biti gredo ven, spodnji biti (od 8 do 0) pa so statusni in se vpisejo po koncu oddajanja
+// bit 8  od tx je defer indication
+// bit 7  od tx je late collision
+// bit 6  od tx je retransmittion limit
+// bit 5  od tx je underrun
+// bit 4  od tx je carrier sense lost
+// bit [3:0] od tx je retry count
+
+//assign TxBDReady      = TxStatus[15];     // already used
+assign TxIRQEn          = TxStatus[14];
+assign WrapTxStatusBit  = TxStatus[13];                                                   // ok povezan
+assign PerPacketPad     = TxStatus[12];                                                   // ok povezan
+assign PerPacketCrcEn   = TxStatus[11] & TxStatus[10];      // When last is also set      // ok povezan
+//assign TxPauseRq      = TxStatus[9];      // already used
+
+
+
+// RX
+// bit 15 od rx je empty
+// bit 14 od rx je interrupt (Rx buffer ali rx frame received se postavi v interrupt registru, ko se ta buffer zapre)
+// bit 13 od rx je wrap
+// bit 12 od rx je reserved
+// bit 11 od rx je reserved
+// bit 10 od rx je last (crc se doda le ce je bit 11 in hkrati bit 10)
+// bit 9  od rx je pause request (control frame)
+    // Vsi zgornji biti gredo ven, spodnji biti (od 8 do 0) pa so statusni in se vpisejo po koncu oddajanja
+// bit 8  od rx je defer indication
+// bit 7  od rx je late collision
+// bit 6  od rx je retransmittion limit
+// bit 5  od rx je underrun
+// bit 4  od rx je carrier sense lost
+// bit [3:0] od rx je retry count
+
+assign WrapRxStatusBit = RxStatus[13];
 
 
 // Temporary Tx and Rx buffer descriptor address 
@@ -787,9 +834,11 @@ assign RxLength[15:0]  = 16'h1399;
 assign NewRxStatus[15:0] = {1'b0, WbWriteError, RxStatus[13:0]};
 
 
-assign BDDataIn  = TxStatusWrite ? {TxLength[15:0], StatusIzTxEthMACModula} : {RxLength, NewRxStatus};
-assign BDStatusWrite = TxStatusWrite | RxStatusWrite;
+//assign BDDataIn  = TxStatusWrite ? {TxLength[15:0], StatusIzTxEthMACModula} : {RxLength, NewRxStatus};
+assign BDDataIn  = TxStatusWrite ? {TxStatus[31:9], 9'h0} 
+                                 : {RxLength, NewRxStatus};
 
+assign BDStatusWrite = TxStatusWrite | RxStatusWrite;
 
 
 // Generating delayed signals
@@ -1540,7 +1589,7 @@ begin
   if(WB_RST_I)
     WB_REQ_O_RX <=#Tp 1'b0;
   else
-  if(LatchNow_wb & ~RxDataValid_wb)
+  if(LatchNow_wb & ~RxDataValid_wb & r_DmaEn)
     WB_REQ_O_RX <=#Tp 1'b1;
   else
   if(DMACycleFinishedRx)
@@ -1548,7 +1597,7 @@ begin
 end
 
 
-assign WB_REQ_O[1] = WB_REQ_O_RX & r_DmaEn;
+assign WB_REQ_O[1] = WB_REQ_O_RX;
 assign DMACycleFinishedRx = WB_REQ_O[1] & WB_ACK_I[1];
 
 
@@ -1604,6 +1653,15 @@ begin
   if(StartRxStatusWrite)
     RxEndFrm_wb <=#Tp 1'b0;
 end
+
+
+// Interrupts
+assign TxB_IRQ = 1'b0;
+assign TxE_IRQ = 1'b0;
+assign RxB_IRQ = 1'b0;
+assign RxF_IRQ = 1'b0;
+assign Busy_IRQ = 1'b0;
+
 
 endmodule
 

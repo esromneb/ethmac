@@ -41,6 +41,12 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2001/09/24 15:02:56  mohor
+// Defines changed (All precede with ETH_). Small changes because some
+// tools generate warnings when two operands are together. Synchronization
+// between two clocks domains in eth_wishbonedma.v is changed (due to ASIC
+// demands).
+//
 // Revision 1.2  2001/08/15 14:03:59  mohor
 // Signal names changed on the top level for easier pad insertion (ASIC).
 //
@@ -85,7 +91,9 @@ module eth_top
   mrx_clk_pad_i, mrxd_pad_i, mrxdv_pad_i, mrxerr_pad_i, mcoll_pad_i, mcrs_pad_i, 
   
   // MIIM
-  mdc_pad_o, md_pad_i, md_pad_o, md_padoen_o
+  mdc_pad_o, md_pad_i, md_pad_o, md_padoen_o,
+
+  int_o
 
 
 );
@@ -117,26 +125,27 @@ output          wb_rd_o;      // DMA restart descriptor output
 
 // Tx
 input           mtx_clk_pad_i; // Transmit clock (from PHY)
-output   [3:0]  mtxd_pad_o;   // Transmit nibble (to PHY)
-output          mtxen_pad_o;  // Transmit enable (to PHY)
-output          mtxerr_pad_o; // Transmit error (to PHY)
+output   [3:0]  mtxd_pad_o;    // Transmit nibble (to PHY)
+output          mtxen_pad_o;   // Transmit enable (to PHY)
+output          mtxerr_pad_o;  // Transmit error (to PHY)
 
 // Rx
 input           mrx_clk_pad_i; // Receive clock (from PHY)
-input    [3:0]  mrxd_pad_i;   // Receive nibble (from PHY)
-input           mrxdv_pad_i;  // Receive data valid (from PHY)
-input           mrxerr_pad_i; // Receive data error (from PHY)
+input    [3:0]  mrxd_pad_i;    // Receive nibble (from PHY)
+input           mrxdv_pad_i;   // Receive data valid (from PHY)
+input           mrxerr_pad_i;  // Receive data error (from PHY)
 
 // Common Tx and Rx
-input           mcoll_pad_i;  // Collision (from PHY)
-input           mcrs_pad_i;   // Carrier sense (from PHY)
+input           mcoll_pad_i;   // Collision (from PHY)
+input           mcrs_pad_i;    // Carrier sense (from PHY)
 
 // MII Management interface
-input           md_pad_i;     // MII data input (from I/O cell)
-output          mdc_pad_o;    // MII Management data clock (to PHY)
-output          md_pad_o;     // MII data output (to I/O cell)
-output          md_padoen_o;    // MII data output enable (to I/O cell)
+input           md_pad_i;      // MII data input (from I/O cell)
+output          mdc_pad_o;     // MII Management data clock (to PHY)
+output          md_pad_o;      // MII data output (to I/O cell)
+output          md_padoen_o;   // MII data output enable (to I/O cell)
 
+output          int_o;         // Interrupt output
 
 wire     [7:0]  r_ClkDiv;
 wire            r_MiiNoPre;
@@ -217,26 +226,23 @@ wire [15:0] TxPauseTV;      // Tx PAUSE timer value
 wire        r_TxFlow;       // Tx flow control enable
 wire        r_IFG;          // Minimum interframe gap for incoming packets
 
-wire        EthAddMatch;
-wire        WB_STB_I_eth;
-wire        WB_CYC_I_eth;
+wire        TxB_IRQ;        // Interrupt Tx Buffer
+wire        TxE_IRQ;        // Interrupt Tx Error
+wire        RxB_IRQ;        // Interrupt Rx Buffer
+wire        RxF_IRQ;        // Interrupt Rx Frame
+wire        Busy_IRQ;       // Interrupt Busy (lack of buffers)
 
 wire        DWord;
-wire        RegAck;
 wire        BDAck;
 wire [31:0] DMA_WB_DAT_O;   // wb_dat_o that comes from the WishboneDMA module
+wire        BDCs;           // Buffer descriptor CS
 
 
-
-assign EthAddMatch = wb_adr_i[31:16] == `ETH_ETHERNET_SPACE;
-assign WB_STB_I_eth = wb_stb_i & EthAddMatch;
-assign WB_CYC_I_eth = wb_stb_i & EthAddMatch;
-
-assign wb_err_o = wb_stb_i & wb_cyc_i & EthAddMatch & ~DWord;
 assign DWord = &wb_sel_i;
-assign RegCs = wb_stb_i & wb_cyc_i & DWord & EthAddMatch & (wb_adr_i[15:12] == `ETH_REG_SPACE);
-assign RegAck = RegCs;
-assign wb_ack_o = RegAck | BDAck;
+assign RegCs = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[17] & ~wb_adr_i[16];
+assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[17] &  wb_adr_i[16];
+assign wb_ack_o = RegCs | BDAck;
+assign wb_err_o = wb_stb_i & wb_cyc_i & ~DWord;
 
 
 // Selecting the WISHBONE output data
@@ -254,10 +260,9 @@ eth_registers ethreg1
   .r_ExDfrEn(r_ExDfrEn),                  .r_NoBckof(r_NoBckof),                      .r_LoopBck(r_LoopBck), 
   .r_IFG(r_IFG),                          .r_Pro(),                                   .r_Iam(), 
   .r_Bro(),                               .r_NoPre(r_NoPre),                          .r_TxEn(r_TxEn), 
-  .r_RxEn(r_RxEn),                        .Busy_IRQ(),                                .RxF_IRQ(), 
-  .RxB_IRQ(),                             .TxE_IRQ(),                                 .TxB_IRQ(), 
-  .Busy_MASK(),                           .RxF_MASK(),                                .RxB_MASK(), 
-  .TxE_MASK(),                            .TxB_MASK(),                                .r_IPGT(r_IPGT), 
+  .r_RxEn(r_RxEn),                        .Busy_IRQ(Busy_IRQ),                        .RxF_IRQ(RxF_IRQ), 
+  .RxB_IRQ(RxB_IRQ),                      .TxE_IRQ(TxE_IRQ),                          .TxB_IRQ(TxB_IRQ), 
+  .r_IPGT(r_IPGT), 
   .r_IPGR1(r_IPGR1),                      .r_IPGR2(r_IPGR2),                          .r_MinFL(r_MinFL), 
   .r_MaxFL(r_MaxFL),                      .r_MaxRet(r_MaxRet),                        .r_CollValid(r_CollValid), 
   .r_TxFlow(r_TxFlow),                    .r_RxFlow(r_RxFlow),                        .r_PassAll(r_PassAll), 
@@ -267,7 +272,7 @@ eth_registers ethreg1
   .NValid_stat(NValid_stat),              .Busy_stat(Busy_stat),                   
   .LinkFail(LinkFail),                    .r_MAC(r_MAC),                              .WCtrlDataStart(WCtrlDataStart),
   .RStatStart(RStatStart),                .UpdateMIIRX_DATAReg(UpdateMIIRX_DATAReg),  .Prsd(Prsd), 
-  .r_RxBDAddress(r_RxBDAddress),          .RX_BD_ADR_Wr(RX_BD_ADR_Wr)
+  .r_RxBDAddress(r_RxBDAddress),          .RX_BD_ADR_Wr(RX_BD_ADR_Wr),                .int_o(int_o)
 );
 
 
@@ -343,7 +348,7 @@ assign MRxD_Lb[3:0] = r_LoopBck? mtxd_pad_o[3:0] : mrxd_pad_i[3:0];
 // Connecting TxEthMAC
 eth_txethmac txethmac1
 (
-  .MTxClk(mtx_clk_pad_i),              .Reset(r_Rst),                      .CarrierSense(TxCarrierSense), 
+  .MTxClk(mtx_clk_pad_i),             .Reset(r_Rst),                      .CarrierSense(TxCarrierSense), 
   .Collision(Collision),              .TxData(TxDataOut),                 .TxStartFrm(TxStartFrmOut), 
   .TxUnderRun(TxUnderRun),            .TxEndFrm(TxEndFrmOut),             .Pad(PadOut),  
   .MinFL(r_MinFL),                    .CrcEn(CrcEnOut),                   .FullD(r_FullD), 
@@ -375,7 +380,7 @@ wire   [1:0]  RxStateData;
 // Connecting RxEthMAC
 eth_rxethmac rxethmac1
 (
-  .MRxClk(mrx_clk_pad_i),                .MRxDV(MRxDV_Lb),                     .MRxD(MRxD_Lb),
+  .MRxClk(mrx_clk_pad_i),               .MRxDV(MRxDV_Lb),                     .MRxD(MRxD_Lb),
   .Transmitting(Transmitting),          .HugEn(r_HugEn),                      .DlyCrcEn(r_DlyCrcEn), 
   .MaxFL(r_MaxFL),                      .r_IFG(r_IFG),                        .Reset(r_Rst),
   .RxData(RxData),                      .RxValid(RxValid),                    .RxStartFrm(RxStartFrm), 
@@ -479,12 +484,12 @@ eth_wishbonedma wbdma
 
   // WISHBONE slave
   .WB_ADR_I(wb_adr_i),                .WB_SEL_I(wb_sel_i),                      .WB_WE_I(wb_we_i), 
-  .WB_CYC_I(WB_CYC_I_eth),            .WB_STB_I(WB_STB_I_eth),                  .WB_ACK_O(BDAck), 
+  .BDCs(BDCs),                        .WB_ACK_O(BDAck), 
   .WB_REQ_O(wb_req_o),                .WB_ACK_I(wb_ack_i),                      .WB_ND_O(wb_nd_o), 
   .WB_RD_O(wb_rd_o), 
 
     //TX
-  .MTxClk(mtx_clk_pad_i),              .TxStartFrm(TxStartFrm),                  .TxEndFrm(TxEndFrm), 
+  .MTxClk(mtx_clk_pad_i),             .TxStartFrm(TxStartFrm),                  .TxEndFrm(TxEndFrm), 
   .TxUsedData(TxUsedData),            .TxData(TxData),                          .StatusIzTxEthMACModula(16'h0), 
   .TxRetry(TxRetry),                  .TxAbort(TxAbort),                        .TxUnderRun(TxUnderRun), 
   .TxDone(TxDone),                    .TPauseRq(TPauseRq),                      .TxPauseTV(TxPauseTV), 
@@ -496,8 +501,11 @@ eth_wishbonedma wbdma
   .r_DmaEn(r_DmaEn),                  .RX_BD_ADR_Wr(RX_BD_ADR_Wr), 
 
   //RX
-  .MRxClk(mrx_clk_pad_i),              .RxData(RxData),                          .RxValid(RxValid), 
-  .RxStartFrm(RxStartFrm),            .RxEndFrm(RxEndFrm)
+  .MRxClk(mrx_clk_pad_i),             .RxData(RxData),                          .RxValid(RxValid), 
+  .RxStartFrm(RxStartFrm),            .RxEndFrm(RxEndFrm), 
+  .Busy_IRQ(Busy_IRQ),                .RxF_IRQ(RxF_IRQ),                        .RxB_IRQ(RxB_IRQ), 
+  .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ)
+
 );
 
 

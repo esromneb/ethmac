@@ -41,6 +41,12 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/24 15:02:56  mohor
+// Defines changed (All precede with ETH_). Small changes because some
+// tools generate warnings when two operands are together. Synchronization
+// between two clocks domains in eth_wishbonedma.v is changed (due to ASIC
+// demands).
+//
 // Revision 1.1  2001/08/06 14:44:29  mohor
 // A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
 // Include files fixed to contain no path.
@@ -64,34 +70,25 @@
                                       // Should be cleared for the ASIC implementation
 
 
-// Address is {`ETHERNET_SPACE, REG_SPACE, 12'hx}
-`define ETH_ETHERNET_SPACE 16'hf000   // Ethernet space is allocated from 0xF0000000 to 0xF000FFFF
-`define ETH_REG_SPACE         4'h0    // Register space is allocated to 0xF0000000
-`define ETH_BD_SPACE          4'h1    // Buffer descriptor space is allocated to 0xF0001000
-`define ETH_TX_DATA           4'h2    // Tx data is written to address 0xF0002000. Since DMA is used, TX_DATA is not used in equations.
-`define ETH_RX_DATA           4'h3    // Rx data is read from address 0xF0003000. Since DMA is used, RX_DATA is not used in equations.
 
-
-`define ETH_PACKET_SEND_ADR   32'h20  // Packet for TX are written to the address 0x20
-
-`define ETH_MODER_ADR         6'h0
-`define ETH_INT_SOURCE_ADR    6'h1
-`define ETH_INT_MASK_ADR      6'h2
-`define ETH_IPGT_ADR          6'h3
-`define ETH_IPGR1_ADR         6'h4
-`define ETH_IPGR2_ADR         6'h5
-`define ETH_PACKETLEN_ADR     6'h6
-`define ETH_COLLCONF_ADR      6'h7
-`define ETH_RX_BD_ADR_ADR     6'h8
-`define ETH_CTRLMODER_ADR     6'hA
-`define ETH_MIIMODER_ADR      6'hB
-`define ETH_MIICOMMAND_ADR    6'hC
-`define ETH_MIIADDRESS_ADR    6'hD
-`define ETH_MIITX_DATA_ADR    6'hE
-`define ETH_MIIRX_DATA_ADR    6'hF
-`define ETH_MIISTATUS_ADR     6'h10
-`define ETH_MAC_ADDR0_ADR     6'h11
-`define ETH_MAC_ADDR1_ADR     6'h12
+`define ETH_MODER_ADR         6'h0    // 0x0 
+`define ETH_INT_SOURCE_ADR    6'h1    // 0x4 
+`define ETH_INT_MASK_ADR      6'h2    // 0x8 
+`define ETH_IPGT_ADR          6'h3    // 0xC 
+`define ETH_IPGR1_ADR         6'h4    // 0x10
+`define ETH_IPGR2_ADR         6'h5    // 0x14
+`define ETH_PACKETLEN_ADR     6'h6    // 0x18
+`define ETH_COLLCONF_ADR      6'h7    // 0x1C
+`define ETH_RX_BD_ADR_ADR     6'h8    // 0x20
+`define ETH_CTRLMODER_ADR     6'h9    // 0x24
+`define ETH_MIIMODER_ADR      6'hA    // 0x28
+`define ETH_MIICOMMAND_ADR    6'hB    // 0x2C
+`define ETH_MIIADDRESS_ADR    6'hC    // 0x30
+`define ETH_MIITX_DATA_ADR    6'hD    // 0x34
+`define ETH_MIIRX_DATA_ADR    6'hE    // 0x38
+`define ETH_MIISTATUS_ADR     6'hF    // 0x3C
+`define ETH_MAC_ADDR0_ADR     6'h10   // 0x40
+`define ETH_MAC_ADDR1_ADR     6'h11   // 0x44
 
 
 

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/09/11 14:17:00  mohor
+// Few little NCSIM warnings fixed.
+//
 // Revision 1.1  2001/08/06 14:44:29  mohor
 // A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
 // Include files fixed to contain no path.
@@ -115,7 +118,8 @@ assign StartIdle = ~MRxDV & (StateDrop | StatePreamble | StateSFD | (|StateData)
 
 assign StartPreamble = MRxDV & ~MRxDEq5 & (StateIdle & ~Transmitting);
 
-assign StartSFD = MRxDV & MRxDEq5 & (StateIdle & ~Transmitting);
+//assign StartSFD = MRxDV & MRxDEq5 & (StateIdle & ~Transmitting);
+assign StartSFD = MRxDV & MRxDEq5 & (StateIdle & ~Transmitting | StatePreamble);
 
 assign StartData0 = MRxDV & (StateSFD & MRxDEqD & IFGCounterEq24 | StateData1);
 
