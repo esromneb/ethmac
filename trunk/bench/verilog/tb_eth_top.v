@@ -246,7 +246,7 @@ begin
 end
 
 
-assign glbl.GSR = GSR;
+//assign glbl.GSR = GSR;
 
 
 
@@ -287,7 +287,7 @@ begin
   WishboneWrite(32'h00000080, {26'h0, `ETH_TX_BD_NUM_ADR<<2}); // r_RxBDAddress = 0x80
   WishboneWrite(32'h0002A443, {26'h0, `ETH_MODER_ADR<<2});     // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
   WishboneWrite(32'h00000004, {26'h0, `ETH_CTRLMODER_ADR<<2}); //r_TxFlow = 1
-
+  WishboneWrite(32'h0040000, {26'h0, `ETH_HASH1_ADR,2'h0}); // set bit 16, multicast hash 36
 
 
 
@@ -701,22 +701,94 @@ endtask
 initial
 begin
   wait(StartTB);  // Start of testbench
+  //IGORS_BOILER_PLATE;
+  // TestUnicast;
+  // TestBroadcast;
+   TestMulticast;
+end
+
+task IGORS_BOILER_PLATE;
+ begin
+  $display("\nBegin IGORS_BOILER_PLATE \n");
+  WishboneWrite(32'h00000800, {26'h0, `ETH_MODER_ADR, 2'h0});     // r_Rst = 1
+  WishboneWrite(32'h00000000, {26'h0, `ETH_MODER_ADR, 2'h0});     // r_Rst = 0
+  WishboneWrite(32'h00000080, {26'h0, `ETH_TX_BD_NUM_ADR, 2'h0}); // r_RxBDAddress = 0x80
+
+  WishboneWrite(32'h0002A443, {26'h0, `ETH_MODER_ADR, 2'h0});     // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
+
+  WishboneWrite(32'h00000004, {26'h0, `ETH_CTRLMODER_ADR, 2'h0}); //r_TxFlow = 1
+
+ 
   
-  WishboneWrite(32'h00000800, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 1
-  WishboneWrite(32'h00000000, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 0
-  WishboneWrite(32'h00000080, {26'h0, `ETH_TX_BD_NUM_ADR<<2}); // r_RxBDAddress = 0x80
+  SendPacket(16'h0010, 1'b0);
+  SendPacket(16'h0011, 1'b0);
+  SendPacket(16'h0012, 1'b0);
+  SendPacket(16'h0013, 1'b0);
+  SendPacket(16'h0014, 1'b0);
 
-  WishboneWrite(32'h00022043, {26'h0, `ETH_MODER_ADR<<2});     // RxEn, Txen, CrcEn, Pad, DmaEn, r_IFG
+  SendPacket(16'h0030, 1'b0);
+  SendPacket(16'h0031, 1'b0);
+  SendPacket(16'h0032, 1'b0);
+  SendPacket(16'h0033, 1'b0);
+  SendPacket(16'h0025, 1'b0);
+  SendPacket(16'h0045, 1'b0);
+  SendPacket(16'h0025, 1'b0);
+  SendPacket(16'h0017, 1'b0);
 
-  WishboneWrite(32'h00000004, {26'h0, `ETH_CTRLMODER_ADR<<2}); //r_TxFlow = 1
+//  ReceivePacket(16'h0012, 1'b1, 1'b0);    
+// Initializes RxBD and then Sends a control packet on the MRxD[3:0] signals.
 
-  WishboneWrite(32'h12345678, {26'h0, `ETH_HASH0_ADR<<2});
-  WishboneWrite(32'h98765432, {26'h0, `ETH_HASH1_ADR<<2});
-  WishboneRead({26'h0, `ETH_HASH0_ADR<<2});   // Read from HASH0 register
-  WishboneRead({26'h0, `ETH_HASH1_ADR<<2});   // Read from HASH1 register
+   
+  
+  WishboneWrite(32'h00400000, {26'h0, `ETH_HASH1_ADR,2'h0}); // set bit 16, multicast hash 36
+  WishboneRead({26'h0, `ETH_HASH1_ADR});  // read back
+  
+  $display("\n Set Hash Filter to accept this Multicast packet, send packets\n");
+  
+  ReceivePacket(16'h0015, 1'b0, 1'b0,`MULTICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0016, 1'b0, 1'b0,`MULTICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0017, 1'b0, 1'b0,`MULTICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0018, 1'b0, 1'b0,`MULTICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
 
+  repeat(5000) @ (posedge MRxClk);        // Waiting some time for all accesses to finish before reading out the statuses.
 
-  SendPacket(16'h0007, 1'b0);
+  WishboneRead({26'h0, `ETH_MODER_ADR});   // Read from MODER register
+
+  WishboneRead({24'h04, (8'h0<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h1<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h2<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h3<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h4<<2)});       // Read from TxBD register
+
+  
+  WishboneRead({22'h01, (10'h80<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h81<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h82<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h83<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h84<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h85<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h86<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h87<<2)});       // Read from RxBD register
+  
+  #100000 $stop;
+  $display("\nEnd IGORS_BOILER_PLATE \n");
+  end
+  endtask //IGORS_BOILER_PLATE
+
+task TestUnicast;
+ begin
+  $display("\nBegin TestUnicast \n");
+  WishboneWrite(32'h00000800, {26'h0, `ETH_MODER_ADR, 2'h0});     // r_Rst = 1
+  WishboneWrite(32'h00000000, {26'h0, `ETH_MODER_ADR, 2'h0});     // r_Rst = 0
+  WishboneWrite(32'h00000080, {26'h0, `ETH_TX_BD_NUM_ADR, 2'h0}); // r_RxBDAddress = 0x80
+
+  WishboneWrite(32'h0002A443, {26'h0, `ETH_MODER_ADR, 2'h0});     // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
+
+  WishboneWrite(32'h00000004, {26'h0, `ETH_CTRLMODER_ADR, 2'h0}); //r_TxFlow = 1
+
+ 
+  
+  SendPacket(16'h0010, 1'b0);
   SendPacket(16'h0011, 1'b0);
   SendPacket(16'h0012, 1'b0);
   SendPacket(16'h0013, 1'b0);
@@ -732,10 +804,90 @@ begin
   SendPacket(16'h0017, 1'b0);
 
 //  ReceivePacket(16'h0012, 1'b1, 1'b0);    // Initializes RxBD and then Sends a control packet on the MRxD[3:0] signals.
-  ReceivePacket(16'h000b, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
-  ReceivePacket(16'h0016, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
-  ReceivePacket(16'h0017, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
-  ReceivePacket(16'h0018, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+ $display("\n This Uniicast packet will be rejected, wrong address in MAC Address Regs\n");
+ 
+  ReceivePacket(16'h0015, 1'b0, 1'b0,`UNICAST_XFR);    
+  
+  WishboneWrite(32'h04030200, {26'h0,`ETH_MAC_ADDR0_ADR ,2'h0}); // Mac Address 
+  WishboneWrite(32'h00000605, {26'h0,`ETH_MAC_ADDR1_ADR ,2'h0}); // Mac Address
+  
+  
+  $display("\n Set Proper Unicast Address in MAC_ADDRESS regs, resend packet\n");
+  
+  ReceivePacket(16'h0015, 1'b0, 1'b0,`UNICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0016, 1'b0, 1'b0,`UNICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0017, 1'b0, 1'b0,`UNICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0018, 1'b0, 1'b0,`UNICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+
+  repeat(5000) @ (posedge MRxClk);        // Waiting some time for all accesses to finish before reading out the statuses.
+
+  WishboneRead({26'h0, `ETH_MODER_ADR});   // Read from MODER register
+
+  WishboneRead({24'h04, (8'h0<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h1<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h2<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h3<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h4<<2)});       // Read from TxBD register
+
+  
+  WishboneRead({22'h01, (10'h80<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h81<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h82<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h83<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h84<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h85<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h86<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h87<<2)});       // Read from RxBD register
+  
+  #100000 $stop;
+  $display("\nEnd TestUnicast \n");
+end
+endtask //TestUnicast
+
+task TestMulticast;
+ begin
+  $display("\nBegin TestMulticast \n");
+  WishboneWrite(32'h00000800, {26'h0, `ETH_MODER_ADR, 2'h0});     // r_Rst = 1
+  WishboneWrite(32'h00000000, {26'h0, `ETH_MODER_ADR, 2'h0});     // r_Rst = 0
+  WishboneWrite(32'h00000080, {26'h0, `ETH_TX_BD_NUM_ADR, 2'h0}); // r_RxBDAddress = 0x80
+
+  WishboneWrite(32'h0002A443, {26'h0, `ETH_MODER_ADR, 2'h0});     // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
+
+  WishboneWrite(32'h00000004, {26'h0, `ETH_CTRLMODER_ADR, 2'h0}); //r_TxFlow = 1
+
+ 
+  
+  SendPacket(16'h0010, 1'b0);
+  SendPacket(16'h0011, 1'b0);
+  SendPacket(16'h0012, 1'b0);
+  SendPacket(16'h0013, 1'b0);
+  SendPacket(16'h0014, 1'b0);
+
+  SendPacket(16'h0030, 1'b0);
+  SendPacket(16'h0031, 1'b0);
+  SendPacket(16'h0032, 1'b0);
+  SendPacket(16'h0033, 1'b0);
+  SendPacket(16'h0025, 1'b0);
+  SendPacket(16'h0045, 1'b0);
+  SendPacket(16'h0025, 1'b0);
+  SendPacket(16'h0017, 1'b0);
+
+//  ReceivePacket(16'h0012, 1'b1, 1'b0);    
+// Initializes RxBD and then Sends a control packet on the MRxD[3:0] signals.
+
+ $display("\n This Multicast packet will be rejected by Hash Filter\n");
+ 
+  ReceivePacket(16'h0015, 1'b0, 1'b0,`MULTICAST_XFR);    
+  
+  WishboneWrite(32'h00400000, {26'h0, `ETH_HASH1_ADR,2'h0}); // set bit 16, multicast hash 36
+  WishboneRead({26'h0, `ETH_HASH1_ADR});  // read back
+  
+  $display("\n Set Hash Filter to accept this Multicast packet, resend packet\n");
+  
+  ReceivePacket(16'h0015, 1'b0, 1'b0,`MULTICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0016, 1'b0, 1'b0,`MULTICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0017, 1'b0, 1'b0,`MULTICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0018, 1'b0, 1'b0,`MULTICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
 
   repeat(5000) @ (posedge MRxClk);        // Waiting some time for all accesses to finish before reading out the statuses.
 
@@ -758,28 +910,96 @@ begin
   WishboneRead({22'h01, (10'h87<<2)});       // Read from RxBD register
 
   #100000 $stop;
+  $display("\nEnd TestMulticast \n");
 end
+endtask //TestMulticast
 
-integer ijk;
 
-initial
-ijk = 0;    // for stoping generation of the m_wb_ack_i signal at the right moment so we get underrun
+task TestBroadcast;
+ begin
+  $display("\nBegin TestBroadcast \n");
+  WishboneWrite(32'h00000800, {26'h0, `ETH_MODER_ADR, 2'h0});     // r_Rst = 1
+  WishboneWrite(32'h00000000, {26'h0, `ETH_MODER_ADR, 2'h0});     // r_Rst = 0
+  WishboneWrite(32'h00000080, {26'h0, `ETH_TX_BD_NUM_ADR, 2'h0}); // r_RxBDAddress = 0x80
+
+  WishboneWrite(32'h0002A44b, {26'h0, `ETH_MODER_ADR, 2'h0});     
+  // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG, r_Bro = 1 (disabled)
+
+  WishboneWrite(32'h00000004, {26'h0, `ETH_CTRLMODER_ADR, 2'h0}); //r_TxFlow = 1
+
+ 
+  
+  SendPacket(16'h0010, 1'b0);
+  SendPacket(16'h0011, 1'b0);
+  SendPacket(16'h0012, 1'b0);
+  SendPacket(16'h0013, 1'b0);
+  SendPacket(16'h0014, 1'b0);
+
+  SendPacket(16'h0030, 1'b0);
+  SendPacket(16'h0031, 1'b0);
+  SendPacket(16'h0032, 1'b0);
+  SendPacket(16'h0033, 1'b0);
+  SendPacket(16'h0025, 1'b0);
+  SendPacket(16'h0045, 1'b0);
+  SendPacket(16'h0025, 1'b0);
+  SendPacket(16'h0017, 1'b0);
+
+//  ReceivePacket(16'h0012, 1'b1, 1'b0);    
+// Initializes RxBD and then Sends a control packet on the MRxD[3:0] signals.
+
+ $display("\n This Broadcast packet will be rejected ,r_BRO  set\n");
+ 
+  ReceivePacket(16'h0015, 1'b0, 1'b0,`BROADCAST_XFR);    
+  
+ 
+  WishboneWrite(32'h0002A443, {26'h0, `ETH_MODER_ADR, 2'h0});  
+  
+  // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG, r_Bro
+  $display("\n Set r_Bro, resend packet\n");
+  
+  ReceivePacket(16'h0015, 1'b0, 1'b0,`BROADCAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0016, 1'b0, 1'b0,`BROADCAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0017, 1'b0, 1'b0,`BROADCAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h0018, 1'b0, 1'b0,`BROADCAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+
+  repeat(5000) @ (posedge MRxClk);        // Waiting some time for all accesses to finish before reading out the statuses.
+
+  WishboneRead({26'h0, `ETH_MODER_ADR});   // Read from MODER register
+
+  WishboneRead({24'h04, (8'h0<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h1<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h2<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h3<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h4<<2)});       // Read from TxBD register
+
+  
+  WishboneRead({22'h01, (10'h80<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h81<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h82<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h83<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h84<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h85<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h86<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h87<<2)});       // Read from RxBD register
+
+  #100000 $stop;
+  $display("\nEnd TestBroadcast \n");
+end
+endtask //TestBroadcast
+
+//integer ijk;
+
+//initial
+//ijk = 0;    // for stoping generation of the m_wb_ack_i signal at the right moment so we get underrun
 
 // Answering to master Wishbone requests
-//wire [31:0] daatax = 32'h87654321;
-//wire [31:0] daatay = 32'h00edcba9;
-
 always @ (posedge WB_CLK_I)
 begin
   if(m_wb_cyc_o & m_wb_stb_o) // Add valid address range
     begin
       repeat(3) @ (posedge WB_CLK_I);
         begin
-          if(ijk==6) // mama
-            MColl = 1;
-//          if(ijk==9)
-          else
-            MColl = 0;
+//          if(ijk==41)
 //            begin
 //              repeat(1000) @ (posedge WB_CLK_I);
 //            end
@@ -788,14 +1008,13 @@ begin
           if(~m_wb_we_o)
             begin
               #Tp m_wb_dat_i = m_wb_adr_o + 1'b1; // For easier following of the data
-//                #Tp m_wb_dat_i = ijk? daatay : daatax;
               $fdisplay(mcd1, "(%0t) master read (0x%0x) = 0x%0x", $time, m_wb_adr_o, m_wb_dat_i);
+//              ijk = ijk + 1;
             end
           else
             $fdisplay(mcd2, "(%0t) master write (0x%0x) = 0x%0x", $time, m_wb_adr_o, m_wb_dat_o);
         end
       @ (posedge WB_CLK_I);
-      ijk = ijk + 1;
       m_wb_ack_i <=#Tp 1'b0;
     end
 end
@@ -920,7 +1139,8 @@ task SendPacket;
     WishboneWrite(TempData, TempAddr); // buffer pointer
 
 
-    TempAddr = {22'h01, (TxBDIndex<<2)};
+    TempAddr = {22'h01, (TxBDIndex<<2)};  // igor !!! zbrisi spodnjo vrstico
+//    TempAddr = {22'h01, 10'b1010010100};
 
     TempData = {Length[15:0], 1'b1, 1'b0, Wrap, 3'h0, ControlFrame, 1'b0, TxBDIndex[7:0]};  // Ready and Wrap = 1
 
@@ -940,6 +1160,7 @@ task ReceivePacket;    // Initializes RxBD and then generates traffic on the MRx
   input [15:0] LengthRx;
   input        RxControlFrame;
   input        Abort;
+  input [31:0] TransferType;  //Broadcast,Unicast,Multicast
   reg        WrapRx;
   reg [31:0] TempRxAddr;
   reg [31:0] TempRxData;
@@ -974,7 +1195,7 @@ task ReceivePacket;    // Initializes RxBD and then generates traffic on the MRx
         if(RxControlFrame)
           GetControlDataOnMRxD(LengthRx); // LengthRx = PAUSE timer value.
         else
-          GetDataOnMRxD(LengthRx, Abort); // LengthRx bytes is comming on MRxD[3:0] signals
+          GetDataOnMRxD(LengthRx, Abort, TransferType); // LengthRx bytes is comming on MRxD[3:0] signals
       end
 
   end
@@ -984,13 +1205,10 @@ endtask
 task GetDataOnMRxD;
   input [15:0] Len;
   input abort;
+  input [31:0] TransferType;
   integer tt;
 
-//  reg [87:0] ddata;
-
   begin
-//    ddata = 88'h50727196edcba987654321;
-
     @ (posedge MRxClk);
     MRxDV=1'b1;
     
@@ -1000,33 +1218,30 @@ task GetDataOnMRxD;
       @ (posedge MRxClk);
     end
     MRxD=4'hd;                // SFD
+    
+  for(tt=1; tt<(Len+1); tt=tt+1)
+     
+    begin
+	
+      @ (posedge MRxClk);
+	  if(TransferType == `UNICAST_XFR && tt == 1)
+	   MRxD= 4'h0;   // Unicast transfer
+	  else if(TransferType == `BROADCAST_XFR && tt < 7)
+	   MRxD = 4'hf;
+	  else
+       MRxD=tt[3:0]; // Multicast transfer
+	   
+      if(tt==9)
+        RxAbort<=#1 abort;
+      @ (posedge MRxClk);
+	  
+	   if(TransferType == `BROADCAST_XFR && tt < 7)
+	    MRxD = 4'hf;
+	  else
+        MRxD=tt[7:4];
+      RxAbort<=#1 0;
+    end
 
-    for(tt=1; tt<(Len+1); tt=tt+1)
-    begin
-      @ (posedge MRxClk);
-      MRxD=tt[3:0];
-      if(tt==9)
-        RxAbort<=#1 abort;
-      @ (posedge MRxClk);
-      MRxD=tt[7:4];
-      RxAbort<=#1 0;
-    end
-/*
-    for(tt=0; tt<Len; tt=tt+1)
-    begin
-      @ (posedge MRxClk);
-      MRxD=ddata[3:0];
-      $display("MRxD=0x%0x", MRxD);
-      if(tt==9)
-        RxAbort<=#1 abort;
-      @ (posedge MRxClk);
-      MRxD=ddata[7:4];
-      $display("MRxD=0x%0x", MRxD);
-      ddata[87:0] = {8'h0, ddata[87:8]};
-      
-      RxAbort<=#1 0;
-    end
-*/
     @ (posedge MRxClk);
     MRxDV=1'b0;
   end
@@ -1041,7 +1256,8 @@ task GetControlDataOnMRxD;
   integer tt;
 
   begin
-  Packet = 128'h10082C000010_deadbeef0013_8880_0010; // 0180c2000001 + 8808 + 0001
+   //Packet = 128'h10082C000010_deadbeef0013_8880_0010; // 0180c2000001 + 8808 + 0001
+ 
   Crc = 32'h6014fe08; // not a correct value
   
     @ (posedge MRxClk);
