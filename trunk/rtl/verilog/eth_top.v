@@ -41,6 +41,16 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/08/06 14:44:29  mohor
+// A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
+// Include files fixed to contain no path.
+// File names and module names changed ta have a eth_ prologue in the name.
+// File eth_timescale.v is used to define timescale
+// All pin names on the top module are changed to contain _I, _O or _OE at the end.
+// Bidirectional signal MDIO is changed to three signals (Mdc_O, Mdi_I, Mdo_O
+// and Mdo_OE. The bidirectional signal must be created on the top level. This
+// is done due to the ASIC tools.
+//
 // Revision 1.2  2001/08/02 09:25:31  mohor
 // Unconnected signals are now connected.
 //
@@ -61,20 +71,22 @@
 module eth_top
 (
   // WISHBONE common
-  WB_CLK_I, WB_RST_I, WB_DAT_I, WB_DAT_O, 
+  wb_clk_i, wb_rst_i, wb_dat_i, wb_dat_o, 
 
   // WISHBONE slave
-  WB_ADR_I, WB_SEL_I, WB_WE_I, WB_CYC_I, WB_STB_I, WB_ACK_O, WB_ERR_O, 
-  WB_REQ_O, WB_ACK_I, WB_ND_O, WB_RD_O, 
+  wb_adr_i, wb_sel_i, wb_we_i, wb_cyc_i, wb_stb_i, wb_ack_o, wb_err_o, 
+  wb_req_o, wb_ack_i, wb_nd_o, wb_rd_o, 
 
   //TX
-  MTxClk_I, MTxD_O, MTxEn_O, MTxErr_O,
+  mtxclk_pad_i, mtxd_pad_o, mtxen_pad_o, mtxerr_pad_o,
 
   //RX
-  MRxClk_I, MRxD_I, MRxDV_I, MRxErr_I, MColl_I, MCrs_I, 
+  mrxclk_pad_i, mrxd_pad_i, mrxdv_pad_i, mrxerr_pad_i, mcoll_pad_i, mcrs_pad_i, 
   
   // MIIM
-  Mdc_O, Mdi_I, Mdo_O, Mdo_OE
+  mdc_pad_o, md_pad_i, md_pad_o, md_pad_oe
+
+
 );
 
 
@@ -82,47 +94,47 @@ parameter Tp = 1;
 
 
 // WISHBONE common
-input           WB_CLK_I;     // WISHBONE clock
-input           WB_RST_I;     // WISHBONE reset
-input   [31:0]  WB_DAT_I;     // WISHBONE data input
-output  [31:0]  WB_DAT_O;     // WISHBONE data output
-output          WB_ERR_O;     // WISHBONE error output
+input           wb_clk_i;     // WISHBONE clock
+input           wb_rst_i;     // WISHBONE reset
+input   [31:0]  wb_dat_i;     // WISHBONE data input
+output  [31:0]  wb_dat_o;     // WISHBONE data output
+output          wb_err_o;     // WISHBONE error output
 
 // WISHBONE slave
-input   [31:0]  WB_ADR_I;     // WISHBONE address input
-input    [3:0]  WB_SEL_I;     // WISHBONE byte select input
-input           WB_WE_I;      // WISHBONE write enable input
-input           WB_CYC_I;     // WISHBONE cycle input
-input           WB_STB_I;     // WISHBONE strobe input
-output          WB_ACK_O;     // WISHBONE acknowledge output
+input   [31:0]  wb_adr_i;     // WISHBONE address input
+input    [3:0]  wb_sel_i;     // WISHBONE byte select input
+input           wb_we_i;      // WISHBONE write enable input
+input           wb_cyc_i;     // WISHBONE cycle input
+input           wb_stb_i;     // WISHBONE strobe input
+output          wb_ack_o;     // WISHBONE acknowledge output
 
 // DMA
-input    [1:0]  WB_ACK_I;     // DMA acknowledge input
-output   [1:0]  WB_REQ_O;     // DMA request output
-output   [1:0]  WB_ND_O;      // DMA force new descriptor output
-output          WB_RD_O;      // DMA restart descriptor output
+input    [1:0]  wb_ack_i;     // DMA acknowledge input
+output   [1:0]  wb_req_o;     // DMA request output
+output   [1:0]  wb_nd_o;      // DMA force new descriptor output
+output          wb_rd_o;      // DMA restart descriptor output
 
 // Tx
-input           MTxClk_I;     // Transmit clock (from PHY)
-output   [3:0]  MTxD_O;       // Transmit nibble (to PHY)
-output          MTxEn_O;      // Transmit enable (to PHY)
-output          MTxErr_O;     // Transmit error (to PHY)
+input           mtxclk_pad_i; // Transmit clock (from PHY)
+output   [3:0]  mtxd_pad_o;   // Transmit nibble (to PHY)
+output          mtxen_pad_o;  // Transmit enable (to PHY)
+output          mtxerr_pad_o; // Transmit error (to PHY)
 
 // Rx
-input           MRxClk_I;     // Receive clock (from PHY)
-input    [3:0]  MRxD_I;       // Receive nibble (from PHY)
-input           MRxDV_I;      // Receive data valid (from PHY)
-input           MRxErr_I;     // Receive data error (from PHY)
+input           mrxclk_pad_i; // Receive clock (from PHY)
+input    [3:0]  mrxd_pad_i;   // Receive nibble (from PHY)
+input           mrxdv_pad_i;  // Receive data valid (from PHY)
+input           mrxerr_pad_i; // Receive data error (from PHY)
 
 // Common Tx and Rx
-input           MColl_I;      // Collision (from PHY)
-input           MCrs_I;       // Carrier sense (from PHY)
+input           mcoll_pad_i;  // Collision (from PHY)
+input           mcrs_pad_i;   // Carrier sense (from PHY)
 
 // MII Management interface
-input           Mdi_I;        // MII data input (from I/O cell)
-output          Mdc_O;        // MII Management data clock (to PHY)
-output          Mdo_O;        // MII data output (to I/O cell)
-output          Mdo_OE;       // MII data output enable (to I/O cell)
+input           md_pad_i;     // MII data input (from I/O cell)
+output          mdc_pad_o;    // MII Management data clock (to PHY)
+output          md_pad_o;     // MII data output (to I/O cell)
+output          md_pad_oe;    // MII data output enable (to I/O cell)
 
 
 wire     [7:0]  r_ClkDiv;
@@ -157,11 +169,11 @@ wire            TxDone;
 // Connecting Miim module
 eth_miim miim1
 (
-  .Clk(WB_CLK_I),                         .Reset(r_MiiMRst),                  .Divider(r_ClkDiv), 
+  .Clk(wb_clk_i),                         .Reset(r_MiiMRst),                  .Divider(r_ClkDiv), 
   .NoPre(r_MiiNoPre),                     .CtrlData(r_CtrlData),              .Rgad(r_RGAD), 
   .Fiad(r_FIAD),                          .WCtrlData(r_WCtrlData),            .RStat(r_RStat), 
-  .ScanStat(r_ScanStat),                  .Mdi(Mdi_I),                        .Mdo(Mdo_O), 
-  .MdoEn(Mdo_OE),                         .Mdc(Mdc_O),                        .Busy(Busy_stat), 
+  .ScanStat(r_ScanStat),                  .Mdi(md_pad_i),                     .Mdo(md_pad_o), 
+  .MdoEn(md_pad_oe),                      .Mdc(mdc_pad_o),                    .Busy(Busy_stat), 
   .Prsd(Prsd),                            .LinkFail(LinkFail),                .Nvalid(NValid_stat), 
   .WCtrlDataStart(WCtrlDataStart),        .RStatStart(RStatStart),            .UpdateMIIRX_DATAReg(UpdateMIIRX_DATAReg)
 );
@@ -170,7 +182,7 @@ eth_miim miim1
 
 
 wire        RegCs;          // Connected to registers
-wire [31:0] RegDataOut;     // Multiplexed to WB_DAT_O
+wire [31:0] RegDataOut;     // Multiplexed to wb_dat_o
 wire        r_DmaEn;        // DMA enable
 wire        r_Rst;          // Reset
 wire        r_LoopBck;      // Loopback
@@ -211,30 +223,30 @@ wire        WB_CYC_I_eth;
 wire        DWord;
 wire        RegAck;
 wire        BDAck;
-wire [31:0] DMA_WB_DAT_O;   // WB_DAT_O that comes from the WishboneDMA module
+wire [31:0] DMA_WB_DAT_O;   // wb_dat_o that comes from the WishboneDMA module
 
 
 
-assign EthAddMatch = WB_ADR_I[31:16] == `ETHERNET_SPACE;
-assign WB_STB_I_eth = WB_STB_I & EthAddMatch;
-assign WB_CYC_I_eth = WB_STB_I & EthAddMatch;
+assign EthAddMatch = wb_adr_i[31:16] == `ETHERNET_SPACE;
+assign WB_STB_I_eth = wb_stb_i & EthAddMatch;
+assign WB_CYC_I_eth = wb_stb_i & EthAddMatch;
 
-assign WB_ERR_O = WB_STB_I & WB_CYC_I & EthAddMatch & ~DWord;
-assign DWord = &WB_SEL_I;
-assign RegCs = WB_STB_I & WB_CYC_I & DWord & EthAddMatch & (WB_ADR_I[15:12] == `REG_SPACE);
+assign wb_err_o = wb_stb_i & wb_cyc_i & EthAddMatch & ~DWord;
+assign DWord = &wb_sel_i;
+assign RegCs = wb_stb_i & wb_cyc_i & DWord & EthAddMatch & (wb_adr_i[15:12] == `REG_SPACE);
 assign RegAck = RegCs;
-assign WB_ACK_O = RegAck | BDAck;
+assign wb_ack_o = RegAck | BDAck;
 
 
 // Selecting the WISHBONE output data
-assign WB_DAT_O[31:0] = (RegCs & ~WB_WE_I)? RegDataOut : DMA_WB_DAT_O;
+assign wb_dat_o[31:0] = (RegCs & ~wb_we_i)? RegDataOut : DMA_WB_DAT_O;
 
 
 // Connecting Ethernet registers
 eth_registers ethreg1
 (
-  .DataIn(WB_DAT_I),                      .Address(WB_ADR_I[7:2]),                    .Rw(WB_WE_I), 
-  .Cs(RegCs),                             .Clk(WB_CLK_I),                             .Reset(WB_RST_I), 
+  .DataIn(wb_dat_i),                      .Address(wb_adr_i[7:2]),                    .Rw(wb_we_i), 
+  .Cs(RegCs),                             .Clk(wb_clk_i),                             .Reset(wb_rst_i), 
   .DataOut(RegDataOut),                   .r_DmaEn(r_DmaEn),                          .r_RecSmall(), 
   .r_Pad(r_Pad),                          .r_HugEn(r_HugEn),                          .r_CrcEn(r_CrcEn), 
   .r_DlyCrcEn(r_DlyCrcEn),                .r_Rst(r_Rst),                              .r_FullD(r_FullD), 
@@ -277,11 +289,11 @@ wire        ReceivedLengthOK;
 // Connecting MACControl
 eth_maccontrol maccontrol1
 (
-  .MTxClk(MTxClk_I),                            .TPauseRq(TPauseRq), 
+  .MTxClk(mtxclk_pad_i),                        .TPauseRq(TPauseRq), 
   .TxPauseTV(TxPauseTV),                        .TxDataIn(TxData), 
   .TxStartFrmIn(TxStartFrm),                    .TxEndFrmIn(TxEndFrm), 
   .TxUsedDataIn(TxUsedDataIn),                  .TxDoneIn(TxDoneIn), 
-  .TxAbortIn(TxAbortIn),                        .MRxClk(MRxClk_I), 
+  .TxAbortIn(TxAbortIn),                        .MRxClk(mrxclk_pad_i), 
   .RxData(RxData),                              .RxValid(RxValid), 
   .RxStartFrm(RxStartFrm),                      .RxEndFrm(RxEndFrm),
   .ReceiveEnd(ReceiveEnd),                      .ReceivedPacketGood(ReceivedPacketGood),
@@ -317,28 +329,28 @@ reg WillTransmit_q2;
 
 
 // Muxed MII receive data valid
-assign MRxDV_Lb = r_LoopBck? MTxEn_O : MRxDV_I & RxEnSync;
+assign MRxDV_Lb = r_LoopBck? mtxen_pad_o : mrxdv_pad_i & RxEnSync;
 
 // Muxed MII Receive Error
-assign MRxErr_Lb = r_LoopBck? MTxErr_O : MRxErr_I & RxEnSync;
+assign MRxErr_Lb = r_LoopBck? mtxerr_pad_o : mrxerr_pad_i & RxEnSync;
 
 // Muxed MII Receive Data
-assign MRxD_Lb[3:0] = r_LoopBck? MTxD_O[3:0] : MRxD_I[3:0];
+assign MRxD_Lb[3:0] = r_LoopBck? mtxd_pad_o[3:0] : mrxd_pad_i[3:0];
 
 
 
 // Connecting TxEthMAC
 eth_txethmac txethmac1
 (
-  .MTxClk(MTxClk_I),                  .Reset(r_Rst),                      .CarrierSense(TxCarrierSense), 
+  .MTxClk(mtxclk_pad_i),              .Reset(r_Rst),                      .CarrierSense(TxCarrierSense), 
   .Collision(Collision),              .TxData(TxDataOut),                 .TxStartFrm(TxStartFrmOut), 
   .TxUnderRun(TxUnderRun),            .TxEndFrm(TxEndFrmOut),             .Pad(PadOut),  
   .MinFL(r_MinFL),                    .CrcEn(CrcEnOut),                   .FullD(r_FullD), 
   .HugEn(r_HugEn),                    .DlyCrcEn(r_DlyCrcEn),              .IPGT(r_IPGT), 
   .IPGR1(r_IPGR1),                    .IPGR2(r_IPGR2),                    .CollValid(r_CollValid), 
   .MaxRet(r_MaxRet),                  .NoBckof(r_NoBckof),                .ExDfrEn(r_ExDfrEn), 
-  .MaxFL(r_MaxFL),                    .MTxEn(MTxEn_O),                    .MTxD(MTxD_O), 
-  .MTxErr(MTxErr_O),                  .TxUsedData(TxUsedDataIn),          .TxDone(TxDoneIn), 
+  .MaxFL(r_MaxFL),                    .MTxEn(mtxen_pad_o),                .MTxD(mtxd_pad_o), 
+  .MTxErr(mtxerr_pad_o),              .TxUsedData(TxUsedDataIn),          .TxDone(TxDoneIn), 
   .TxRetry(TxRetry),                  .TxAbort(TxAbortIn),                .WillTransmit(WillTransmit), 
   .ResetCollision(ResetCollision)
 );
@@ -362,7 +374,7 @@ wire   [1:0]  RxStateData;
 // Connecting RxEthMAC
 eth_rxethmac rxethmac1
 (
-  .MRxClk(MRxClk_I),                    .MRxDV(MRxDV_Lb),                     .MRxD(MRxD_Lb),
+  .MRxClk(mrxclk_pad_i),                .MRxDV(MRxDV_Lb),                     .MRxD(MRxD_Lb),
   .Transmitting(Transmitting),          .HugEn(r_HugEn),                      .DlyCrcEn(r_DlyCrcEn), 
   .MaxFL(r_MaxFL),                      .r_IFG(r_IFG),                        .Reset(r_Rst),
   .RxData(RxData),                      .RxValid(RxValid),                    .RxStartFrm(RxStartFrm), 
@@ -375,7 +387,7 @@ eth_rxethmac rxethmac1
 
 
 // MII Carrier Sense Synchronization
-always @ (posedge MTxClk_I or posedge r_Rst)
+always @ (posedge mtxclk_pad_i or posedge r_Rst)
 begin
   if(r_Rst)
     begin
@@ -384,7 +396,7 @@ begin
     end
   else
     begin
-      CarrierSense_Tx1 <= #Tp MCrs_I;
+      CarrierSense_Tx1 <= #Tp mcrs_pad_i;
       CarrierSense_Tx2 <= #Tp CarrierSense_Tx1;
     end
 end
@@ -393,7 +405,7 @@ assign TxCarrierSense = ~r_FullD & CarrierSense_Tx2;
 
 
 // MII Collision Synchronization
-always @ (posedge MTxClk_I or posedge r_Rst)
+always @ (posedge mtxclk_pad_i or posedge r_Rst)
 begin
   if(r_Rst)
     begin
@@ -402,7 +414,7 @@ begin
     end
   else
     begin
-      Collision_Tx1 <= #Tp MColl_I;
+      Collision_Tx1 <= #Tp mcoll_pad_i;
       if(ResetCollision)
         Collision_Tx2 <= #Tp 1'b0;
       else
@@ -418,7 +430,7 @@ assign Collision = ~r_FullD & Collision_Tx2;
 
 
 // Carrier sense is synchronized to receive clock.
-always @ (posedge MRxClk_I or posedge r_Rst)
+always @ (posedge mrxclk_pad_i or posedge r_Rst)
 begin
   if(r_Rst)
     begin
@@ -427,14 +439,14 @@ begin
     end
   else
     begin
-      CarrierSense_Rx1 <= #Tp MCrs_I;
+      CarrierSense_Rx1 <= #Tp mcrs_pad_i;
       RxCarrierSense <= #Tp CarrierSense_Rx1;
     end
 end
 
 
 // Delayed WillTransmit
-always @ (posedge MRxClk_I)
+always @ (posedge mrxclk_pad_i)
 begin
   WillTransmit_q <= #Tp WillTransmit;
   WillTransmit_q2 <= #Tp WillTransmit_q;
@@ -446,7 +458,7 @@ assign Transmitting = ~r_FullD & WillTransmit_q2;
 
 
 // Synchronized Receive Enable
-always @ (posedge MRxClk_I or posedge r_Rst)
+always @ (posedge mrxclk_pad_i or posedge r_Rst)
 begin
   if(r_Rst)
     RxEnSync <= #Tp 1'b0;
@@ -461,17 +473,17 @@ end
 // Connecting WishboneDMA module
 eth_wishbonedma wbdma
 (
-  .WB_CLK_I(WB_CLK_I),                .WB_RST_I(WB_RST_I),                      .WB_DAT_I(WB_DAT_I), 
+  .WB_CLK_I(wb_clk_i),                .WB_RST_I(wb_rst_i),                      .WB_DAT_I(wb_dat_i), 
   .WB_DAT_O(DMA_WB_DAT_O), 
 
   // WISHBONE slave
-  .WB_ADR_I(WB_ADR_I),                .WB_SEL_I(WB_SEL_I),                      .WB_WE_I(WB_WE_I), 
+  .WB_ADR_I(wb_adr_i),                .WB_SEL_I(wb_sel_i),                      .WB_WE_I(wb_we_i), 
   .WB_CYC_I(WB_CYC_I_eth),            .WB_STB_I(WB_STB_I_eth),                  .WB_ACK_O(BDAck), 
-  .WB_REQ_O(WB_REQ_O),                .WB_ACK_I(WB_ACK_I),                      .WB_ND_O(WB_ND_O), 
-  .WB_RD_O(WB_RD_O), 
+  .WB_REQ_O(wb_req_o),                .WB_ACK_I(wb_ack_i),                      .WB_ND_O(wb_nd_o), 
+  .WB_RD_O(wb_rd_o), 
 
     //TX
-  .MTxClk(MTxClk_I),                  .TxStartFrm(TxStartFrm),                  .TxEndFrm(TxEndFrm), 
+  .MTxClk(mtxclk_pad_i),              .TxStartFrm(TxStartFrm),                  .TxEndFrm(TxEndFrm), 
   .TxUsedData(TxUsedData),            .TxData(TxData),                          .StatusIzTxEthMACModula(16'h0), 
   .TxRetry(TxRetry),                  .TxAbort(TxAbort),                        .TxUnderRun(TxUnderRun), 
   .TxDone(TxDone),                    .TPauseRq(TPauseRq),                      .TxPauseTV(TxPauseTV), 
@@ -483,7 +495,7 @@ eth_wishbonedma wbdma
   .r_DmaEn(r_DmaEn),                  .RX_BD_ADR_Wr(RX_BD_ADR_Wr), 
 
   //RX
-  .MRxClk(MRxClk_I),                  .RxData(RxData),                          .RxValid(RxValid), 
+  .MRxClk(mrxclk_pad_i),              .RxData(RxData),                          .RxValid(RxValid), 
   .RxStartFrm(RxStartFrm),            .RxEndFrm(RxEndFrm)
 );
 
@@ -492,7 +504,7 @@ eth_wishbonedma wbdma
 // Connecting MacStatus module
 eth_macstatus macstatus1 
 (
-  .MRxClk(MRxClk_I),                  .Reset(r_Rst),                            .TransmitEnd(), 
+  .MRxClk(mrxclk_pad_i),              .Reset(r_Rst),                            .TransmitEnd(), 
   .ReceiveEnd(ReceiveEnd),            .ReceivedPacketGood(ReceivedPacketGood),  .ReceivedLengthOK(ReceivedLengthOK), 
   .RxCrcError(RxCrcError),            .MRxErr(MRxErr_Lb),                       .MRxDV(MRxDV_Lb), 
   .RxStateSFD(RxStateSFD),            .RxStateData(RxStateData),                .RxStatePreamble(RxStatePreamble), 

@@ -41,6 +41,16 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/08/06 14:41:09  mohor
+// A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
+// Include files fixed to contain no path.
+// File names and module names changed ta have a eth_ prologue in the name.
+// File eth_timescale.v is used to define timescale
+// All pin names on the top module are changed to contain _I, _O or _OE at the end.
+// Bidirectional signal MDIO is changed to three signals (Mdc_O, Mdi_I, Mdo_O
+// and Mdo_OE. The bidirectional signal must be created on the top level. This
+// is done due to the ASIC tools.
+//
 // Revision 1.1  2001/07/30 21:46:09  mohor
 // Directory structure changed. Files checked and joind together.
 //
@@ -111,21 +121,22 @@ reg [9:0] RxBDIndex;
 eth_top ethtop
 (
   // WISHBONE common
-  .WB_CLK_I(WB_CLK_I), .WB_RST_I(WB_RST_I), .WB_DAT_I(WB_DAT_I), .WB_DAT_O(WB_DAT_O), 
+  .wb_clk_i(WB_CLK_I), .wb_rst_i(WB_RST_I), .wb_dat_i(WB_DAT_I), .wb_dat_o(WB_DAT_O), 
 
   // WISHBONE slave
- 	.WB_ADR_I(WB_ADR_I), .WB_SEL_I(WB_SEL_I), .WB_WE_I(WB_WE_I),   .WB_CYC_I(WB_CYC_I), 
- 	.WB_STB_I(WB_STB_I), .WB_ACK_O(WB_ACK_O), .WB_ERR_O(WB_ERR_O), .WB_REQ_O(WB_REQ_O), 
- 	.WB_ACK_I(WB_ACK_I), .WB_ND_O(WB_ND_O),   .WB_RD_O(WB_RD_O), 
+ 	.wb_adr_i(WB_ADR_I), .wb_sel_i(WB_SEL_I), .wb_we_i(WB_WE_I),   .wb_cyc_i(WB_CYC_I), 
+ 	.wb_stb_i(WB_STB_I), .wb_ack_o(WB_ACK_O), .wb_err_o(WB_ERR_O), .wb_req_o(WB_REQ_O), 
+ 	.wb_ack_i(WB_ACK_I), .wb_nd_o(WB_ND_O),   .wb_rd_o(WB_RD_O), 
 
   //TX
-  .MTxClk_I(MTxClk), .MTxD_O(MTxD), .MTxEn_O(MTxEn), .MTxErr_O(MTxErr),
+  .mtxclk_pad_i(MTxClk), .mtxd_pad_o(MTxD), .mtxen_pad_o(MTxEn), .mtxerr_pad_o(MTxErr),
 
   //RX
-  .MRxClk_I(MRxClk), .MRxD_I(MRxD), .MRxDV_I(MRxDV), .MRxErr_I(MRxErr), .MColl_I(MColl), .MCrs_I(MCrs), 
+  .mrxclk_pad_i(MRxClk), .mrxd_pad_i(MRxD), .mrxdv_pad_i(MRxDV), .mrxerr_pad_i(MRxErr), 
+  .mcoll_pad_i(MColl), .mcrs_pad_i(MCrs), 
   
   // MIIM
-  .Mdc_O(Mdc_O), .Mdi_I(Mdi_I), .Mdo_O(Mdo_O), .Mdo_OE(Mdo_OE)
+  .mdc_pad_o(Mdc_O), .md_pad_i(Mdi_I), .md_pad_o(Mdo_O), .md_pad_oe(Mdo_OE)
 );
 
 
