@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.42  2002/10/18 17:04:20  tadejm
+// Changed BIST scan signals.
+//
 // Revision 1.41  2002/10/18 15:42:09  tadejm
 // Igor added WB burst support and repaired BUG when handling TX under-run and retry.
 //
@@ -953,13 +956,12 @@ reg  [`ETH_BURST_CNT_WIDTH-1:0] rx_burst_cnt;
 wire rx_burst;
 wire enough_data_in_rxfifo_for_burst;
 wire enough_data_in_rxfifo_for_burst_plus1;
-reg [3:0] StateM;
+
 // Enabling master wishbone access to the memory for two devices TX and RX.
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
     begin
-StateM<=#Tp 4'h0;
       MasterWbTX <=#Tp 1'b0;
       MasterWbRX <=#Tp 1'b0;
       m_wb_adr_o <=#Tp 32'h0;
@@ -980,25 +982,12 @@ StateM<=#Tp 4'h0;
   else
     begin
       // Switching between two stages depends on enable signals
-//      casex ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished, cyc_cleared, tx_burst, rx_burst})  // synopsys parallel_case
-      case ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished, cyc_cleared, tx_burst, rx_burst})  // synopsys parallel_case
+      casex ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished, cyc_cleared, tx_burst, rx_burst})  // synopsys parallel_case
         8'b00_10_00_10,             // Idle and MRB needed
-
-//        8'b10_1x_10_1x,             // MRB continues
-        8'b10_10_10_10,             // MRB continues
-        8'b10_10_10_11,             // MRB continues
-        8'b10_11_10_10,             // MRB continues
-        8'b10_11_10_11,             // MRB continues
-
+        8'b10_1x_10_1x,             // MRB continues
         8'b10_10_01_10,             // Clear (previously MR) and MRB needed
-
-//        8'b01_1x_01_1x :            // Clear (previously MW) and MRB needed
-        8'b01_10_01_10 ,            // Clear (previously MW) and MRB needed
-        8'b01_10_01_11 ,            // Clear (previously MW) and MRB needed
-        8'b01_11_01_10 ,            // Clear (previously MW) and MRB needed
-        8'b01_11_01_11 :            // Clear (previously MW) and MRB needed
+        8'b01_1x_01_1x :            // Clear (previously MW) and MRB needed
           begin
-StateM<=#Tp 4'h1;
             MasterWbTX <=#Tp 1'b1;  // tx burst
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b1;
@@ -1027,27 +1016,11 @@ StateM<=#Tp 4'h1;
               `endif
               end
           end
-//        8'b00_x1_00_x1,             // Idle and MWB needed
-        8'b00_01_00_01,             // Idle and MWB needed
-        8'b00_01_00_11,             // Idle and MWB needed
-        8'b00_11_00_01,             // Idle and MWB needed
-        8'b00_11_00_11,             // Idle and MWB needed
-
-//        8'b01_x1_10_x1,             // MWB continues
-        8'b01_01_10_01,             // MWB continues
-        8'b01_01_10_11,             // MWB continues
-        8'b01_11_10_01,             // MWB continues
-        8'b01_11_10_11,             // MWB continues
-
+        8'b00_x1_00_x1,             // Idle and MWB needed
+        8'b01_x1_10_x1,             // MWB continues
         8'b01_01_01_01,             // Clear (previously MW) and MWB needed
-
-//        8'b10_x1_01_x1 :            // Clear (previously MR) and MWB needed
-        8'b10_01_01_01 ,            // Clear (previously MR) and MWB needed
-        8'b10_01_01_11 ,            // Clear (previously MR) and MWB needed
-        8'b10_11_01_01 ,            // Clear (previously MR) and MWB needed
-        8'b10_11_01_11 :            // Clear (previously MR) and MWB needed
+        8'b10_x1_01_x1 :            // Clear (previously MR) and MWB needed
           begin
-StateM<=#Tp 4'h2;
             MasterWbTX <=#Tp 1'b0;  // rx burst
             MasterWbRX <=#Tp 1'b1;
             m_wb_cyc_o <=#Tp 1'b1;
@@ -1077,13 +1050,8 @@ StateM<=#Tp 4'h2;
               `endif
               end
           end
-//        8'b00_x1_00_x0 :            // idle and MW is needed (data write to rx buffer)
-        8'b00_01_00_00 ,            // idle and MW is needed (data write to rx buffer)
-        8'b00_01_00_10 ,            // idle and MW is needed (data write to rx buffer)
-        8'b00_11_00_00 ,            // idle and MW is needed (data write to rx buffer)
-        8'b00_11_00_10 :            // idle and MW is needed (data write to rx buffer)
+        8'b00_x1_00_x0 :            // idle and MW is needed (data write to rx buffer)
           begin
-StateM<=#Tp 4'h3;
             MasterWbTX <=#Tp 1'b0;
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
@@ -1095,7 +1063,6 @@ StateM<=#Tp 4'h3;
           end
         8'b00_10_00_00 :            // idle and MR is needed (data read from tx buffer)
           begin
-StateM<=#Tp 4'h4;
             MasterWbTX <=#Tp 1'b1;
             MasterWbRX <=#Tp 1'b0;
             m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
@@ -1106,14 +1073,8 @@ StateM<=#Tp 4'h4;
             IncrTxPointer<=#Tp 1'b1;
           end
         8'b10_10_01_00,             // MR and MR is needed (data read from tx buffer)
-
-//        8'b01_1x_01_0x  :           // MW and MR is needed (data read from tx buffer)
-        8'b01_10_01_00  ,           // MW and MR is needed (data read from tx buffer)
-        8'b01_10_01_01  ,           // MW and MR is needed (data read from tx buffer)
-        8'b01_11_01_00  ,           // MW and MR is needed (data read from tx buffer)
-        8'b01_11_01_01  :           // MW and MR is needed (data read from tx buffer)
+        8'b01_1x_01_0x  :           // MW and MR is needed (data read from tx buffer)
           begin
-StateM<=#Tp 4'h5;
             MasterWbTX <=#Tp 1'b1;
             MasterWbRX <=#Tp 1'b0;
             m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
@@ -1125,14 +1086,8 @@ StateM<=#Tp 4'h5;
             IncrTxPointer<=#Tp 1'b1;
           end
         8'b01_01_01_00,             // MW and MW needed (data write to rx buffer)
-
-//        8'b10_x1_01_x0  :           // MR and MW is needed (data write to rx buffer)
-        8'b10_01_01_00  ,           // MR and MW is needed (data write to rx buffer)
-        8'b10_01_01_10  ,           // MR and MW is needed (data write to rx buffer)
-        8'b10_11_01_00  ,           // MR and MW is needed (data write to rx buffer)
-        8'b10_11_01_10  :           // MR and MW is needed (data write to rx buffer)
+        8'b10_x1_01_x0  :           // MR and MW is needed (data write to rx buffer)
           begin
-StateM<=#Tp 4'h6;
             MasterWbTX <=#Tp 1'b0;
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
@@ -1144,22 +1099,10 @@ StateM<=#Tp 4'h6;
             IncrTxPointer<=#Tp 1'b0;
           end
         8'b01_01_10_00,             // MW and MW needed (cycle is cleared between previous and next access)
-
-//        8'b01_1x_10_x0,             // MW and MW or MR or MRB needed (cycle is cleared between previous and next access)
-        8'b01_10_10_00,             // MW and MW or MR or MRB needed (cycle is cleared between previous and next access)
-        8'b01_10_10_10,             // MW and MW or MR or MRB needed (cycle is cleared between previous and next access)
-        8'b01_11_10_00,             // MW and MW or MR or MRB needed (cycle is cleared between previous and next access)
-        8'b01_11_10_10,             // MW and MW or MR or MRB needed (cycle is cleared between previous and next access)
-
+        8'b01_1x_10_x0,             // MW and MW or MR or MRB needed (cycle is cleared between previous and next access)
         8'b10_10_10_00,             // MR and MR needed (cycle is cleared between previous and next access)
-
-//        8'b10_x1_10_0x :            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
-        8'b10_01_10_00 ,            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
-        8'b10_01_10_01 ,            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
-        8'b10_11_10_00 ,            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
-        8'b10_11_10_01 :            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
+        8'b10_x1_10_0x :            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
           begin
-StateM<=#Tp 4'h7;
             m_wb_cyc_o <=#Tp 1'b0;  // whatever and master read or write is needed. We need to clear m_wb_cyc_o before next access is started
             m_wb_stb_o <=#Tp 1'b0;
             cyc_cleared<=#Tp 1'b1;
@@ -1172,19 +1115,9 @@ StateM<=#Tp 4'h7;
               m_wb_cti_o <=#Tp 3'b0;
             `endif
           end
-//        8'bxx_00_10_00,             // whatever and no master read or write is needed (ack or err comes finishing previous access)
-        8'b00_00_10_00,             // whatever and no master read or write is needed (ack or err comes finishing previous access)
-        8'b01_00_10_00,             // whatever and no master read or write is needed (ack or err comes finishing previous access)
-        8'b10_00_10_00,             // whatever and no master read or write is needed (ack or err comes finishing previous access)
-        8'b11_00_10_00,             // whatever and no master read or write is needed (ack or err comes finishing previous access)
-
-//        8'bxx_00_01_00 :            // Between cyc_cleared request was cleared
-        8'b00_00_01_00 ,            // Between cyc_cleared request was cleared
-        8'b01_00_01_00 ,            // Between cyc_cleared request was cleared
-        8'b10_00_01_00 ,            // Between cyc_cleared request was cleared
-        8'b11_00_01_00 :            // Between cyc_cleared request was cleared
+        8'bxx_00_10_00,             // whatever and no master read or write is needed (ack or err comes finishing previous access)
+        8'bxx_00_01_00 :            // Between cyc_cleared request was cleared
           begin
-StateM<=#Tp 4'h8;
             MasterWbTX <=#Tp 1'b0;
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b0;
@@ -1199,7 +1132,6 @@ StateM<=#Tp 4'h8;
           end
         8'b00_00_00_00:             // whatever and no master read or write is needed (ack or err comes finishing previous access)
           begin
-StateM<=#Tp 4'h9;
             tx_burst_cnt<=#Tp 0;
             tx_burst_en<=#Tp txfifo_cnt<(`ETH_TX_FIFO_DEPTH-`ETH_BURST_LENGTH) & (TxLength>(`ETH_BURST_LENGTH*4+4));
           end
