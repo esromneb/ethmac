@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2002/11/22 01:57:06  mohor
+// Rx Flow control fixed. CF flag added to the RX buffer descriptor. RxAbort
+// synchronized.
+//
 // Revision 1.23  2002/11/19 18:13:49  mohor
 // r_MiiMRst is not used for resetting the MIIM module. wb_rst used instead.
 //
@@ -293,7 +297,7 @@ wire HASH0_Wr       = (Address == `ETH_HASH0_ADR       )  & Write;
 wire HASH1_Wr       = (Address == `ETH_HASH1_ADR       )  & Write;
 wire TXCTRL_Wr      = (Address == `ETH_TX_CTRL_ADR     )  & Write;
 wire RXCTRL_Wr      = (Address == `ETH_RX_CTRL_ADR     )  & Write;
-assign TX_BD_NUM_Wr = (Address == `ETH_TX_BD_NUM_ADR   )  & Write;
+assign TX_BD_NUM_Wr = (Address == `ETH_TX_BD_NUM_ADR   )  & Write  & (DataIn<='h80);
 
 
 
@@ -319,7 +323,6 @@ wire [31:0] HASH0Out;
 wire [31:0] HASH1Out;
 wire [31:0] TXCTRLOut;
 wire [31:0] RXCTRLOut;
-
 
 // MODER Register
 eth_register #(`ETH_MODER_WIDTH, `ETH_MODER_DEF)        MODER
@@ -420,7 +423,7 @@ eth_register #(`ETH_TX_BD_NUM_WIDTH, `ETH_TX_BD_NUM_DEF) TX_BD_NUM
   (
    .DataIn    (DataIn[`ETH_TX_BD_NUM_WIDTH-1:0]),
    .DataOut   (TX_BD_NUMOut[`ETH_TX_BD_NUM_WIDTH-1:0]),
-   .Write     (TX_BD_NUM_Wr & (DataIn<='h80)),
+   .Write     (TX_BD_NUM_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
    .SyncReset (1'b0)
