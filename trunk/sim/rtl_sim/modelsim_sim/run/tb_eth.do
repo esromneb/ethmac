@@ -41,6 +41,9 @@
 #/ CVS Revision History
 #/
 #/ $Log: not supported by cvs2svn $
+#/ Revision 1.3  2002/10/11 12:42:12  mohor
+#/ Bist supported.
+#/
 #/ Revision 1.2  2002/09/23 18:27:36  mohor
 #/ ETH_VIRTUAL_SILICON_RAM supported.
 #/
@@ -97,6 +100,9 @@ vlog -reportprogress 300 -work work {../../../../bench/verilog/wb_slave_behavior
 # If you use define ETH_VIRTUAL_SILICON_RAM and ETH_BIST switched on, then uncomment 
 # the following lines
 # vlog -reportprogress 300 -work work {../../../../../vs_rams/018/vs_hdsp_256x32_bist.v}
+# vlog -reportprogress 300 -work work {../../../../../vs_rams/018/vs_hdsp_256x32_bist_int.v}
+# vlog -reportprogress 300 -work work {../../../../../jtag_marvin/jt_bc1in.v}
+# vlog -reportprogress 300 -work work {../../../../../bist_marvin/bist.v}
 
 # If you use define ETH_XILINX_RAMB4 switched on, then uncomment the following lines
 # !ETH_XILINX_RAMB4
