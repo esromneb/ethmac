@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.28  2002/09/04 18:44:10  mohor
+// Signals related to the control frames connected. Debug registers reg1, 2, 3, 4
+// connected.
+//
 // Revision 1.27  2002/07/25 18:15:37  mohor
 // RxAbort changed. Packets received with MRxErr (from PHY) are also
 // aborted.
@@ -351,7 +355,7 @@ assign RegCs = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] & ~wb_adr_i[10];   //
 assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] &  wb_adr_i[10];   // 0x400 - 0x7FF
 assign temp_wb_ack_o = RegCs | BDAck;
 assign temp_wb_dat_o = (RegCs & ~wb_we_i)? RegDataOut : BD_WB_DAT_O;
-assign temp_wb_err_o = wb_stb_i & wb_cyc_i & ~DWord;
+assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~DWord | BDCs & r_Rst);
 
 `ifdef ETH_REGISTERED_OUTPUTS
   assign wb_ack_o = temp_wb_ack_o_reg;
