@@ -41,6 +41,17 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2002/02/14 20:19:11  billditt
+// Modified for Address Checking,
+// addition of eth_addrcheck.v
+//
+// Revision 1.13  2002/02/12 17:03:03  mohor
+// HASH0 and HASH1 registers added. Registers address width was
+// changed to 8 bits.
+//
+// Revision 1.12  2002/02/11 09:18:22  mohor
+// Tx status is written back to the BD.
+//
 // Revision 1.11  2002/02/08 16:21:54  mohor
 // Rx status is written back to the BD.
 //
@@ -356,6 +367,14 @@ wire        ReceivedLengthOK;
 wire        InvalidSymbol;
 wire        LatchedCrcError;
 wire        RxLateCollision;
+wire  [3:0] RetryCntLatched;   
+wire  [3:0] RetryCnt;   
+wire        StartTxDone;   
+wire        StartTxAbort;   
+wire        MaxCollisionOccured;   
+wire        RetryLimit;   
+wire        StatePreamble;   
+wire  [1:0] StateData; 
 
 // Connecting MACControl
 eth_maccontrol maccontrol1
@@ -423,7 +442,9 @@ eth_txethmac txethmac1
   .MaxFL(r_MaxFL),                    .MTxEn(mtxen_pad_o),                .MTxD(mtxd_pad_o), 
   .MTxErr(mtxerr_pad_o),              .TxUsedData(TxUsedDataIn),          .TxDone(TxDoneIn), 
   .TxRetry(TxRetry),                  .TxAbort(TxAbortIn),                .WillTransmit(WillTransmit), 
-  .ResetCollision(ResetCollision)
+  .ResetCollision(ResetCollision),    .RetryCnt(RetryCnt),                .StartTxDone(StartTxDone), 
+  .StartTxAbort(StartTxAbort),        .MaxCollisionOccured(MaxCollisionOccured), .LateCollision(LateCollision),   
+  .StartDefer(StartDefer),            .StatePreamble(StatePreamble),      .StateData(StateData)   
 );
 
 
@@ -454,7 +475,7 @@ eth_rxethmac rxethmac1
   .ByteCntEq0(RxByteCntEq0),            .ByteCntGreat2(RxByteCntGreat2),      .ByteCntMaxFrame(RxByteCntMaxFrame), 
   .CrcError(RxCrcError),                .StateIdle(RxStateIdle),              .StatePreamble(RxStatePreamble), 
   .StateSFD(RxStateSFD),                .StateData(RxStateData),
-  .MAC(r_MAC),                          .r_Pro(r_Pro),                         .r_Bro(r_Bro),  // ditt
+  .MAC(r_MAC),                          .r_Pro(r_Pro),                         .r_Bro(r_Bro),
   .r_HASH0(r_HASH0),                    .r_HASH1(r_HASH1)
 );
 
@@ -573,7 +594,7 @@ eth_wishbone wishbone
 
     //TX
   .MTxClk(mtx_clk_pad_i),             .TxStartFrm(TxStartFrm),                  .TxEndFrm(TxEndFrm), 
-  .TxUsedData(TxUsedData),            .TxData(TxData),                          .StatusIzTxEthMACModula(16'h0), 
+  .TxUsedData(TxUsedData),            .TxData(TxData), 
   .TxRetry(TxRetry),                  .TxAbort(TxAbort),                        .TxUnderRun(TxUnderRun), 
   .TxDone(TxDone),                    .TPauseRq(TPauseRq),                      .TxPauseTV(TxPauseTV), 
   .PerPacketCrcEn(PerPacketCrcEn),    .PerPacketPad(PerPacketPad),              .WillSendControlFrame(WillSendControlFrame), 
@@ -598,6 +619,12 @@ eth_wishbone wishbone
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
   .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus)
 
+  .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus),     .RetryCntLatched(RetryCntLatched),
+  .RetryLimit(RetryLimit),            .LateCollLatched(LateCollLatched),        .DeferLatched(DeferLatched),   
+  .CarrierSenseLost(CarrierSenseLost)   
+  
+
+
 );
 
 
@@ -616,7 +643,12 @@ eth_macstatus macstatus1
   .CollValid(r_CollValid),            .RxLateCollision(RxLateCollision),           .r_RecSmall(r_RecSmall),
   .r_MinFL(r_MinFL),                  .r_MaxFL(r_MaxFL),                           .ShortFrame(ShortFrame),
   .DribbleNibble(DribbleNibble),      .ReceivedPacketTooBig(ReceivedPacketTooBig), .r_HugEn(r_HugEn),
-  .LoadRxStatus(LoadRxStatus)
+  .LoadRxStatus(LoadRxStatus),        .RetryCnt(RetryCnt),                         .StartTxDone(StartTxDone),
+  .StartTxAbort(StartTxAbort),        .RetryCntLatched(RetryCntLatched),           .MTxClk(mtx_clk_pad_i),
+  .MaxCollisionOccured(MaxCollisionOccured), .RetryLimit(RetryLimit),              .LateCollision(LateCollision),
+  .LateCollLatched(LateCollLatched),  .StartDefer(StartDefer),                     .DeferLatched(DeferLatched),
+  .TxStartFrm(TxStartFrmOut),         .StatePreamble(StatePreamble),               .StateData(StateData),
+  .CarrierSense(CarrierSense_Tx2),    .CarrierSenseLost(CarrierSenseLost),         .TxUsedData(TxUsedDataIn)
 );
 
 
