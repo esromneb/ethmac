@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/07/19 13:57:53  mohor
+// Testing environment also includes traffic cop, memory interface and host
+// interface.
+//
 // Revision 1.2  2002/05/03 10:22:17  mohor
 // TX_BUF_BASE changed.
 //
@@ -173,7 +177,7 @@
 /* MII Mode Register */
 `define ETH_MIIMODER_CLKDIV   32'h000000FF /* Clock Divider */
 `define ETH_MIIMODER_NOPRE    32'h00000100 /* No Preamble */
-`define ETH_MIIMODER_RST      32'h00000200 /* MIIM Reset */
+`define ETH_MIIMODER_RST      32'h00000400 /* MIIM Reset */
 
 /* MII Command Register */
 `define ETH_MIICOMMAND_SCANSTAT  32'h00000001 /* Scan Status */
