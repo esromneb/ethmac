@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2002/03/09 13:51:20  mohor
+// Status was not latched correctly sometimes. Fixed.
+//
 // Revision 1.15  2002/03/08 06:56:46  mohor
 // Big Endian problem when sending frames fixed.
 //
@@ -1626,10 +1629,13 @@ reg RxAbortSyncb2;
 
 
 eth_fifo #(`RX_FIFO_DATA_WIDTH, `RX_FIFO_DEPTH, `RX_FIFO_CNT_WIDTH)
-rx_fifo (.data_in(RxDataLatched2),        .data_out(m_wb_dat_o),        .clk(WB_CLK_I), 
-         .reset(Reset),                   .write(WriteRxDataToFifo_wb), .read(MasterWbRX & m_wb_ack_i),
-         .clear(RxAbortSync2),            .full(RxBufferFull),          .almost_full(RxBufferAlmostFull),
-         .almost_empty(RxBufferAlmostEmpty), .empty(RxBufferEmpty));
+rx_fifo (.data_in(RxDataLatched2),                      .data_out(m_wb_dat_o), 
+         .clk(WB_CLK_I),                                .reset(Reset), 
+         .write(WriteRxDataToFifo_wb),                  .read(MasterWbRX & m_wb_ack_i), 
+         .clear(RxAbortSync2 | RxStatusWriteLatched),   .full(RxBufferFull), 
+         .almost_full(RxBufferAlmostFull),              .almost_empty(RxBufferAlmostEmpty), 
+         .empty(RxBufferEmpty)
+        );
 
 assign WriteRxDataToMemory = ~RxBufferEmpty & (~MasterWbRX | ~RxBufferAlmostEmpty);
 
