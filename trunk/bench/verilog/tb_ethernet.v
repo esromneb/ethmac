@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.33  2005/02/21 13:02:13  igorm
+// Tests for delayed CRC and defer indication added.
+//
 // Revision 1.32  2004/03/26 15:59:21  tadejm
 // Latest Ethernet IP core testbench.
 //
@@ -512,18 +515,22 @@ begin
     test_mac_full_duplex_flow_control(0, 5); // 0 - 5
     test_mac_half_duplex_flow(0, 1);
 
-  $display("");
-  $display("===========================================================================");
-  $display("PHY generates 'real delayed' Carrier sense and Collision signals for following tests");
-  $display("===========================================================================");
-  test_note("PHY generates 'real delayed' Carrier sense and Collision signals for following tests");
-  eth_phy.carrier_sense_real_delay(1);
-    test_mac_full_duplex_transmit(0, 21);    // 0 - 21
-    test_mac_full_duplex_receive(0, 13);     // 0 - 13
+
+    // Tests not working, yet.
+    // test_mac_half_duplex_flow(0, 0);  // 2, 3, 4, 5 These tests need to be fixed !!!
+
+    $display("");
+    $display("===========================================================================");
+    $display("PHY generates 'real delayed' Carrier sense and Collision signals for following tests");
+    $display("===========================================================================");
+    test_note("PHY generates 'real delayed' Carrier sense and Collision signals for following tests");
+    eth_phy.carrier_sense_real_delay(1);
+    test_mac_full_duplex_transmit(0, 23);    // 0 - 23
+    test_mac_full_duplex_receive(0, 15);     // 0 - 15
     test_mac_full_duplex_flow_control(0, 5); // 0 - 5
     test_mac_half_duplex_flow(0, 1);
-
-
+ 
+ 
   // Finish test's logs
   test_summary;
   $display("\n\n END of SIMULATION");
@@ -2210,7 +2217,7 @@ begin
             check_mii_busy; // wait for bus to become idle
     
           // try normal write or read after read was finished
-          #Tp phy_data = {8'h7D, (i[7:0] + 1)};
+          #Tp phy_data = {8'h7D, (i[7:0] + 1'b1)};
           #Tp cnt = 0;
           if (i3 == 0) // write after read
           begin
@@ -2346,7 +2353,7 @@ begin
           phy_addr = 5'h1; // correct PHY address
           cnt = 0;
           // write request
-          phy_data = {8'h75, (i[7:0] + 1)};
+          phy_data = {8'h75, (i[7:0] + 1'b1)};
           #Tp mii_write_req(phy_addr, reg_addr, phy_data);
           fork
             begin
@@ -2393,7 +2400,7 @@ begin
           #Tp cnt = 0;
           if (i3 == 0) // write after write
           begin
-            phy_data = {8'h7A, (i[7:0] + 1)};
+            phy_data = {8'h7A, (i[7:0] + 1'b1)};
             // write request
             #Tp mii_write_req(phy_addr, reg_addr, phy_data);
             // wait for serial bus to become active
@@ -3858,7 +3865,7 @@ begin
             check_mii_busy; // wait for bus to become idle
     
           // try normal write or read after scan was finished
-          phy_data = {8'h7D, (i[7:0] + 1)};
+          phy_data = {8'h7D, (i[7:0] + 1'b1)};
           cnt = 0;
           if (i3 == 0) // write after scan
           begin
@@ -4123,7 +4130,7 @@ begin
             check_mii_busy; // wait for bus to become idle
     
           // try normal write or read after scan was finished
-          phy_data = {8'h7D, (i[7:0] + 1)};
+          phy_data = {8'h7D, (i[7:0] + 1'b1)};
           cnt = 0;
           if (i3 == 0) // write after scan
           begin
@@ -19593,6 +19600,7 @@ begin
         end
       else
         begin
+          #200; 
           if(!MTxEn)   // Pause frame was not received because RxFlow is turned off.
             begin
               `TIME; $display("*E Transmission should be started because pause frame was not received (RxFlow=0).");
