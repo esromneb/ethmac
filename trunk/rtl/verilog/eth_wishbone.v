@@ -41,6 +41,14 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.55  2004/04/26 15:26:23  igorm
+// - Bug connected to the TX_BD_NUM_Wr signal fixed (bug came in with the
+//   previous update of the core.
+// - TxBDAddress is set to 0 after the TX is enabled in the MODER register.
+// - RxBDAddress is set to r_TxBDNum<<1 after the RX is enabled in the MODER
+//   register. (thanks to Mathias and Torbjorn)
+// - Multicast reception was fixed. Thanks to Ulrich Gries
+//
 // Revision 1.54  2003/11/12 18:24:59  tadejm
 // WISHBONE slave changed and tested from only 32-bit accesss to byte access.
 //
@@ -661,6 +669,7 @@ begin
       WbEn_q <=#Tp WbEn;
       RxEn_q <=#Tp RxEn;
       TxEn_q <=#Tp TxEn;
+      r_TxEn_q <=#Tp r_TxEn;
       r_RxEn_q <=#Tp r_RxEn;
     end
 end
