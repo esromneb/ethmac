@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2002/05/03 10:15:50  mohor
+// Outputs registered. Reset changed for eth_wishbone module.
+//
 // Revision 1.22  2002/04/24 08:52:19  mohor
 // Compiler directives added. Tx and Rx fifo size incremented. A "late collision"
 // bug fixed.
@@ -166,6 +169,7 @@ module eth_wishbone
     
     // Tx Status
     RetryCntLatched, RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost
+    
 		);
 
 
@@ -428,7 +432,6 @@ begin
     TxEn_needed <=#Tp 1'b0;
 end
 
-reg [3:0] stm_status;
 // Enabling access to the RAM for three devices.
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
@@ -441,7 +444,6 @@ begin
       ram_di <=#Tp 32'h0;
       BDRead <=#Tp 1'b0;
       BDWrite <=#Tp 1'b0;
-stm_status <=#Tp 4'h0;
     end
   else
     begin
@@ -449,7 +451,6 @@ stm_status <=#Tp 4'h0;
       case ({WbEn_q, RxEn_q, TxEn_q, RxEn_needed, TxEn_needed})  // synopsys parallel_case
         5'b100_10, 5'b100_11 :
           begin
-stm_status <=#Tp 4'h1;
             WbEn <=#Tp 1'b0;
             RxEn <=#Tp 1'b1;  // wb access stage and r_RxEn is enabled
             TxEn <=#Tp 1'b0;
@@ -458,7 +459,6 @@ stm_status <=#Tp 4'h1;
           end
         5'b100_01 :
           begin
-stm_status <=#Tp 4'h2;
             WbEn <=#Tp 1'b0;
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b1;  // wb access stage, r_RxEn is disabled but r_TxEn is enabled
@@ -467,7 +467,6 @@ stm_status <=#Tp 4'h2;
           end
         5'b010_00, 5'b010_10 :
           begin
-stm_status <=#Tp 4'h3;
             WbEn <=#Tp 1'b1;  // RxEn access stage and r_TxEn is disabled
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b0;
@@ -478,7 +477,6 @@ stm_status <=#Tp 4'h3;
           end
         5'b010_01, 5'b010_11 :
           begin
-stm_status <=#Tp 4'h4;
             WbEn <=#Tp 1'b0;
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b1;  // RxEn access stage and r_TxEn is enabled
@@ -487,7 +485,6 @@ stm_status <=#Tp 4'h4;
           end
         5'b001_00, 5'b001_01, 5'b001_10, 5'b001_11 :
           begin
-stm_status <=#Tp 4'h5;
             WbEn <=#Tp 1'b1;  // TxEn access stage (we always go to wb access stage)
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b0;
@@ -498,23 +495,11 @@ stm_status <=#Tp 4'h5;
           end
         5'b100_00 :
           begin
-stm_status <=#Tp 4'h6;
             WbEn <=#Tp 1'b0;  // WbEn access stage and there is no need for other stages. WbEn needs to be switched off for a bit
           end
         5'b000_00 :
           begin
-stm_status <=#Tp 4'h7;
             WbEn <=#Tp 1'b1;  // Idle state. We go to WbEn access stage.
-            RxEn <=#Tp 1'b0;
-            TxEn <=#Tp 1'b0;
-            ram_addr <=#Tp WB_ADR_I[9:2];
-            ram_di <=#Tp WB_DAT_I;
-            BDWrite <=#Tp BDCs & WB_WE_I;
-            BDRead <=#Tp BDCs & ~WB_WE_I;
-          end
-        default :
-          begin
-            WbEn <=#Tp 1'b1;  // We go to wb access stage
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b0;
             ram_addr <=#Tp WB_ADR_I[9:2];
@@ -575,14 +560,14 @@ end
 
 
 // Reading the Tx buffer descriptor
-assign StartTxBDRead = (TxRetry_wb | TxStatusWrite) & ~BlockingTxBDRead;
+assign StartTxBDRead = (TxRetry_wb | TxStatusWrite) & ~BlockingTxBDRead & ~TxBDReady;
 
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
     TxBDRead <=#Tp 1'b1;
   else
-  if(StartTxBDRead & ~TxBDReady)
+  if(StartTxBDRead)
     TxBDRead <=#Tp 1'b1;
   else
   if(TxBDReady)
@@ -632,10 +617,10 @@ begin
   if(Reset)
     BlockingTxBDRead <=#Tp 1'b0;
   else
-  if(StartTxBDRead & ~TxBDReady)
+  if(StartTxBDRead)
     BlockingTxBDRead <=#Tp 1'b1;
   else
-  if(TxStartFrm_wb)
+  if(~StartTxBDRead & ~TxBDReady)
     BlockingTxBDRead <=#Tp 1'b0;
 end
 
@@ -833,9 +818,8 @@ end
 
 
 assign MasterAccessFinished = m_wb_ack_i | m_wb_err_i;
-
-//assign m_wb_sel_o = 4'hf;
-
+reg cyc_cleared;
+     
 // Enabling master wishbone access to the memory for two devices TX and RX.
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
@@ -848,12 +832,13 @@ begin
       m_wb_stb_o <=#Tp 1'b0;
       m_wb_we_o  <=#Tp 1'b0;
       m_wb_sel_o <=#Tp 4'h0;
+      cyc_cleared<=#Tp 1'b0;
     end
   else
     begin
       // Switching between two stages depends on enable signals
-      case ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished})  // synopsys parallel_case
-        5'b00_01_0, 5'b00_11_0 :
+      casex ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished, cyc_cleared})  // synopsys parallel_case
+        6'b00_01_0_x, 6'b00_11_0_x :
           begin
             MasterWbTX <=#Tp 1'b0;  // idle and master write is needed (data write to rx buffer)
             MasterWbRX <=#Tp 1'b1;
@@ -863,7 +848,7 @@ begin
             m_wb_we_o  <=#Tp 1'b1;
             m_wb_sel_o <=#Tp m_wb_sel_tmp_rx;
           end
-        5'b00_10_0, 5'b00_10_1 :
+        6'b00_10_0_x, 6'b00_10_1_x :
           begin
             MasterWbTX <=#Tp 1'b1;  // idle and master read is needed (data read from tx buffer)
             MasterWbRX <=#Tp 1'b0;
@@ -873,7 +858,7 @@ begin
             m_wb_we_o  <=#Tp 1'b0;
             m_wb_sel_o <=#Tp m_wb_sel_tmp_tx;
           end
-        5'b10_10_1 :
+        6'b10_10_0_1 :
           begin
             MasterWbTX <=#Tp 1'b1;  // master read and master read is needed (data read from tx buffer)
             MasterWbRX <=#Tp 1'b0;
@@ -882,32 +867,42 @@ begin
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
             m_wb_sel_o <=#Tp m_wb_sel_tmp_tx;
+            cyc_cleared<=#Tp 1'b0;
           end
-        5'b01_01_1 :
+        6'b01_01_0_1 :
           begin
             MasterWbTX <=#Tp 1'b0;  // master write and master write is needed (data write to rx buffer)
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp RxPointer;
             m_wb_we_o  <=#Tp 1'b1;
             m_wb_sel_o <=#Tp m_wb_sel_tmp_rx;
+            cyc_cleared<=#Tp 1'b0;
           end
-        5'b10_01_1, 5'b10_11_1 :
+        6'b10_01_0_1, 6'b10_11_0_1 :
           begin
             MasterWbTX <=#Tp 1'b0;  // master read and master write is needed (data write to rx buffer)
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp RxPointer;
             m_wb_we_o  <=#Tp 1'b1;
             m_wb_sel_o <=#Tp m_wb_sel_tmp_rx;
+            cyc_cleared<=#Tp 1'b0;
           end
-        5'b01_10_1, 5'b01_11_1 :
+        6'b01_10_1_0, 6'b01_11_0_1 :
           begin
             MasterWbTX <=#Tp 1'b1;  // master write and master read is needed (data read from tx buffer)
             MasterWbRX <=#Tp 1'b0;
             m_wb_adr_o <=#Tp TxPointer;
             m_wb_we_o  <=#Tp 1'b0;
             m_wb_sel_o <=#Tp m_wb_sel_tmp_tx;
+            cyc_cleared<=#Tp 1'b0;
           end
-        5'b10_00_1, 5'b01_00_1 :
+        6'b10_10_1_0, 6'b01_01_1_0, 6'b10_01_1_0, 6'b10_11_1_0, 6'b01_10_1_0, 6'b01_11_1_0 :
+          begin
+            m_wb_cyc_o <=#Tp 1'b0;  // whatever and master read or write is needed. We need to clear m_wb_cyc_o before next access is started
+            m_wb_stb_o <=#Tp 1'b0;
+            cyc_cleared<=#Tp 1'b1;
+          end
+        6'b10_00_1_x, 6'b01_00_1_x :
           begin
             MasterWbTX <=#Tp 1'b0;  // whatever and no master read or write is needed (ack or err comes finishing previous access)
             MasterWbRX <=#Tp 1'b0;
@@ -925,6 +920,8 @@ begin
       endcase
     end
 end
+
+
 
 wire TxFifoClear;
 wire [31:0] tx_fifo_dat_i;
@@ -2087,7 +2084,7 @@ assign Busy_IRQ = 1'b0;
 // bit 10 od rx je reserved
 // bit 9  od rx je reserved
 // bit 8  od rx je reserved
-// bit 7  od rx je Miss               still needs to be done
+// bit 7  od rx je Miss
 // bit 6  od rx je RxOverrun
 // bit 5  od rx je InvalidSymbol
 // bit 4  od rx je DribbleNibble
@@ -2095,6 +2092,8 @@ assign Busy_IRQ = 1'b0;
 // bit 2  od rx je ShortFrame
 // bit 1  od rx je LatchedCrcError
 // bit 0  od rx je RxLateCollision
+
+
 
 endmodule
 
