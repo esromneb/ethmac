@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2002/09/04 18:40:25  mohor
+// ETH_TXCTRL and ETH_RXCTRL registers added. Interrupts related to
+// the control frames connected.
+//
 // Revision 1.19  2002/08/19 16:01:40  mohor
 // Only values smaller or equal to 0x80 can be written to TX_BD_NUM register.
 // r_TxEn and r_RxEn depend on the limit values of the TX_BD_NUMOut.
@@ -143,13 +147,10 @@ module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut,
                       LinkFail, r_MAC, WCtrlDataStart, RStatStart,
                       UpdateMIIRX_DATAReg, Prsd, r_TxBDNum, TX_BD_NUM_Wr, int_o,
                       r_HASH0, r_HASH1, r_TxPauseTV, r_TxPauseRq, RstTxPauseRq, TxCtrlEndFrm, 
-                      StartTxDone, TxClk, RxClk, ReceivedPauseFrm,
-                      reg1, reg2, reg3, reg4
+                      StartTxDone, TxClk, RxClk, ReceivedPauseFrm
                     );
 
 parameter Tp = 1;
-
-input [31:0] reg1, reg2, reg3, reg4;
 
 input [31:0] DataIn;
 input [7:0] Address;
@@ -609,7 +610,6 @@ always @ (Address       or Read           or MODEROut       or INT_SOURCEOut  or
           MIICOMMANDOut or MIIADDRESSOut  or MIITX_DATAOut  or MIIRX_DATAOut  or 
           MIISTATUSOut  or MAC_ADDR0Out   or MAC_ADDR1Out   or TX_BD_NUMOut   or
           HASH0Out      or HASH1Out       or TXCTRLOut      or RXCTRLOut
-          or reg1 or reg2 or reg3 or reg4
          )
 begin
   if(Read)  // read
@@ -637,11 +637,6 @@ begin
         `ETH_HASH1_ADR        :  DataOut<=HASH1Out;
         `ETH_TX_CTRL_ADR      :  DataOut<=TXCTRLOut;
         `ETH_RX_CTRL_ADR      :  DataOut<=RXCTRLOut;
-
-        8'h16   /* 0x58 */    :  DataOut<=reg1;
-        8'h17   /* 0x5c */    :  DataOut<=reg2;
-        8'h18   /* 0x60 */    :  DataOut<=reg3;
-        8'h19   /* 0x64 */    :  DataOut<=reg4;
 
         default:             DataOut<=32'h0;
       endcase

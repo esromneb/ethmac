@@ -41,6 +41,12 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.34  2002/09/08 16:31:49  mohor
+// Async reset for WB_ACK_O removed (when core was in reset, it was
+// impossible to access BDs).
+// RxPointers and TxPointers names changed to be more descriptive.
+// TxUnderRun synchronized.
+//
 // Revision 1.33  2002/09/04 18:47:57  mohor
 // Debug registers reg1, 2, 3, 4 connected. Synchronization of many signals
 // changed (bugs fixed). Access to un-alligned buffers fixed. RxAbort signal
@@ -195,16 +201,13 @@ module eth_wishbone
     ReceivedPacketTooBig, RxLength, LoadRxStatus, ReceivedPacketGood, 
     
     // Tx Status
-    RetryCntLatched, RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost, 
-    
-    reg1, reg2, reg3, reg4
-    
+    RetryCntLatched, RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost
+
 		);
 
 
 parameter Tp = 1;
 
-output [31:0] reg1, reg2, reg3, reg4;
 
 // WISHBONE common
 input           WB_CLK_I;       // WISHBONE clock
@@ -2187,68 +2190,6 @@ assign Busy_IRQ = 1'b0;
 // bit 2  od rx je ShortFrame
 // bit 1  od rx je LatchedCrcError
 // bit 0  od rx je RxLateCollision
-
-assign reg1 = {RxPointerMSB[31:2], 2'h0};                  /* 0x58 */
-
-assign reg2 = {                                 /* 0x5c */
-  RxStatusWriteLatched,         // 31
-  RxStatusWrite_rck,            // 30
-  RxEn_needed,                  // 29
-  StartRxBDRead,                // 28
-  RxStatusWrite,                // 27
-  1'b1, //RxAbortLatched,               // 26
-  RxBDRead,                     // 25
-  RxBDReady,                    // 24
-  ShiftEnded,                   // 23
-  RxPointerRead,                // 23
-  LastByteIn,                   // 21
-  ShiftWillEnd,                 // 20
-  2'h0, RxByteCnt[1:0],         // 19:16
-  2'h0, RxPointerLSB_rst[1:0],      // 15:12
-  RxBDAddress[7:0],             // 11:4
-  4'h0                          // 3:0
-};
-
-assign reg3 = {                                 /* 0x60 */
-  ShiftEndedSync_c2,            // 31
-  RxAbortSyncb1,                // 30
-  RxAbortSyncb2,                // 31
-  RxAbortSync1,                 // 30
-  RxAbortSync2,                 // 29
-  1'b0, //LoadStatusBlocked,            // 28
-  LoadRxStatus,                 // 27
-  1'b0, //LoadStatusBlocked,            // 26
-  RxOverrun,                    // 25
-  RxAbort,                      // 24
-  RxValid,                      // 23
-  RxEndFrm,                     // 22
-  RxEnableWindow,               // 21
-  StartShiftWillEnd,            // 20
-  ShiftWillEnd,                 // 19
-  ShiftEnded_rck,               // 18
-  SetWriteRxDataToFifo,         // 17
-  WriteRxDataToFifo,            // 16
-  WriteRxDataToFifoSync3,       // 15
-  WriteRxDataToFifoSync2,       // 14
-  WriteRxDataToFifoSync1,       // 13
-  WriteRxDataToFifo_wb,         // 12
-  LatchedRxStartFrm,            // 11
-  RxStartFrm,                   // 10
-  SyncRxStartFrm,               // 9
-  SyncRxStartFrm_q,             // 8
-  SyncRxStartFrm_q2,            // 7
-  RxBufferEmpty,                // 6
-  RxBufferFull,                 // 5
-  rxfifo_cnt[4:0]               // 4:0
-};
-
-assign reg4 = {                                 /* 0x64 */
-  WriteRxDataToMemory,          // 4
-  ShiftEndedSync1,              // 3
-  ShiftEndedSync2,              // 2
-  ShiftEndedSync3,              // 1
-  ShiftEndedSync_c1             // 0
-};
 
 
 endmodule

@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.29  2002/09/09 13:03:13  mohor
+// Error acknowledge is generated when accessing BDs and RST bit in the
+// MODER register (r_Rst) is set.
+//
 // Revision 1.28  2002/09/04 18:44:10  mohor
 // Signals related to the control frames connected. Debug registers reg1, 2, 3, 4
 // connected.
@@ -387,7 +391,6 @@ assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~DWord | BDCs & r_Rst);
   end
 `endif
 
-wire [31:0] reg1, reg2, reg3, reg4;
 
 // Connecting Ethernet registers
 eth_registers ethreg1
@@ -416,10 +419,8 @@ eth_registers ethreg1
   .r_HASH0(r_HASH0),                      .r_HASH1(r_HASH1),                          .r_TxPauseRq(r_TxPauseRq), 
   .r_TxPauseTV(r_TxPauseTV),              .RstTxPauseRq(RstTxPauseRq),                .TxCtrlEndFrm(TxCtrlEndFrm), 
   .StartTxDone(StartTxDone),              .TxClk(mtx_clk_pad_i),                      .RxClk(mrx_clk_pad_i), 
-  .ReceivedPauseFrm(ReceivedPauseFrm),
+  .ReceivedPauseFrm(ReceivedPauseFrm)
   
-  .reg1(reg1), .reg2(reg2), .reg3(reg3), .reg4(reg4)
-
 );
 
 
@@ -708,10 +709,8 @@ eth_wishbone wishbone
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
   .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus),     .RetryCntLatched(RetryCntLatched),
   .RetryLimit(RetryLimit),            .LateCollLatched(LateCollLatched),        .DeferLatched(DeferLatched),   
-  .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood),  
+  .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood)
   
-  .reg1(reg1), .reg2(reg2), .reg3(reg3), .reg4(reg4)
-
 );
 
 
