@@ -43,6 +43,16 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/08/06 14:44:29  mohor
+// A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
+// Include files fixed to contain no path.
+// File names and module names changed ta have a eth_ prologue in the name.
+// File eth_timescale.v is used to define timescale
+// All pin names on the top module are changed to contain _I, _O or _OE at the end.
+// Bidirectional signal MDIO is changed to three signals (Mdc_O, Mdi_I, Mdo_O
+// and Mdo_OE. The bidirectional signal must be created on the top level. This
+// is done due to the ASIC tools.
+//
 // Revision 1.1  2001/07/30 21:23:42  mohor
 // Directory structure changed. Files checked and joind together.
 //
@@ -156,7 +166,7 @@ assign StartPAD = ~Collision & StateData[1] & TxEndFrm & Pad & ~NibbleMinFl;
 assign StartFCS = ~Collision & StateData[1] & TxEndFrm & (~Pad & CrcEn | Pad & NibbleMinFl)
                 | ~Collision & StatePAD & NibbleMinFl;
 
-assign StartJam = (Collision | UnderRun) & ((StatePreamble & NibCntEq15) | |StateData[1:0] | StatePAD | StateFCS);
+assign StartJam = (Collision | UnderRun) & ((StatePreamble & NibCntEq15) | (|StateData[1:0]) | StatePAD | StateFCS);
 
 assign StartBackoff = StateJam & ~RandomEq0 & ColWindow & ~RetryMax & NibCntEq7 & ~NoBckof;
 

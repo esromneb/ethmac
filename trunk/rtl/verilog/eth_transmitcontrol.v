@@ -41,6 +41,16 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/08/06 14:44:29  mohor
+// A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
+// Include files fixed to contain no path.
+// File names and module names changed ta have a eth_ prologue in the name.
+// File eth_timescale.v is used to define timescale
+// All pin names on the top module are changed to contain _I, _O or _OE at the end.
+// Bidirectional signal MDIO is changed to three signals (Mdc_O, Mdi_I, Mdo_O
+// and Mdo_OE. The bidirectional signal must be created on the top level. This
+// is done due to the ASIC tools.
+//
 // Revision 1.1  2001/07/30 21:23:42  mohor
 // Directory structure changed. Files checked and joind together.
 //
@@ -224,7 +234,7 @@ begin
   if(ResetByteCnt)
     ByteCnt <= #Tp 6'h0;
   else
-  if(IncrementByteCnt & (~DlyCrcEn | DlyCrcEn & &DlyCrcCnt[1:0]))
+  if(IncrementByteCnt & (~DlyCrcEn | DlyCrcEn & (&DlyCrcCnt[1:0])))
     ByteCnt <= #Tp (ByteCnt[5:0] ) + 1'b1;
 end
 
@@ -236,7 +246,7 @@ assign ControlEnd = ByteCnt[5:0] == 6'h22;
 always @ (ByteCnt or DlyCrcEn or MAC or TxPauseTV or DlyCrcCnt)
 begin
   case(ByteCnt)
-    6'h0:    if(~DlyCrcEn | DlyCrcEn & &DlyCrcCnt[1:0])
+    6'h0:    if(~DlyCrcEn | DlyCrcEn & (&DlyCrcCnt[1:0]))
                MuxedCtrlData[7:0] = 8'h01;                   // Reserved Multicast Address
              else
 						 	 MuxedCtrlData[7:0] = 8'h0;

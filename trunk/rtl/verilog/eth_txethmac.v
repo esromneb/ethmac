@@ -43,6 +43,16 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/08/06 14:44:29  mohor
+// A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
+// Include files fixed to contain no path.
+// File names and module names changed ta have a eth_ prologue in the name.
+// File eth_timescale.v is used to define timescale
+// All pin names on the top module are changed to contain _I, _O or _OE at the end.
+// Bidirectional signal MDIO is changed to three signals (Mdc_O, Mdi_I, Mdo_O
+// and Mdo_OE. The bidirectional signal must be created on the top level. This
+// is done due to the ASIC tools.
+//
 // Revision 1.1  2001/07/30 21:23:42  mohor
 // Directory structure changed. Files checked and joind together.
 //
@@ -164,7 +174,7 @@ wire PacketFinished_d;
 
 
 
-assign ResetCollision = ~(StatePreamble | |StateData | StatePAD | StateFCS);
+assign ResetCollision = ~(StatePreamble | (|StateData) | StatePAD | StateFCS);
 
 assign ExcessiveDeferOccured = TxStartFrm & StateDefer & ExcessiveDefer & ~StopExcessiveDeferOccured;
 
@@ -343,7 +353,7 @@ begin
   if(Reset)
     MTxEn <= #Tp 1'b0;
   else
-    MTxEn <= #Tp StatePreamble | |StateData | StatePAD | StateFCS | StateJam;
+    MTxEn <= #Tp StatePreamble | (|StateData) | StatePAD | StateFCS | StateJam;
 end
 
 
@@ -373,7 +383,7 @@ begin
   if(Reset)
     WillTransmit <= #Tp  1'b0;
   else
-    WillTransmit <= #Tp StartPreamble | StatePreamble | |StateData | StatePAD | StateFCS | StateJam;
+    WillTransmit <= #Tp StartPreamble | StatePreamble | (|StateData) | StatePAD | StateFCS | StateJam;
 end
 
 
@@ -435,7 +445,7 @@ assign Data_Crc[1] = StateData[0]? TxData[2] : StateData[1]? TxData[6] : 1'b0;
 assign Data_Crc[2] = StateData[0]? TxData[1] : StateData[1]? TxData[5] : 1'b0;
 assign Data_Crc[3] = StateData[0]? TxData[0] : StateData[1]? TxData[4] : 1'b0;
 
-assign Initialize_Crc = StateIdle | StatePreamble | |DlyCrcCnt;
+assign Initialize_Crc = StateIdle | StatePreamble | (|DlyCrcCnt);
 
 
 // Connecting module Crc
