@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2002/02/16 14:03:44  mohor
+// Registered trimmed. Unused registers removed.
+//
 // Revision 1.13  2002/02/16 13:06:33  mohor
 // EXTERNAL_DMA used instead of WISHBONE_DMA.
 //
@@ -138,7 +141,7 @@
 
 `define ETH_MODER_DEF         17'h0A800
 `define ETH_INT_SOURCE_DEF    32'h00000000
-`define ETH_INT_MASK_DEF      5'h0
+`define ETH_INT_MASK_DEF      7'h0
 `define ETH_IPGT_DEF          7'h12
 `define ETH_IPGR1_DEF         7'h0C
 `define ETH_IPGR2_DEF         7'h12
