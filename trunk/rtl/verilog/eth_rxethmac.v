@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/02/14 20:48:43  billditt
+// Addition  of new module eth_addrcheck.v
+//
 // Revision 1.4  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -81,7 +84,7 @@ module eth_rxethmac (MRxClk, MRxDV, MRxD, Reset, Transmitting, MaxFL, r_IFG, Hug
                      RxData, RxValid, RxStartFrm, RxEndFrm, CrcHash, CrcHashGood, Broadcast, 
                      Multicast, ByteCnt, ByteCntEq0, ByteCntGreat2, ByteCntMaxFrame, 
                      CrcError, StateIdle, StatePreamble, StateSFD, StateData,
-					  MAC, r_Pro, r_Bro,r_HASH0, r_HASH1, RxAbort
+                     MAC, r_Pro, r_Bro,r_HASH0, r_HASH1, RxAbort
                     );
 
 parameter Tp = 1;
@@ -179,25 +182,25 @@ eth_rxcounters rxcounters1 (.MRxClk(MRxClk), .Reset(Reset), .MRxDV(MRxDV), .Stat
                             .StatePreamble(StatePreamble), .MRxDEqD(MRxDEqD), .DlyCrcEn(DlyCrcEn), 
                             .DlyCrcCnt(DlyCrcCnt), .Transmitting(Transmitting), .MaxFL(MaxFL), .r_IFG(r_IFG), 
                             .HugEn(HugEn), .IFGCounterEq24(IFGCounterEq24), .ByteCntEq0(ByteCntEq0), 
-                            .ByteCntEq1(ByteCntEq1), 
-							.ByteCntEq2(ByteCntEq2), .ByteCntEq3(ByteCntEq3), 
-							.ByteCntEq4(ByteCntEq4), .ByteCntEq5(ByteCntEq5), 
-							.ByteCntEq6(ByteCntEq6), .ByteCntEq7(ByteCntEq7),.ByteCntGreat2(ByteCntGreat2), 
+                            .ByteCntEq1(ByteCntEq1), .ByteCntEq2(ByteCntEq2), .ByteCntEq3(ByteCntEq3), 
+                            .ByteCntEq4(ByteCntEq4), .ByteCntEq5(ByteCntEq5), .ByteCntEq6(ByteCntEq6), 
+                            .ByteCntEq7(ByteCntEq7), .ByteCntGreat2(ByteCntGreat2), 
                             .ByteCntSmall7(ByteCntSmall7), .ByteCntMaxFrame(ByteCntMaxFrame), 
                             .ByteCnt(ByteCnt)
                            );
 
 // Rx Address Check
 
-eth_rxaddrcheck rxaddrcheck1(.MRxClk(MRxClk), 		  .Reset( Reset),          .RxData(RxData), 
-							 .Broadcast (Broadcast),  .r_Bro (r_Bro),          .r_Pro(r_Pro),
-						     .ByteCntEq6(ByteCntEq6), .ByteCntEq7(ByteCntEq7), .ByteCntEq2(ByteCntEq2), 
-							 .ByteCntEq3(ByteCntEq3), .ByteCntEq4(ByteCntEq4), .ByteCntEq5(ByteCntEq5), 
-							 .HASH0(r_HASH0),         .HASH1(r_HASH1),           
-							 .CrcHash(CrcHash[5:0]),  .CrcHashGood(CrcHashGood),.StateData(StateData),
-							 .Multicast(Multicast),   .MAC(MAC),               .RxAbort(RxAbort),
-							 .RxEndFrm(RxEndFrm)
-                          );
+eth_rxaddrcheck rxaddrcheck1
+              (.MRxClk(MRxClk),         .Reset( Reset),          .RxData(RxData), 
+               .Broadcast (Broadcast),  .r_Bro (r_Bro),          .r_Pro(r_Pro),
+               .ByteCntEq6(ByteCntEq6), .ByteCntEq7(ByteCntEq7), .ByteCntEq2(ByteCntEq2), 
+               .ByteCntEq3(ByteCntEq3), .ByteCntEq4(ByteCntEq4), .ByteCntEq5(ByteCntEq5), 
+               .HASH0(r_HASH0),         .HASH1(r_HASH1),           
+               .CrcHash(CrcHash[5:0]),  .CrcHashGood(CrcHashGood),.StateData(StateData),
+               .Multicast(Multicast),   .MAC(MAC),               .RxAbort(RxAbort),
+               .RxEndFrm(RxEndFrm)
+              );
 
 
 assign Enable_Crc = MRxDV & (|StateData & ~ByteCntMaxFrame);
@@ -212,7 +215,7 @@ assign Data_Crc[3] = MRxD[0];
 // Connecting module Crc
 eth_crc crcrx (.Clk(MRxClk), .Reset(Reset), .Data(Data_Crc), .Enable(Enable_Crc), .Initialize(Initialize_Crc), 
                .Crc(Crc), .CrcError(CrcError)
-          );
+              );
 
 
 
@@ -273,9 +276,9 @@ begin
       else
       if(StateData[0] & (&LatchedByte[7:0]) & ByteCntEq1)
         Broadcast <= #Tp 1'b1;
-	  else
-	  if(RxAbort | RxEndFrm)
-	  	 Broadcast <= #Tp 1'b0;
+      else
+      if(RxAbort | RxEndFrm)
+        Broadcast <= #Tp 1'b0;
     end
 end
 
@@ -291,8 +294,8 @@ begin
       else
       if(StateData[0] & ByteCntEq1 & LatchedByte == 8'h01)
         Multicast <= #Tp 1'b1;
-	  else if(RxAbort | RxEndFrm)
-	  	Multicast <= #Tp 1'b0;
+    else if(RxAbort | RxEndFrm)
+      Multicast <= #Tp 1'b0;
     end
 end
 
