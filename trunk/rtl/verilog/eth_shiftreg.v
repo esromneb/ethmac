@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/08/14 18:16:59  mohor
+// LinkFail signal was not latching appropriate bit.
+//
 // Revision 1.4  2002/03/02 21:06:01  mohor
 // LinkFail signal was not latching appropriate bit.
 //
@@ -115,12 +118,11 @@ begin
         begin 
           if(|ByteSelect)
             begin
-              case (ByteSelect[3:0])
+              case (ByteSelect[3:0])  // synopsys parallel_case full_case
                 4'h1 :    ShiftReg[7:0] <= #Tp {2'b01, ~WriteOp, WriteOp, Fiad[4:1]};
                 4'h2 :    ShiftReg[7:0] <= #Tp {Fiad[0], Rgad[4:0], 2'b10};
                 4'h4 :    ShiftReg[7:0] <= #Tp CtrlData[15:8];
                 4'h8 :    ShiftReg[7:0] <= #Tp CtrlData[7:0];
-                default : ShiftReg[7:0] <= #Tp 8'h0;
               endcase
             end 
           else
