@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2002/08/16 22:23:03  mohor
+// Syntax error fixed.
+//
 // Revision 1.16  2002/08/16 22:14:22  mohor
 // Synchronous reset added to all registers. Defines used for width. r_MiiMRst
 // changed from bit position 10 to 9.
@@ -285,7 +288,7 @@ eth_register #(`ETH_MODER_WIDTH, `ETH_MODER_DEF)        MODER
    .Write     (MODER_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign MODEROut[31:`ETH_MODER_WIDTH] = 0;
 
@@ -297,9 +300,9 @@ eth_register #(`ETH_INT_MASK_WIDTH, `ETH_INT_MASK_DEF)  INT_MASK
    .Write     (INT_MASK_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
-assign INT_MASKOut[31:ETH_INT_MASK_WIDTH] = 0;
+assign INT_MASKOut[31:`ETH_INT_MASK_WIDTH] = 0;
 
 // IPGT Register
 eth_register #(`ETH_IPGT_WIDTH, `ETH_IPGT_DEF)          IPGT
@@ -309,7 +312,7 @@ eth_register #(`ETH_IPGT_WIDTH, `ETH_IPGT_DEF)          IPGT
    .Write     (IPGT_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign IPGTOut[31:`ETH_IPGT_WIDTH] = 0;
 
@@ -321,7 +324,7 @@ eth_register #(`ETH_IPGR1_WIDTH, `ETH_IPGR1_DEF)        IPGR1
    .Write     (IPGR1_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign IPGR1Out[31:`ETH_IPGR1_WIDTH] = 0;
 
@@ -333,7 +336,7 @@ eth_register #(`ETH_IPGR2_WIDTH, `ETH_IPGR2_DEF)        IPGR2
    .Write     (IPGR2_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign IPGR2Out[31:`ETH_IPGR2_WIDTH] = 0;
 
@@ -345,7 +348,7 @@ eth_register #(`ETH_PACKETLEN_WIDTH, `ETH_PACKETLEN_DEF) PACKETLEN
    .Write     (PACKETLEN_Wr),
    .Clk       (Clk), 
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 
 // COLLCONF Register
@@ -356,7 +359,7 @@ eth_register #(6, `ETH_COLLCONF0_DEF)                   COLLCONF0
    .Write     (COLLCONF_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign COLLCONFOut[15:6] = 0;
 
@@ -367,7 +370,7 @@ eth_register #(4, `ETH_COLLCONF1_DEF)                   COLLCONF1
    .Write     (COLLCONF_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign COLLCONFOut[31:20] = 0;
 
@@ -379,7 +382,7 @@ eth_register #(`ETH_TX_BD_NUM_WIDTH, `ETH_TX_BD_NUM_DEF) TX_BD_NUM
    .Write     (TX_BD_NUM_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign TX_BD_NUMOut[31:`ETH_TX_BD_NUM_WIDTH] = 0;
 
@@ -391,7 +394,7 @@ eth_register #(`ETH_CTRLMODER_WIDTH, `ETH_CTRLMODER_DEF)  CTRLMODER2
    .Write     (CTRLMODER_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign CTRLMODEROut[31:`ETH_CTRLMODER_WIDTH] = 0;
 
@@ -403,7 +406,7 @@ eth_register #(`ETH_MIIMODER_WIDTH, `ETH_MIIMODER_DEF)    MIIMODER
    .Write     (MIIMODER_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign MIIMODEROut[31:`ETH_MIIMODER_WIDTH] = 0;
 
@@ -415,7 +418,7 @@ eth_register #(1, 0)                                      MIICOMMAND0
    .Write     (MIICOMMAND_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 
 eth_register #(1, 0)                                      MIICOMMAND1
@@ -447,7 +450,7 @@ eth_register #(5, `ETH_MIIADDRESS0_DEF)                   MIIADDRESS0
    .Write     (MIIADDRESS_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign MIIADDRESSOut[7:5] = 0;
 
@@ -458,7 +461,7 @@ eth_register #(5, `ETH_MIIADDRESS1_DEF)                   MIIADDRESS1
    .Write     (MIIADDRESS_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign MIIADDRESSOut[31:13] = 0;
 
@@ -470,7 +473,7 @@ eth_register #(`ETH_MIITX_DATA_WIDTH, `ETH_MIITX_DATA_DEF) MIITX_DATA
    .Write     (MIITX_DATA_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign MIITX_DATAOut[31:`ETH_MIITX_DATA_WIDTH] = 0;
 
@@ -482,7 +485,7 @@ eth_register #(`ETH_MIIRX_DATA_WIDTH, `ETH_MIIRX_DATA_DEF) MIIRX_DATA
    .Write     (MIIRX_DATA_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign MIIRX_DATAOut[31:`ETH_MIIRX_DATA_WIDTH] = 0;
 
@@ -494,7 +497,7 @@ eth_register #(`ETH_MAC_ADDR0_WIDTH, `ETH_MAC_ADDR0_DEF)  MAC_ADDR0
    .Write     (MAC_ADDR0_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 
 // MAC_ADDR1 Register
@@ -505,7 +508,7 @@ eth_register #(`ETH_MAC_ADDR1_WIDTH, `ETH_MAC_ADDR1_DEF)  MAC_ADDR1
    .Write     (MAC_ADDR1_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 assign MAC_ADDR1Out[31:`ETH_MAC_ADDR1_WIDTH] = 0;
 
@@ -517,7 +520,7 @@ eth_register #(`ETH_HASH0_WIDTH, `ETH_HASH0_DEF)          RXHASH0
    .Write     (HASH0_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 
 // RXHASH1 Register
@@ -528,7 +531,7 @@ eth_register #(`ETH_HASH1_WIDTH, `ETH_HASH1_DEF)          RXHASH1
    .Write     (HASH1_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
-   .SyncReset (0)
+   .SyncReset (1'b0)
   );
 
 
