@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/02/26 16:24:01  mohor
+// RetryCntLatched was unused and removed from design
+//
 // Revision 1.6  2002/02/22 12:56:35  mohor
 // Retry is not activated when a Tx Underrun occured
 //
@@ -93,7 +96,7 @@ module eth_txethmac (MTxClk, Reset, TxStartFrm, TxEndFrm, TxUnderRun, TxData, Ca
                      IPGR1, IPGR2, CollValid, MaxRet, NoBckof, ExDfrEn, 
                      MTxD, MTxEn, MTxErr, TxDone, TxRetry, TxAbort, TxUsedData, WillTransmit, 
                      ResetCollision, RetryCnt, StartTxDone, StartTxAbort, MaxCollisionOccured,
-                     LateCollision, StartDefer, StatePreamble, StateData
+                     LateCollision, DeferIndication, StatePreamble, StateData
 
                     );
 
@@ -137,7 +140,7 @@ output StartTxDone;
 output StartTxAbort;
 output MaxCollisionOccured;
 output LateCollision;
-output StartDefer;
+output DeferIndication;
 output StatePreamble;
 output [1:0] StateData;
 
@@ -164,6 +167,7 @@ wire StartPreamble;
 wire [1:0] StartData;
 wire StartFCS;
 wire StartJam;
+wire StartDefer;
 wire StartBackoff;
 wire StateDefer;
 wire StateIPG;
@@ -197,7 +201,7 @@ assign ResetCollision = ~(StatePreamble | (|StateData) | StatePAD | StateFCS);
 
 assign ExcessiveDeferOccured = TxStartFrm & StateDefer & ExcessiveDefer & ~StopExcessiveDeferOccured;
 
-assign StartTxDone = ~Collision & (StateFCS & NibCntEq7 | StateData[1] & TxEndFrm & ~Pad & ~CrcEn);
+assign StartTxDone = ~Collision & (StateFCS & NibCntEq7 | StateData[1] & TxEndFrm & (~Pad | Pad & NibbleMinFl) & ~CrcEn);
 
 assign UnderRun = StateData[0] & TxUnderRun & ~Collision;
 
@@ -450,7 +454,7 @@ eth_txstatem txstatem1 (.MTxClk(MTxClk), .Reset(Reset), .ExcessiveDefer(Excessiv
                         .StateIPG(StateIPG), .StatePreamble(StatePreamble), .StateData(StateData), .StatePAD(StatePAD), 
                         .StateFCS(StateFCS), .StateJam(StateJam), .StateJam_q(StateJam_q), .StateBackOff(StateBackOff), 
                         .StateDefer(StateDefer), .StartFCS(StartFCS), .StartJam(StartJam), .StartBackoff(StartBackoff), 
-                        .StartDefer(StartDefer), .StartPreamble(StartPreamble), .StartData(StartData), .StartIPG(StartIPG)
+                        .StartDefer(StartDefer), .DeferIndication(DeferIndication), .StartPreamble(StartPreamble), .StartData(StartData), .StartIPG(StartIPG)
                        );
 
 
