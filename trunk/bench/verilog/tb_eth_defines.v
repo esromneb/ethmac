@@ -41,9 +41,6 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
-// Revision 1.4  2002/07/25 17:19:06  mohor
-// Define ETH_MIIMODER_RST corrected to 0x00000400.
-//
 // Revision 1.3  2002/07/19 13:57:53  mohor
 // Testing environment also includes traffic cop, memory interface and host
 // interface.
@@ -59,6 +56,9 @@
 //
 //
 
+
+
+//`define VERBOSE                       // if log files of device modules are written
 
 //`define EXTERNAL_DMA                  // Using DMA
 
@@ -122,7 +122,7 @@
 `define ETH_IPGR2      `ETH_BASE + 32'h14 /* Non Back to Back Inter Packet Gap Register 2 */
 `define ETH_PACKETLEN  `ETH_BASE + 32'h18 /* Packet Length Register (min. and max.) */
 `define ETH_COLLCONF   `ETH_BASE + 32'h1C /* Collision and Retry Configuration Register */
-`define ETH_RX_BD_NUM  `ETH_BASE + 32'h20 /* Receive Buffer Descriptor Number Register */
+`define ETH_TX_BD_NUM  `ETH_BASE + 32'h20 /* Transmit Buffer Descriptor Number Register */
 `define ETH_CTRLMODER  `ETH_BASE + 32'h24 /* Control Module Mode Register */
 `define ETH_MIIMODER   `ETH_BASE + 32'h28 /* MII Mode Register */
 `define ETH_MIICOMMAND `ETH_BASE + 32'h2C /* MII Command Register */
@@ -134,8 +134,6 @@
 `define ETH_MAC_ADDR1  `ETH_BASE + 32'h44 /* MAC Individual Address Register 1 */
 `define ETH_HASH_ADDR0 `ETH_BASE + 32'h48 /* Hash Register 0 */
 `define ETH_HASH_ADDR1 `ETH_BASE + 32'h4C /* Hash Register 1 */
-`define ETH_TX_CTRL    `ETH_BASE + 32'h50 /* Tx Control Register */
-`define ETH_RX_CTRL    `ETH_BASE + 32'h54 /* Rx Control Register */
 
 /* MODER Register */
 `define ETH_MODER_RXEN     32'h00000001 /* Receive Enable  */
@@ -182,7 +180,7 @@
 /* MII Mode Register */
 `define ETH_MIIMODER_CLKDIV   32'h000000FF /* Clock Divider */
 `define ETH_MIIMODER_NOPRE    32'h00000100 /* No Preamble */
-`define ETH_MIIMODER_RST      32'h00000400 /* MIIM Reset */
+`define ETH_MIIMODER_RST      32'h00000200 /* MIIM Reset */
 
 /* MII Command Register */
 `define ETH_MIICOMMAND_SCANSTAT  32'h00000001 /* Scan Status */
@@ -194,6 +192,6 @@
 `define ETH_MIIADDRESS_RGAD 32'h00001F00 /* RGAD Address */
 
 /* MII Status Register */
-`define ETH_MIISTATUS_LINKFAIL 32'h00000001 /* Link Fail */
-`define ETH_MIISTATUS_BUSY     32'h00000002 /* MII Busy */
-`define ETH_MIISTATUS_NVALID   32'h00000004 /* Data in MII Status Register is invalid */
+`define ETH_MIISTATUS_LINKFAIL    0 /* Link Fail bit */
+`define ETH_MIISTATUS_BUSY        1 /* MII Busy bit */
+`define ETH_MIISTATUS_NVALID      2 /* Data in MII Status Register is invalid bit */
