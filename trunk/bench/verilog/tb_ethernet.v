@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2002/11/14 13:12:47  tadejm
+// Late collision is not reported any more.
+//
 // Revision 1.18  2002/10/18 17:03:34  tadejm
 // Changed BIST scan signals.
 //
@@ -13214,6 +13217,16 @@ $display("mama 6");
       else if (num_of_frames < 78)
         set_rx_bd_empty((120 + num_of_frames - 70), (120 + num_of_frames - 70));
       // CHECK END OF RECEIVE
+      // receive just preamble between some packets
+      if ((num_of_frames == 0) || (num_of_frames == 4) || (num_of_frames == 9))
+      begin
+        #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h6, 8'h55, 0, 0, 1'b0);
+        @(posedge mrx_clk);
+        wait (MRxDV === 1'b0); // end receive
+        repeat(10) @(posedge mrx_clk);
+        repeat(15) @(posedge wb_clk);
+      end
+      // receiving frames and checking end of them
       frame_ended = 0;
       check_frame = 0;
       fork
@@ -13277,7 +13290,6 @@ $display("mama 6");
           fail = fail + 1;
         end
       end
-
       // check WB INT signal
       if (num_of_frames >= 3) // Frames smaller than 3 are not received.
       begin                   // Frames greater then 5 always cause an interrupt (Frame received)
@@ -13297,7 +13309,6 @@ $display("mama 6");
           fail = fail + 1;
         end
       end
-
       // check RX buffer descriptor of a packet
       if (num_of_frames >= min_tmp)
       begin
@@ -13390,7 +13401,6 @@ $display("mama 6");
       // INTERMEDIATE DISPLAYS
       if (num_of_frames == 3)
       begin
-        $display("    pads appending to packets is selected");
         $display("    using 1 BD out of 8 BDs (120..127) assigned to RX (wrap at 1st BD - RX BD 120)");
         $display("    ->packets with lengths from %0d to %0d are not received (length increasing by 1 byte)",
                  0, 3);
@@ -13519,15 +13529,15 @@ $display("mama 6");
     speed = 100;
   
     frame_ended = 0;
-    num_of_frames = 0;
+    num_of_frames = 0;// 0; // 10;
     num_of_bd = 120;
     i_length = 0 - 4;// (0 - 4); // 6; // 4 less due to CRC
     while ((i_length + 4) < 78) // (min_tmp - 4))
     begin
       // append CRC to packet
-      if ((i_length[0] == 1'b0) && (i_length > 0))
+      if ((i_length[0] == 1'b0) && (num_of_frames > 4))
         append_rx_crc (0, i_length, 1'b0, 1'b0);
-      else if (i_length > 0)
+      else if (num_of_frames > 4)
         append_rx_crc (max_tmp, i_length, 1'b0, 1'b0);
       // choose generating carrier sense and collision
       case (i_length[1:0])
@@ -13732,6 +13742,16 @@ $display("mama 6");
       else if (num_of_frames < 78)
         set_rx_bd_empty((120 + num_of_frames - 70), (120 + num_of_frames - 70));
       // CHECK END OF RECEIVE
+      // receive just preamble between some packets
+      if ((num_of_frames == 0) || (num_of_frames == 4) || (num_of_frames == 9))
+      begin
+        #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h6, 8'h55, 0, 0, 1'b0);
+        @(posedge mrx_clk);
+        wait (MRxDV === 1'b0); // end receive
+        repeat(10) @(posedge mrx_clk);
+        repeat(15) @(posedge wb_clk);
+      end
+      // receiving frames and checking end of them
       frame_ended = 0;
       check_frame = 0;
       fork
@@ -13742,7 +13762,7 @@ $display("mama 6");
             #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h7, 8'hD5, max_tmp, (i_length + 4), 1'b0);
           repeat(10) @(posedge mrx_clk);
         end
-        begin: fr_end2
+        begin: fr_end1
           wait (MRxDV === 1'b1); // start receive
           #1 check_rx_bd(num_of_bd, data);
           if (data[15] !== 1)
@@ -13769,7 +13789,8 @@ $display("mama 6");
         end
       join
       // check length of a PACKET
-      if ( (data[31:16] != (i_length + 4))/* && (frame_ended == 1)*/ )
+      if ( ((data[31:16] != (i_length + 4)) && (num_of_frames >= 3)) ||
+           ((data[31:16] != 0) && (num_of_frames < 3)) )
       begin
         `TIME; $display("*E Wrong length of the packet out from PHY (%0d instead of %0d)", 
                         data[31:16], (i_length + 4));
@@ -13777,8 +13798,8 @@ $display("mama 6");
         fail = fail + 1;
       end
       // check received RX packet data and CRC
-      if ((frame_ended == 1) && (num_of_frames >= 5))
-      begin
+      if ((frame_ended == 1) && (num_of_frames >= 5)) // 5 bytes is minimum size without CRC error, since
+      begin                                           // CRC has 4 bytes for itself
         if (i_length[0] == 1'b0)
         begin
           check_rx_packet(0, (`MEMORY_BASE + i_length[1:0]), (i_length + 4), 1'b0, 1'b0, tmp);
@@ -13794,18 +13815,17 @@ $display("mama 6");
           fail = fail + 1;
         end
       end
-
       // check WB INT signal
-      if (num_of_frames >= 5)
-      begin
-        if (wb_int !== 1'b1)
+      if (num_of_frames >= 3) // Frames smaller than 3 are not received.
+      begin                   // Frames greater then 5 always cause an interrupt (Frame received)
+        if (wb_int !== 1'b1)  // Frames with length 3 or 4 always cause an interrupt (CRC error)
         begin
           `TIME; $display("*E WB INT signal should be set");
           test_fail("WB INT signal should be set");
           fail = fail + 1;
         end
       end
-      else
+      else 
       begin
         if (wb_int !== 1'b0)
         begin
@@ -13813,13 +13833,6 @@ $display("mama 6");
           test_fail("WB INT signal should not be set");
           fail = fail + 1;
         end
-      end
-
-      // display RX buffer descriptor of a packet with length smaller than 7
-      check_rx_bd(num_of_bd, data);
-      if (num_of_frames <= 6)
-      begin
-        `TIME; $display("=> RX buffer descriptor is: %0h - len: %0d", data[15:0], num_of_frames);
       end
       // check RX buffer descriptor of a packet
       if (num_of_frames >= min_tmp)
@@ -13863,9 +13876,9 @@ $display("mama 6");
       end
       // check interrupts
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-      if (num_of_frames >= 40)
+      if (num_of_frames >= 5)
       begin
-        if ((data & `ETH_INT_RXB) !== 1'b1)//`ETH_INT_RXB)
+        if ((data & `ETH_INT_RXB) !== `ETH_INT_RXB)
         begin
           `TIME; $display("*E Interrupt Receive Buffer was not set, interrupt reg: %0h", data);
           test_fail("Interrupt Receive Buffer was not set");
@@ -13878,9 +13891,18 @@ $display("mama 6");
           fail = fail + 1;
         end
       end
+      else if ((num_of_frames < 3)) // Frames smaller than 3 are not received.
+      begin
+        if (data) // Checking if any interrupt is pending)
+        begin
+          `TIME; $display("*E Interrupt(s) is(are) pending although frame was ignored, interrupt reg: %0h", data);
+          test_fail("Interrupts were set");
+          fail = fail + 1;
+        end
+      end
       else
       begin
-        if ((data & `ETH_INT_RXE) !== 1'b1)//`ETH_INT_RXE)
+        if ((data & `ETH_INT_RXE) !== `ETH_INT_RXE)
         begin
           `TIME; $display("*E Interrupt Receive Buffer Error was not set, interrupt reg: %0h", data);
           test_fail("Interrupt Receive Buffer Error was not set");
@@ -13904,7 +13926,6 @@ $display("mama 6");
       // INTERMEDIATE DISPLAYS
       if (num_of_frames == 3)
       begin
-        $display("    pads appending to packets is selected");
         $display("    using 1 BD out of 8 BDs (120..127) assigned to RX (wrap at 1st BD - RX BD 120)");
         $display("    ->packets with lengths from %0d to %0d are not received (length increasing by 1 byte)",
                  0, 3);
