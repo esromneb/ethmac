@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2002/05/03 10:15:50  mohor
+// Outputs registered. Reset changed for eth_wishbone module.
+//
 // Revision 1.17  2002/04/24 08:52:19  mohor
 // Compiler directives added. Tx and Rx fifo size incremented. A "late collision"
 // bug fixed.
@@ -118,15 +121,13 @@
 //
 
 
-//`define EXTERNAL_DMA                  // Using DMA
 //`define ETH_FIFO_XILINX               // Use Xilinx distributed ram for tx and rx fifo
 
 
-// Selection of the used memory
-//`define XILINX_RAMB4                // Core is going to be implemented in Virtex FPGA and contains Virtex 
+// Selection of the used memory for Buffer descriptors
+//`define ETH_XILINX_RAMB4            // Core is going to be implemented in Virtex FPGA and contains Virtex 
                                       // specific elements. 
 
-//`define ARTISAN_SDP                 // Core is going to be implemented in ASIC (using Artisan RAM)
 
 
 `define ETH_MODER_ADR         8'h0    // 0x0 

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.29  2002/07/20 00:41:32  mohor
+// ShiftEnded synchronization changed.
+//
 // Revision 1.28  2002/07/18 16:11:46  mohor
 // RxBDAddress takes `ETH_TX_BD_NUM_DEF value after reset.
 //
@@ -426,7 +429,7 @@ end
 assign WB_DAT_O = ram_do;
 
 // Generic synchronous single-port RAM interface
-generic_spram #(8, 32) ram (
+eth_spram_256x32 bd_ram (
 	// Generic synchronous single-port RAM interface
 	.clk(WB_CLK_I), .rst(Reset), .ce(ram_ce), .we(ram_we), .oe(ram_oe), .addr(ram_addr), .di(ram_di), .do(ram_do)
 );
