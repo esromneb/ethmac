@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2002/07/25 18:15:37  mohor
+// RxAbort changed. Packets received with MRxErr (from PHY) are also
+// aborted.
+//
 // Revision 1.26  2002/07/17 18:51:50  mohor
 // EXTERNAL_DMA removed. External DMA not supported.
 //
@@ -261,6 +265,10 @@ wire            TxDone;
 wire     [5:0]  CollValid;
 
 
+reg             WillSendControlFrame_sync1;
+reg             WillSendControlFrame_sync2;
+reg             WillSendControlFrame_sync3;
+reg             RstTxPauseRq;
 
 
 // Connecting Miim module
@@ -307,14 +315,13 @@ wire  [6:0] r_IPGT;         //
 wire  [6:0] r_IPGR1;        // 
 wire  [6:0] r_IPGR2;        // 
 wire  [5:0] r_CollValid;    // 
-wire        r_TPauseRq;     // Transmit PAUSE request pulse
+wire [15:0] r_TxPauseTV;    // Transmit PAUSE value
+wire        r_TxPauseRq;    // Transmit PAUSE request
 
 wire  [3:0] r_MaxRet;       //
 wire        r_NoBckof;      // 
 wire        r_ExDfrEn;      // 
 wire        TX_BD_NUM_Wr;   // Write enable that writes RX_BD_NUM to the registers.
-wire        TPauseRq;       // Sinhronized Tx PAUSE request
-wire [15:0] TxPauseTV;      // Tx PAUSE timer value
 wire        r_TxFlow;       // Tx flow control enable
 wire        r_IFG;          // Minimum interframe gap for incoming packets
 
@@ -323,8 +330,6 @@ wire        TxE_IRQ;        // Interrupt Tx Error
 wire        RxB_IRQ;        // Interrupt Rx Buffer
 wire        RxE_IRQ;        // Interrupt Rx Error
 wire        Busy_IRQ;       // Interrupt Busy (lack of buffers)
-wire        TxC_IRQ;        // Interrupt Tx Control Frame
-wire        RxC_IRQ;        // Interrupt Rx Control Frame
 
 wire        DWord;
 wire        BDAck;
@@ -378,7 +383,7 @@ assign temp_wb_err_o = wb_stb_i & wb_cyc_i & ~DWord;
   end
 `endif
 
-
+wire [31:0] reg1, reg2, reg3, reg4;
 
 // Connecting Ethernet registers
 eth_registers ethreg1
@@ -393,7 +398,7 @@ eth_registers ethreg1
   .r_Bro(r_Bro),                          .r_NoPre(r_NoPre),                          .r_TxEn(r_TxEn), 
   .r_RxEn(r_RxEn),                        .Busy_IRQ(Busy_IRQ),                        .RxE_IRQ(RxE_IRQ), 
   .RxB_IRQ(RxB_IRQ),                      .TxE_IRQ(TxE_IRQ),                          .TxB_IRQ(TxB_IRQ), 
-  .TxC_IRQ(TxC_IRQ),                      .RxC_IRQ(RxC_IRQ),                          .r_IPGT(r_IPGT), 
+  .r_IPGT(r_IPGT), 
   .r_IPGR1(r_IPGR1),                      .r_IPGR2(r_IPGR2),                          .r_MinFL(r_MinFL), 
   .r_MaxFL(r_MaxFL),                      .r_MaxRet(r_MaxRet),                        .r_CollValid(r_CollValid), 
   .r_TxFlow(r_TxFlow),                    .r_RxFlow(r_RxFlow),                        .r_PassAll(r_PassAll), 
@@ -404,7 +409,13 @@ eth_registers ethreg1
   .LinkFail(LinkFail),                    .r_MAC(r_MAC),                              .WCtrlDataStart(WCtrlDataStart),
   .RStatStart(RStatStart),                .UpdateMIIRX_DATAReg(UpdateMIIRX_DATAReg),  .Prsd(Prsd), 
   .r_TxBDNum(r_TxBDNum),                  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),                .int_o(int_o),
-  .r_HASH0(r_HASH0),                      .r_HASH1(r_HASH1)
+  .r_HASH0(r_HASH0),                      .r_HASH1(r_HASH1),                          .r_TxPauseRq(r_TxPauseRq), 
+  .r_TxPauseTV(r_TxPauseTV),              .RstTxPauseRq(RstTxPauseRq),                .TxCtrlEndFrm(TxCtrlEndFrm), 
+  .StartTxDone(StartTxDone),              .TxClk(mtx_clk_pad_i),                      .RxClk(mrx_clk_pad_i), 
+  .ReceivedPauseFrm(ReceivedPauseFrm),
+  
+  .reg1(reg1), .reg2(reg2), .reg3(reg3), .reg4(reg4)
+
 );
 
 
@@ -419,8 +430,6 @@ wire        WillTransmit;            // Will transmit (to RxEthMAC)
 wire        ResetCollision;          // Reset Collision (for synchronizing collision)
 wire  [7:0] TxDataOut;               // Transmit Packet Data (to TxEthMAC)
 wire        WillSendControlFrame;
-wire        TxCtrlEndFrm;
-wire        ReceivedPauseFrm;
 wire        ReceiveEnd;
 wire        ReceivedPacketGood;
 wire        ReceivedLengthOK;
@@ -429,7 +438,6 @@ wire        LatchedCrcError;
 wire        RxLateCollision;
 wire  [3:0] RetryCntLatched;   
 wire  [3:0] RetryCnt;   
-wire        StartTxDone;   
 wire        StartTxAbort;   
 wire        MaxCollisionOccured;   
 wire        RetryLimit;   
@@ -439,8 +447,8 @@ wire  [1:0] StateData;
 // Connecting MACControl
 eth_maccontrol maccontrol1
 (
-  .MTxClk(mtx_clk_pad_i),                       .TPauseRq(TPauseRq), 
-  .TxPauseTV(TxPauseTV),                        .TxDataIn(TxData), 
+  .MTxClk(mtx_clk_pad_i),                       .TPauseRq(r_TxPauseRq), 
+  .TxPauseTV(r_TxPauseTV),                      .TxDataIn(TxData), 
   .TxStartFrmIn(TxStartFrm),                    .TxEndFrmIn(TxEndFrm), 
   .TxUsedDataIn(TxUsedDataIn),                  .TxDoneIn(TxDoneIn), 
   .TxAbortIn(TxAbortIn),                        .MRxClk(mrx_clk_pad_i), 
@@ -622,6 +630,39 @@ end
 
 
 
+// Synchronizing WillSendControlFrame to WB_CLK;
+always @ (posedge wb_clk_i or posedge wb_rst_i)
+begin
+  if(wb_rst_i)
+    WillSendControlFrame_sync1 <= 1'b0;
+  else
+    WillSendControlFrame_sync1 <=#Tp WillSendControlFrame;
+end
+
+always @ (posedge wb_clk_i or posedge wb_rst_i)
+begin
+  if(wb_rst_i)
+    WillSendControlFrame_sync2 <= 1'b0;
+  else
+    WillSendControlFrame_sync2 <=#Tp WillSendControlFrame_sync1;
+end
+
+always @ (posedge wb_clk_i or posedge wb_rst_i)
+begin
+  if(wb_rst_i)
+    WillSendControlFrame_sync3 <= 1'b0;
+  else
+    WillSendControlFrame_sync3 <=#Tp WillSendControlFrame_sync2;
+end
+
+always @ (posedge wb_clk_i or posedge wb_rst_i)
+begin
+  if(wb_rst_i)
+    RstTxPauseRq <= 1'b0;
+  else
+    RstTxPauseRq <=#Tp WillSendControlFrame_sync2 & ~WillSendControlFrame_sync3;
+end
+
 
 // Connecting Wishbone module
 eth_wishbone wishbone
@@ -644,30 +685,28 @@ eth_wishbone wishbone
   .MTxClk(mtx_clk_pad_i),             .TxStartFrm(TxStartFrm),                  .TxEndFrm(TxEndFrm), 
   .TxUsedData(TxUsedData),            .TxData(TxData), 
   .TxRetry(TxRetry),                  .TxAbort(TxAbort),                        .TxUnderRun(TxUnderRun), 
-  .TxDone(TxDone),                    .TPauseRq(TPauseRq),                      .TxPauseTV(TxPauseTV), 
-  .PerPacketCrcEn(PerPacketCrcEn),    .PerPacketPad(PerPacketPad),              .WillSendControlFrame(WillSendControlFrame), 
-  .TxCtrlEndFrm(TxCtrlEndFrm), 
+  .TxDone(TxDone), 
+  .PerPacketCrcEn(PerPacketCrcEn),    .PerPacketPad(PerPacketPad), 
 
   // Register
   .r_TxEn(r_TxEn),                    .r_RxEn(r_RxEn),                          .r_TxBDNum(r_TxBDNum), 
-  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),        .r_RecSmall(r_RecSmall), 
+  .TX_BD_NUM_Wr(TX_BD_NUM_Wr), 
 
   //RX
   .MRxClk(mrx_clk_pad_i),             .RxData(RxData),                          .RxValid(RxValid), 
   .RxStartFrm(RxStartFrm),            .RxEndFrm(RxEndFrm),                      
   .Busy_IRQ(Busy_IRQ),                .RxE_IRQ(RxE_IRQ),                        .RxB_IRQ(RxB_IRQ), 
-  .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ),                        .TxC_IRQ(TxC_IRQ), 
-  .RxC_IRQ(RxC_IRQ), 
+  .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ), 
 
-  .RxAbort(RxAbort | (ShortFrame & ~r_RecSmall) | LatchedMRxErr & ~InvalidSymbol), 
+  .RxAbort(RxAbort | (ShortFrame & ~r_RecSmall) | LatchedMRxErr & ~InvalidSymbol | ReceivedPauseFrm & ~r_PassAll), 
 
   .InvalidSymbol(InvalidSymbol),      .LatchedCrcError(LatchedCrcError),        .RxLength(RxByteCnt),
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
   .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus),     .RetryCntLatched(RetryCntLatched),
   .RetryLimit(RetryLimit),            .LateCollLatched(LateCollLatched),        .DeferLatched(DeferLatched),   
-  .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood)  
+  .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood),  
   
-
+  .reg1(reg1), .reg2(reg2), .reg3(reg3), .reg4(reg4)
 
 );
 
@@ -693,7 +732,7 @@ eth_macstatus macstatus1
   .LateCollLatched(LateCollLatched),  .StartDefer(StartDefer),                     .DeferLatched(DeferLatched),
   .TxStartFrm(TxStartFrmOut),         .StatePreamble(StatePreamble),               .StateData(StateData),
   .CarrierSense(CarrierSense_Tx2),    .CarrierSenseLost(CarrierSenseLost),         .TxUsedData(TxUsedDataIn),
-  .LatchedMRxErr(LatchedMRxErr)
+  .LatchedMRxErr(LatchedMRxErr),      .Loopback(r_LoopBck)
 );
 
 
