@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.3  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -77,7 +80,8 @@
 module eth_rxethmac (MRxClk, MRxDV, MRxD, Reset, Transmitting, MaxFL, r_IFG, HugEn, DlyCrcEn, 
                      RxData, RxValid, RxStartFrm, RxEndFrm, CrcHash, CrcHashGood, Broadcast, 
                      Multicast, ByteCnt, ByteCntEq0, ByteCntGreat2, ByteCntMaxFrame, 
-                     CrcError, StateIdle, StatePreamble, StateSFD, StateData
+                     CrcError, StateIdle, StatePreamble, StateSFD, StateData,
+					  MAC, r_Pro, r_Bro,r_HASH0, r_HASH1, RxAbort
                     );
 
 parameter Tp = 1;
@@ -93,7 +97,11 @@ input         DlyCrcEn;
 input  [15:0] MaxFL;
 input         r_IFG;
 input         Reset;
-
+input  [47:0] MAC;     //  Station Address  
+input         r_Bro;   //  broadcast disable
+input         r_Pro;   //  promiscuous enable 
+input [31:0]  r_HASH0; //  lower 4 bytes Hash Table
+input [31:0]  r_HASH1; //  upper 4 bytes Hash Table
 output  [7:0] RxData;
 output        RxValid;
 output        RxStartFrm;
@@ -111,6 +119,7 @@ output        StateIdle;
 output        StatePreamble;
 output        StateSFD;
 output  [1:0] StateData;
+output        RxAbort;
 
 reg     [7:0] RxData;
 reg           RxValid;
@@ -132,7 +141,12 @@ wire          MRxDEqD;
 wire          MRxDEq5;
 wire          StateDrop;
 wire          ByteCntEq1;
+wire          ByteCntEq2;
+wire          ByteCntEq3;
+wire          ByteCntEq4;
+wire          ByteCntEq5;
 wire          ByteCntEq6;
+wire          ByteCntEq7;
 wire          ByteCntSmall7;
 wire   [31:0] Crc;
 wire          Enable_Crc;
@@ -143,7 +157,7 @@ wire          GenerateRxStartFrm;
 wire          GenerateRxEndFrm;
 wire          DribbleRxEndFrm;
 wire    [3:0] DlyCrcCnt;
-
+wire          RxAbort;
 
 
 assign MRxDEqD = MRxD == 4'hd;
@@ -165,11 +179,25 @@ eth_rxcounters rxcounters1 (.MRxClk(MRxClk), .Reset(Reset), .MRxDV(MRxDV), .Stat
                             .StatePreamble(StatePreamble), .MRxDEqD(MRxDEqD), .DlyCrcEn(DlyCrcEn), 
                             .DlyCrcCnt(DlyCrcCnt), .Transmitting(Transmitting), .MaxFL(MaxFL), .r_IFG(r_IFG), 
                             .HugEn(HugEn), .IFGCounterEq24(IFGCounterEq24), .ByteCntEq0(ByteCntEq0), 
-                            .ByteCntEq1(ByteCntEq1), .ByteCntEq6(ByteCntEq6), .ByteCntGreat2(ByteCntGreat2), 
+                            .ByteCntEq1(ByteCntEq1), 
+							.ByteCntEq2(ByteCntEq2), .ByteCntEq3(ByteCntEq3), 
+							.ByteCntEq4(ByteCntEq4), .ByteCntEq5(ByteCntEq5), 
+							.ByteCntEq6(ByteCntEq6), .ByteCntEq7(ByteCntEq7),.ByteCntGreat2(ByteCntGreat2), 
                             .ByteCntSmall7(ByteCntSmall7), .ByteCntMaxFrame(ByteCntMaxFrame), 
                             .ByteCnt(ByteCnt)
                            );
 
+// Rx Address Check
+
+eth_rxaddrcheck rxaddrcheck1(.MRxClk(MRxClk), 		  .Reset( Reset),          .RxData(RxData), 
+							 .Broadcast (Broadcast),  .r_Bro (r_Bro),          .r_Pro(r_Pro),
+						     .ByteCntEq6(ByteCntEq6), .ByteCntEq7(ByteCntEq7), .ByteCntEq2(ByteCntEq2), 
+							 .ByteCntEq3(ByteCntEq3), .ByteCntEq4(ByteCntEq4), .ByteCntEq5(ByteCntEq5), 
+							 .HASH0(r_HASH0),         .HASH1(r_HASH1),           
+							 .CrcHash(CrcHash[5:0]),  .CrcHashGood(CrcHashGood),.StateData(StateData),
+							 .Multicast(Multicast),   .MAC(MAC),               .RxAbort(RxAbort),
+							 .RxEndFrm(RxEndFrm)
+                          );
 
 
 assign Enable_Crc = MRxDV & (|StateData & ~ByteCntMaxFrame);
@@ -245,6 +273,9 @@ begin
       else
       if(StateData[0] & (&LatchedByte[7:0]) & ByteCntEq1)
         Broadcast <= #Tp 1'b1;
+	  else
+	  if(RxAbort | RxEndFrm)
+	  	 Broadcast <= #Tp 1'b0;
     end
 end
 
@@ -258,8 +289,10 @@ begin
       if(Reset)
         Multicast <= #Tp 1'b0;
       else
-      if(StateData[0] & ByteCntEq1)
-        Multicast <= #Tp LatchedByte[0];
+      if(StateData[0] & ByteCntEq1 & LatchedByte == 8'h01)
+        Multicast <= #Tp 1'b1;
+	  else if(RxAbort | RxEndFrm)
+	  	Multicast <= #Tp 1'b0;
     end
 end
 
