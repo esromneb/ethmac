@@ -3,6 +3,6 @@
 -logfile ../log/ncvlog_artisan.log
 -update 
 -messages
-../../../../../lib/artisan/art_hsdp_256x40.v
-../../../../../lib/artisan/art_hddp_8192x64.v
+../../../../../../lib/artisan/art_hsdp_256x40.v
+../../../../../../lib/artisan/art_hddp_8192x64.v
 
