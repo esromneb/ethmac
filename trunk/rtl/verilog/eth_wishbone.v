@@ -8,7 +8,7 @@
 ////  Author(s):                                                  ////
 ////      - Igor Mohor (igorM@opencores.org)                      ////
 ////                                                              ////
-////  All additional information is avaliable in the Readme.txt   ////
+////  All additional information is available in the Readme.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.35  2002/09/10 10:35:23  mohor
+// Ethernet debug registers removed.
+//
 // Revision 1.34  2002/09/08 16:31:49  mohor
 // Async reset for WB_ACK_O removed (when core was in reset, it was
 // impossible to access BDs).
@@ -291,7 +294,6 @@ reg TxE_IRQ;
 reg RxB_IRQ;
 reg RxE_IRQ;
 
-
 reg             TxStartFrm;
 reg             TxEndFrm;
 reg     [7:0]   TxData;
@@ -322,6 +324,7 @@ reg             TxDone_wb_q2;
 reg             TxAbort_wb_q2;
 reg             TxRetry_wb_q2;
 reg             RxBDReady;
+reg             RxReady;
 reg             TxBDReady;
 
 reg             RxBDRead;
@@ -1523,7 +1526,7 @@ begin
   if(Reset)
     RxBDRead <=#Tp 1'b1;
   else
-  if(StartRxBDRead & ~RxBDReady)
+  if(StartRxBDRead & ~RxReady)
     RxBDRead <=#Tp 1'b1;
   else
   if(RxBDReady)
@@ -1540,7 +1543,7 @@ begin
   if(Reset)
     RxBDReady <=#Tp 1'b0;
   else
-  if(ShiftEnded | RxAbortSync2 & ~RxAbortSync3)
+  if(RxPointerRead)
     RxBDReady <=#Tp 1'b0;
   else
   if(RxEn & RxEn_q & RxBDRead)
@@ -1559,6 +1562,18 @@ begin
 end
 
 
+// RxReady generation
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    RxReady <=#Tp 1'b0;
+  else
+  if(ShiftEnded | RxAbortSync2 & ~RxAbortSync3)
+    RxReady <=#Tp 1'b0;
+  else
+  if(RxEn & RxEn_q & RxPointerRead)
+    RxReady <=#Tp 1'b1;
+end
 
 
 // Reading Rx BD pointer
@@ -1575,7 +1590,7 @@ begin
   if(StartRxPointerRead)
     RxPointerRead <=#Tp 1'b1;
   else
-  if(RxEn_q)
+  if(RxEn & RxEn_q)
     RxPointerRead <=#Tp 1'b0;
 end
 
@@ -1624,7 +1639,7 @@ begin
   if(Reset)
     RxEn_needed <=#Tp 1'b0;
   else
-  if(~RxBDReady & r_RxEn & WbEn & ~WbEn_q)
+  if(~RxReady & r_RxEn & WbEn & ~WbEn_q)
     RxEn_needed <=#Tp 1'b1;
   else
   if(RxPointerRead & RxEn & RxEn_q)
@@ -1674,7 +1689,7 @@ begin
   if(ShiftWillEnd & (&RxByteCnt) | RxAbort)
     LastByteIn <=#Tp 1'b0;
   else
-  if(RxValid & RxBDReady & RxEndFrm & ~(&RxByteCnt) & RxEnableWindow)
+  if(RxValid & RxReady & RxEndFrm & ~(&RxByteCnt) & RxEnableWindow)
     LastByteIn <=#Tp 1'b1;
 end
 
@@ -1712,7 +1727,7 @@ begin
   if(ShiftEnded_rck | RxAbort)
     RxByteCnt <=#Tp 2'h0;
   else
-  if(RxValid & RxStartFrm & RxBDReady)
+  if(RxValid & RxStartFrm & RxReady)
     case(RxPointerLSB_rst)  // synopsys parallel_case
       2'h0 : RxByteCnt <=#Tp 2'h1;
       2'h1 : RxByteCnt <=#Tp 2'h2;
@@ -1720,7 +1735,7 @@ begin
       2'h3 : RxByteCnt <=#Tp 2'h0;
     endcase
   else
-  if(RxValid & RxEnableWindow & RxBDReady | LastByteIn)
+  if(RxValid & RxEnableWindow & RxReady | LastByteIn)
     RxByteCnt <=#Tp RxByteCnt + 1'b1;
 end
 
@@ -1749,7 +1764,7 @@ begin
   if(Reset)
     RxDataLatched1       <=#Tp 24'h0;
   else
-  if(RxValid & RxBDReady & ~LastByteIn)
+  if(RxValid & RxReady & ~LastByteIn)
     if(RxStartFrm)
     begin
       case(RxPointerLSB_rst)     // synopsys parallel_case
@@ -1797,7 +1812,9 @@ reg WriteRxDataToFifoSync3;
 
 
 // Indicating start of the reception process
-assign SetWriteRxDataToFifo = (RxValid & RxBDReady & ~RxStartFrm & RxEnableWindow & (&RxByteCnt)) | (RxValid & RxBDReady & RxStartFrm & (&RxPointerLSB_rst)) | (ShiftWillEnd & LastByteIn & (&RxByteCnt));
+assign SetWriteRxDataToFifo = (RxValid & RxReady & ~RxStartFrm & RxEnableWindow & (&RxByteCnt)) | 
+                              (RxValid & RxReady &  RxStartFrm & (&RxPointerLSB_rst))           | 
+                              (ShiftWillEnd & LastByteIn & (&RxByteCnt));
 
 always @ (posedge MRxClk or posedge Reset)
 begin
@@ -2151,9 +2168,42 @@ begin
 end
 
 
-assign Busy_IRQ = 1'b0;
+// Busy Interrupt
+
+reg Busy_IRQ_rck;
+reg Busy_IRQ_sync1;
+reg Busy_IRQ_sync2;
+reg Busy_IRQ_sync3;
+reg Busy_IRQ_syncb1;
+reg Busy_IRQ_syncb2;
 
 
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    Busy_IRQ_rck <=#Tp 1'b0;
+  else
+  if(RxValid & RxStartFrm & ~RxReady)
+    Busy_IRQ_rck <=#Tp 1'b1;
+  else
+  if(Busy_IRQ_syncb2)
+    Busy_IRQ_rck <=#Tp 1'b0;
+end
+
+always @ (posedge WB_CLK_I)
+begin
+    Busy_IRQ_sync1 <=#Tp Busy_IRQ_rck;
+    Busy_IRQ_sync2 <=#Tp Busy_IRQ_sync1;
+    Busy_IRQ_sync3 <=#Tp Busy_IRQ_sync2;
+end
+
+always @ (posedge MRxClk)
+begin
+    Busy_IRQ_syncb1 <=#Tp Busy_IRQ_sync2;
+    Busy_IRQ_syncb2 <=#Tp Busy_IRQ_syncb1;
+end
+
+assign Busy_IRQ = Busy_IRQ_sync2 & ~Busy_IRQ_sync3;
 
 
          
