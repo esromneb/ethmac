@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2002/07/11 02:53:20  mohor
+// RxPointer bug fixed.
+//
 // Revision 1.26  2002/07/10 13:12:38  mohor
 // Previous bug wasn't succesfully removed. Now fixed.
 //
@@ -1137,7 +1140,7 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    RxBDAddress <=#Tp 8'h0;
+    RxBDAddress <=#Tp `ETH_TX_BD_NUM_DEF;
   else
   if(TX_BD_NUM_Wr)                        // When r_TxBDNum is updated, RxBDAddress is also
     RxBDAddress <=#Tp WB_DAT_I[7:0];
