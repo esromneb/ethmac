@@ -1,3 +1,9 @@
+// Napravi, pause frame
+
+// Poskusi spremeniti vse signale na wb strani da bodo imeli enake koncnice (npr _wb),
+// vsi na MTxClk strani pa _txclk   
+// Evaluiraj dato da pre start framom ni prisel abort ali kaj podobnega (kot je bilo v GotData, ki ga zbrisi)
+
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
 ////  eth_wishbone.v                                              ////
@@ -41,6 +47,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2002/01/23 10:47:59  mohor
+// Initial version. Equals to eth_wishbonedma.v at this moment.
+//
 //
 //
 //
@@ -60,6 +69,11 @@ module eth_wishbone
  		WB_ADR_I, WB_SEL_I, WB_WE_I, WB_ACK_O, 
  		WB_REQ_O, WB_ACK_I, WB_ND_O, WB_RD_O, BDCs, 
 
+    // WISHBONE master
+    m_wb_adr_o, m_wb_sel_o, m_wb_we_o, 
+    m_wb_dat_o, m_wb_dat_i, m_wb_cyc_o, 
+    m_wb_stb_o, m_wb_ack_i, m_wb_err_i, 
+
     //TX
     MTxClk, TxStartFrm, TxEndFrm, TxUsedData, TxData, StatusIzTxEthMACModula, 
     TxRetry, TxAbort, TxUnderRun, TxDone, TPauseRq, TxPauseTV, PerPacketCrcEn, 
@@ -71,7 +85,7 @@ module eth_wishbone
     // Register
     r_TxEn, r_RxEn, r_TxBDNum, r_DmaEn, TX_BD_NUM_Wr, 
 
-    WillSendControlFrame, TxCtrlEndFrm, 
+    WillSendControlFrame, TxCtrlEndFrm, // igor !!! WillSendControlFrame gre najbrz ven
     
     // Interrupts
     TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ
@@ -93,6 +107,20 @@ input   [3:0]   WB_SEL_I;       // WISHBONE byte select input
 input           WB_WE_I;        // WISHBONE write enable input
 input           BDCs;           // Buffer descriptors are selected
 output          WB_ACK_O;       // WISHBONE acknowledge output
+
+// WISHBONE master
+output  [31:0]  m_wb_adr_o;     // 
+output   [3:0]  m_wb_sel_o;     // 
+output          m_wb_we_o;      // 
+output  [31:0]  m_wb_dat_o;     // 
+output          m_wb_cyc_o;     // 
+output          m_wb_stb_o;     // 
+input   [31:0]  m_wb_dat_i;     // 
+input           m_wb_ack_i;     // 
+input           m_wb_err_i;     // 
+
+
+
 
 // DMA
 input   [1:0]   WB_ACK_I;       // DMA acknowledge input
@@ -148,8 +176,6 @@ reg             TxEndFrm;
 reg     [7:0]   TxData;
 
 reg             TxUnderRun;
-reg             TPauseRq;
-reg             TxPauseRq;
 
 reg             RxStartFrm_wb;
 reg     [31:0]  RxData_wb;
@@ -160,32 +186,25 @@ reg     [7:0]   BDAddress;    // BD address for access from MAC side
 reg             BDRead_q;
 
 reg             TxBDRead;
-reg             TxDataRead;
-reg             TxStatusWrite;
+wire            TxStatusWrite;
 
 reg     [1:0]   TxValidBytesLatched;
-reg             TxEndFrm_wbLatched;
 
 reg    [15:0]   TxLength;
-reg    [31:0]   TxStatus;
+reg    [15:0]   TxStatus;
 
 reg    [15:0]   RxStatus;
 
 reg             TxStartFrm_wb;
 reg             TxRetry_wb;
-reg             GetNewTxData_wb;
-reg             TxDone_wb;
 reg             TxAbort_wb;
-
-
-reg             TxStartFrmRequest;
-reg    [31:0]   TxDataLatched_wb;
+reg             TxDone_wb;
 
 reg             RxStatusWriteOccured;
 
-reg             TxRestart_wb_q;
 reg             TxDone_wb_q;
 reg             TxAbort_wb_q;
+reg             TxRetry_wb_q;
 reg             RxBDReady;
 reg             TxBDReady;
 
@@ -196,47 +215,31 @@ reg             WbWriteError;
 reg    [31:0]   TxDataLatched;
 reg     [1:0]   TxByteCnt;
 reg             LastWord;
-reg             GetNewTxData;
-reg             TxRetryLatched;
+reg             ReadTxDataFromFifo_tck;
 
 reg             Div2;
 reg             Flop;
 
 reg             BlockingTxStatusWrite;
-reg             TxStatusWriteOccured;
 reg             BlockingTxBDRead;
 
-reg             GetNewTxData_wb_latched;
-
-reg             NewTxDataAvaliable_wb;
-
-reg             TxBDAccessed;
 
 reg     [7:0]   TxBDAddress;
 reg     [7:0]   RxBDAddress;
 
 reg             GotDataSync1;
 reg             GotDataSync2;
-wire            TPauseRqSync2;
 wire             GotDataSync3;
+
 reg             GotData;
-reg             SyncGetNewTxData_wb1;
-reg             SyncGetNewTxData_wb2;
-reg             SyncGetNewTxData_wb3;
-reg             TxDoneSync1;
-reg             TxDoneSync2;
-wire             TxDoneSync3;
 reg             TxRetrySync1;
-reg             TxRetrySync2;
-wire            TxRetrySync3;
 reg             TxAbortSync1;
-reg             TxAbortSync2;
-wire            TxAbortSync3;
+reg             TxDoneSync1;
 
 reg             TxAbort_q;
-reg             TxDone_q;
 reg             TxRetry_q;
 reg             TxUsedData_q;
+reg             TxCtrlEndFrm_q;
 
 reg    [31:0]   RxDataLatched2;
 reg    [15:0]   RxDataLatched1;
@@ -259,35 +262,16 @@ reg             RxStartFrmSync1;
 reg             RxStartFrmSync2;
 wire            RxStartFrmSync3;
 
-reg             DMACycleFinishedTx_q;
-reg             DataNotAvaliable;
-
-reg             ClearTxBDReadySync1;
-reg             ClearTxBDReadySync2;
-reg             ClearTxBDReady;
-
-reg             TxCtrlEndFrm_wbSync1;
-reg             TxCtrlEndFrm_wbSync2;
-wire            TxCtrlEndFrm_wbSync3;
-reg             TxCtrlEndFrm_wb;
-
-wire    [15:0]  TxPauseTV;
-wire            ResetDataNotAvaliable;
-wire            SetDataNotAvaliable;
 wire            DWord;                      // Only 32-bit accesses are valid
-wire            BDWe;                       // BD Write Enable for access from WISHBONE side
+wire            BDWrite;                    // BD Write Enable for access from WISHBONE side
 wire            BDRead;                     // BD Read access from WISHBONE side
-wire   [31:0]   BDDataIn;                   // BD data in
+wire   [31:0]   RxBDDataIn;                 // Rx BD data in
+wire   [31:0]   TxBDDataIn;                 // Tx BD data in
 wire   [31:0]   BDDataOut;                  // BD data out
 
-wire            TxEndFrm_wb;
+reg             TxEndFrm_wb;
 
-wire            DMACycleFinishedTx;
-wire            BDStatusWrite;
-
-wire            TxEn;
-wire            RxEn;
-wire            TxRestartPulse;
+wire            TxRetryPulse;
 wire            TxDonePulse;
 wire            TxAbortPulse;
 
@@ -302,8 +286,6 @@ wire            DMACycleFinishedRx;
 wire   [31:0]   WB_BDDataOut;
 
 wire            StartTxBDRead;
-wire            StartTxDataRead;
-wire            ResetTxDataRead;
 wire            StartTxStatusWrite;
 wire            ResetTxStatusWrite;
 
@@ -323,11 +305,9 @@ wire   [15:0]   NewRxStatus;
 wire            SetGotData;
 wire            ResetGotData;
 wire            GotDataEvaluate;
-wire            ResetSyncGetNewTxData_wb;
 wire            ResetTxDoneSync;
 wire            ResetTxRetrySync;
 wire            ResetTxAbortSync;
-wire            SetSyncGetNewTxData_wb;
 
 wire            SetTxAbortSync;
 wire            ResetShiftEnded;
@@ -335,59 +315,222 @@ wire            ResetRxStartFrmSync1;
 wire            StartShiftEnded;
 wire            StartRxStartFrmSync1;
 
-wire            SetClearTxBDReady;
-wire            ResetClearTxBDReady;
+reg             temp_ack;
 
-wire            ResetTxCtrlEndFrm_wb;
-wire            SetTxCtrlEndFrm_wb;
-     
-     
-     
-      
-assign BDWe   = BDCs &  WB_WE_I;
-assign BDRead = BDCs & ~WB_WE_I;
-assign WB_ACK_O = BDWe | BDRead & BDRead_q;  // ACK is delayed one clock because of BLOCKRAM properties when performing read
+`ifdef ETH_REGISTERED_OUTPUTS
+reg             temp_ack2;
+reg [31:0]      registered_ram_do;
+`endif
+
+reg WbEn, WbEn_q;
+reg RxEn, RxEn_q;
+reg TxEn, TxEn_q;
+
+wire ram_ce;
+wire ram_we;
+wire ram_oe;
+reg [7:0]   ram_addr;
+reg [31:0]  ram_di;
+wire [31:0] ram_do;
+
+wire StartTxPointerRead;
+wire ResetTxPointerRead;
+reg  TxPointerRead;
+reg TxEn_needed;
+
+//assign BDWrite = BDCs &  WB_WE_I & WbEn & ~WbEn_q;
+assign BDWrite = BDCs &  WB_WE_I & WbEn & WbEn_q;
+assign BDRead  = BDCs & ~WB_WE_I & WbEn_q;              // Read cycle is longer for one cycle
 
 
+  always @ (posedge WB_CLK_I or posedge WB_RST_I)
+  begin
+    if(WB_RST_I)
+      begin
+        temp_ack <=#Tp 1'b0;
+        `ifdef ETH_REGISTERED_OUTPUTS
+        temp_ack2 <=#Tp 1'b0;
+        registered_ram_do <=#Tp 32'h0;
+        `endif
+      end
+    else
+      begin
+        temp_ack <=#Tp BDWrite | BDRead & ~WbEn;
+        `ifdef ETH_REGISTERED_OUTPUTS
+        temp_ack2 <=#Tp temp_ack;
+        registered_ram_do <=#Tp ram_do;
+        `endif
+      end
+  end
 
-reg EnableRAM;
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    EnableRAM   <=#Tp 1'b0;
-  else
-  if(BDWe)
-    EnableRAM   <=#Tp 1'b1;
-  else
-    EnableRAM   <=#Tp EnableRAM;
-end
+`ifdef ETH_REGISTERED_OUTPUTS
+  assign WB_ACK_O = temp_ack2;
+  assign WB_DAT_O = registered_ram_do;
+`else
+  assign WB_ACK_O = temp_ack;
+  assign WB_DAT_O = ram_do;
+`endif
+
+
 
 
 // Generic synchronous two-port RAM interface
+/*
 generic_tpram     #(8, 32)  i_generic_tpram 
 (
-  .clk_a(WB_CLK_I),   .rst_a(WB_RST_I),         .ce_a(1'b1),        .we_a(BDWe), 
+  .clk_a(WB_CLK_I),   .rst_a(WB_RST_I),         .ce_a(1'b1),        .we_a(BDWrite), 
   .oe_a(EnableRAM),   .addr_a(WB_ADR_I[9:2]),   .di_a(WB_DAT_I),    .do_a(WB_BDDataOut),
   
   .clk_b(WB_CLK_I),   .rst_b(WB_RST_I),         .ce_b(EnableRAM),   .we_b(BDStatusWrite), 
   .oe_b(EnableRAM),   .addr_b(BDAddress[7:0]),  .di_b(BDDataIn),    .do_b(BDDataOut)
 );
+*/
 
 
-// WB_CLK_I is divided by 2. This signal is used for enabling tx and rx operations sequentially
+
+RAMB4_S16 ram1 (.DO(ram_do[15:0]),  .ADDR(ram_addr), .DI(ram_di[15:0]),  .EN(ram_ce), 
+                .CLK(WB_CLK_I),     .WE(ram_we),     .RST(WB_RST_I));
+RAMB4_S16 ram2 (.DO(ram_do[31:16]), .ADDR(ram_addr), .DI(ram_di[31:16]), .EN(ram_ce), 
+                .CLK(WB_CLK_I),     .WE(ram_we),     .RST(WB_RST_I));
+
+
+
+/*
+generic_spram #(8, 32) ram (
+	// Generic synchronous single-port RAM interface
+	.clk(WB_CLK_I), .rst(WB_RST_I), .ce(ram_ce), .we(ram_we), .oe(ram_oe), .addr(ram_addr), .di(ram_di), .do(ram_do)
+);
+*/
+assign ram_ce = 1'b1;
+assign ram_we = BDWrite | TxStatusWrite;    // tu manjka se write kad se vpisuje RxBD status
+assign ram_oe = BDRead | TxEn & TxEn_q & TxBDRead;     // Tu manjka se read kadar se bere RxBD
+
+reg [3:0] xxx_debug;
+
+//assign TxEn_needed = ~TxBDReady | TxPointerRead;
+
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
-    Div2 <=#Tp 1'h0;
+    TxEn_needed <=#Tp 1'b0;
   else
-    Div2 <=#Tp ~Div2;
+  if(~TxBDReady & WbEn)
+    TxEn_needed <=#Tp 1'b1;
+  else
+  if(TxPointerRead & TxEn & TxEn_q)
+    TxEn_needed <=#Tp 1'b0;
 end
 
 
-// Tx_En and Rx_En select who can access the BD memory (Tx or Rx)
-assign TxEn =  Div2 & r_TxEn;
-assign RxEn = ~Div2 & r_RxEn;
 
+
+
+// Enabling access to the RAM for three devices.
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    begin
+      WbEn <=#Tp 1'b1;
+      RxEn <=#Tp 1'b0;
+      TxEn <=#Tp 1'b0;
+      ram_addr <=#Tp 8'h0;
+      ram_di <=#Tp 32'h0;
+      xxx_debug <=#Tp 0;      // igor !!! zbrisi xxx_debug, debug, ...
+    end
+  else
+    begin
+      // Switching between three stages depends on enable signals
+//      casex ({WbEn_q, RxEn_q, TxEn_q, r_RxEn, r_TxEn, TxEn_needed})  // synopsys parallel_case
+      casex ({WbEn_q, RxEn_q, TxEn_q, r_RxEn, r_TxEn & TxEn_needed})  // synopsys parallel_case
+        5'b100_1x :
+          begin
+            WbEn <=#Tp 1'b0;
+            RxEn <=#Tp 1'b1;  // wb access stage and r_RxEn is enabled
+            TxEn <=#Tp 1'b0;
+            ram_addr <=#Tp RxBDAddress;
+            ram_di <=#Tp RxBDDataIn;
+      xxx_debug <=#Tp 1;
+          end
+        5'b100_01 :
+          begin
+            WbEn <=#Tp 1'b0;
+            RxEn <=#Tp 1'b0;
+            TxEn <=#Tp 1'b1;  // wb access stage, r_RxEn is disabled but r_TxEn is enabled
+            ram_addr <=#Tp TxBDAddress + TxPointerRead;
+            ram_di <=#Tp TxBDDataIn;
+      xxx_debug <=#Tp 2;
+          end
+        5'b010_x0 :
+          begin
+            WbEn <=#Tp 1'b1;  // RxEn access stage and r_TxEn is disabled
+            RxEn <=#Tp 1'b0;
+            TxEn <=#Tp 1'b0;
+            ram_addr <=#Tp WB_ADR_I[9:2];
+            ram_di <=#Tp WB_DAT_I;
+      xxx_debug <=#Tp 3;
+          end
+        5'b010_x1 :
+          begin
+            WbEn <=#Tp 1'b0;
+            RxEn <=#Tp 1'b0;
+            TxEn <=#Tp 1'b1;  // RxEn access stage and r_TxEn is enabled
+            ram_addr <=#Tp TxBDAddress + TxPointerRead;
+            ram_di <=#Tp TxBDDataIn;
+      xxx_debug <=#Tp 4;
+          end
+        5'b001_xx :
+          begin
+            WbEn <=#Tp 1'b1;  // TxEn access stage (we always go to wb access stage)
+            RxEn <=#Tp 1'b0;
+            TxEn <=#Tp 1'b0;
+            ram_addr <=#Tp WB_ADR_I[9:2];
+            ram_di <=#Tp WB_DAT_I;
+      xxx_debug <=#Tp 5;
+          end
+        5'b100_00 :
+          begin
+            WbEn <=#Tp 1'b0;  // WbEn access stage and there is no need for other stages. WbEn needs to be switched off for a bit
+      xxx_debug <=#Tp 6;
+          end
+        5'b000_00 :
+          begin
+            WbEn <=#Tp 1'b1;  // Idle state. We go to WbEn access stage.
+            RxEn <=#Tp 1'b0;
+            TxEn <=#Tp 1'b0;
+            ram_addr <=#Tp WB_ADR_I[9:2];
+            ram_di <=#Tp WB_DAT_I;
+      xxx_debug <=#Tp 7;
+          end
+        default :
+          begin
+            WbEn <=#Tp 1'b1;  // We go to wb access stage
+            RxEn <=#Tp 1'b0;
+            TxEn <=#Tp 1'b0;
+            ram_addr <=#Tp WB_ADR_I[9:2];
+            ram_di <=#Tp WB_DAT_I;
+      xxx_debug <=#Tp 8;
+          end
+      endcase
+    end
+end
+
+
+// Delayed stage signals
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    begin
+      WbEn_q <=#Tp 1'b0;
+      RxEn_q <=#Tp 1'b0;
+      TxEn_q <=#Tp 1'b0;
+    end
+  else
+    begin
+      WbEn_q <=#Tp WbEn;
+      RxEn_q <=#Tp RxEn;
+      TxEn_q <=#Tp TxEn;
+    end
+end
 
 // Changes for tx occur every second clock. Flop is used for this manner.
 always @ (posedge MTxClk or posedge WB_RST_I)
@@ -402,6 +545,8 @@ begin
     Flop <=#Tp ~Flop;
 end
 
+wire ResetTxBDReady;
+assign ResetTxBDReady = TxDonePulse | TxAbortPulse | TxRetryPulse;
 
 // Latching READY status of the Tx buffer descriptor
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
@@ -409,35 +554,16 @@ begin
   if(WB_RST_I)
     TxBDReady <=#Tp 1'b0;
   else
-  if(TxEn & TxBDRead)
-    TxBDReady <=#Tp BDDataOut[15]; // TxBDReady=BDDataOut[15]   // TxBDReady is sampled only once at the beginning
+  if(TxEn & TxEn_q & TxBDRead & ~TxPointerRead)
+    TxBDReady <=#Tp ram_do[15]; // TxBDReady is sampled only once at the beginning
   else
-  if(TxDone & ~TxDone_q | TxAbort & ~TxAbort_q | TxRetry & ~TxRetry_q | ClearTxBDReady | TxPauseRq)
+  if(ResetTxBDReady)
     TxBDReady <=#Tp 1'b0;
 end
 
-
-// Latching READY status of the Tx buffer descriptor
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    begin
-      TxPauseRq <=#Tp 1'b0;
-    end
-  else
-  if(TxEn & TxBDRead)
-    begin
-      TxPauseRq <=#Tp BDDataOut[9];    // Tx PAUSE request
-    end
-  else
-      TxPauseRq <=#Tp 1'b0;
-end
-
-
-assign TxPauseTV[15:0] = TxLength[15:0];
 
 // Reading the Tx buffer descriptor
-assign StartTxBDRead = TxEn & ~BlockingTxBDRead & (TxRetry_wb | TxStatusWriteOccured);
+assign StartTxBDRead = (TxRetry_wb | TxStatusWrite) & ~BlockingTxBDRead;
 
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
@@ -447,50 +573,31 @@ begin
   if(StartTxBDRead)
     TxBDRead <=#Tp 1'b1;
   else
-  if(StartTxDataRead | TxPauseRq)
+  if(TxBDReady)
     TxBDRead <=#Tp 1'b0;
 end
 
 
+// Reading Tx BD pointer
+assign StartTxPointerRead = TxBDRead & TxBDReady;
 
-// Requesting data (DMA)
-assign StartTxDataRead = TxBDRead & TxBDReady & ~TxPauseRq | GetNewTxData_wb;
-assign ResetTxDataRead = DMACycleFinishedTx | TxRestartPulse | TxAbortPulse | TxDonePulse;
-
-
-// Reading data
+// Reading Tx BD Pointer
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
-    TxDataRead <=#Tp 1'b0;
+    TxPointerRead <=#Tp 1'b0;
   else
-  if(StartTxDataRead & r_DmaEn)
-    TxDataRead <=#Tp 1'b1;
+  if(StartTxPointerRead)
+    TxPointerRead <=#Tp 1'b1;
   else
-  if(ResetTxDataRead)
-    TxDataRead <=#Tp 1'b0;
+  if(TxEn_q)
+    TxPointerRead <=#Tp 1'b0;
 end
-
-// Requesting tx data from the DMA
-assign WB_REQ_O[0] = TxDataRead;
-assign DMACycleFinishedTx = WB_REQ_O[0] & WB_ACK_I[0] & TxBDReady;
 
 
 // Writing status back to the Tx buffer descriptor
-assign StartTxStatusWrite = TxEn & ~BlockingTxStatusWrite & (TxDone_wb | TxAbort_wb | TxCtrlEndFrm_wb);
-assign ResetTxStatusWrite = TxStatusWrite;
+assign TxStatusWrite = (TxDone_wb | TxAbort_wb) & TxEn & TxEn_q & ~BlockingTxStatusWrite;
 
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxStatusWrite <=#Tp 1'b0;
-  else
-  if(StartTxStatusWrite)
-    TxStatusWrite <=#Tp 1'b1;
-  else
-  if(ResetTxStatusWrite)
-    TxStatusWrite <=#Tp 1'b0;
-end
 
 
 // Status writing must occur only once. Meanwhile it is blocked.
@@ -499,26 +606,11 @@ begin
   if(WB_RST_I)
     BlockingTxStatusWrite <=#Tp 1'b0;
   else
-  if(StartTxStatusWrite)
+  if(TxStatusWrite)
     BlockingTxStatusWrite <=#Tp 1'b1;
   else
   if(~TxDone_wb & ~TxAbort_wb)
     BlockingTxStatusWrite <=#Tp 1'b0;
-end
-
-
-// After a tx status write is finished, a new tx buffer descriptor is read. Signal must be
-// latched because new BD read doesn't occur immediately.
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxStatusWriteOccured <=#Tp 1'b0;
-  else
-  if(StartTxStatusWrite)
-    TxStatusWriteOccured <=#Tp 1'b1;
-  else
-  if(StartTxBDRead)
-    TxStatusWriteOccured <=#Tp 1'b0;
 end
 
 
@@ -531,7 +623,7 @@ begin
   if(StartTxBDRead)
     BlockingTxBDRead <=#Tp 1'b1;
   else
-  if(TxStartFrm_wb | TxCtrlEndFrm_wb)
+  if(TxStartFrm_wb)
     BlockingTxBDRead <=#Tp 1'b0;
 end
 
@@ -541,11 +633,26 @@ end
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
-    TxStatus <=#Tp 32'h0;
+    TxStatus <=#Tp 15'h0;
   else
-  if(TxBDRead & TxEn)
-    TxStatus <=#Tp BDDataOut;
+  if(TxEn & TxEn_q & TxBDRead & ~TxPointerRead)
+    TxStatus <=#Tp ram_do[15:0];
 end
+
+reg ReadDataFromTxBuffer;
+wire WriteDataToRxBuffer = 0; // igor !!! Popravi to, da bo pravilno
+
+reg MasterWbTX;
+reg MasterWbRX;
+
+reg [31:0] m_wb_dat_o;
+reg [31:0] m_wb_adr_o;
+reg        m_wb_cyc_o;
+reg        m_wb_stb_o;
+reg        m_wb_we_o;
+wire [31:0] rx_fifo_data_out = 0; // Spremeni to, da bo pravilno
+wire TxLengthEq0;
+wire TxLengthLt4;
 
 
 //Latching length from the buffer descriptor;
@@ -554,17 +661,217 @@ begin
   if(WB_RST_I)
     TxLength <=#Tp 16'h0;
   else
-  if(TxBDRead & TxEn)
-    TxLength <=#Tp BDDataOut[31:16];
+  if(TxEn & TxEn_q & TxBDRead)
+    TxLength <=#Tp ram_do[31:16];
   else
-  if(GetNewTxData_wb & ~WillSendControlFrame)
+  if(MasterWbTX & m_wb_ack_i)
     begin
-      if(TxLength > 4)
-        TxLength <=#Tp TxLength - 4;    // Length is subtracted at the data request
-      else
+      if(TxLengthLt4)
         TxLength <=#Tp 16'h0;
+      else
+        TxLength <=#Tp TxLength - 3'h4;    // Length is subtracted at the data request
     end
 end
+
+assign TxLengthEq0 = TxLength == 0;
+assign TxLengthLt4 = TxLength < 4;
+
+
+reg BlockingIncrementTxPointer;
+
+reg [31:0] TxPointer;
+reg [31:0] RxPointer;
+
+//Latching Tx buffer pointer from buffer descriptor;
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    TxPointer <=#Tp 0;
+  else
+  if(TxEn & TxEn_q & TxPointerRead)
+    TxPointer <=#Tp ram_do;
+  else
+  if(MasterWbTX & ~BlockingIncrementTxPointer)
+    TxPointer <=#Tp TxPointer + 4;    // Pointer increment
+end
+
+wire MasterAccessFinished;
+
+
+//Latching Tx buffer pointer from buffer descriptor;
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    BlockingIncrementTxPointer <=#Tp 0;
+  else
+  if(MasterAccessFinished)
+    BlockingIncrementTxPointer <=#Tp 0;
+  else
+  if(MasterWbTX)
+    BlockingIncrementTxPointer <=#Tp 1'b1;
+end
+
+wire RxPointerRead = 0; // igor !!! spremeni to da bo pravilno
+//Latching Rx buffer pointer from buffer descriptor;
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    RxPointer <=#Tp 15'h0;
+  else
+  if(RxEn & RxEn_q & RxPointerRead)
+    RxPointer <=#Tp ram_do;
+end
+
+wire TxBufferAlmostFull;
+wire TxBufferFull;
+wire TxBufferEmpty;
+wire TxBufferAlmostEmpty;
+wire ResetReadDataFromTxBuffer;
+wire SetReadDataFromTxBuffer;
+
+reg BlockReadDataFromTxBuffer;
+
+//assign ResetReadDataFromTxBuffer = (TxLength < 4) | TxAbortPulse | TxRetryPulse;
+assign ResetReadDataFromTxBuffer = (TxLengthEq0) | TxAbortPulse | TxRetryPulse;
+assign SetReadDataFromTxBuffer = TxEn & TxEn_q & TxPointerRead;
+
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    ReadDataFromTxBuffer <=#Tp 1'b0;
+  else
+  if(ResetReadDataFromTxBuffer)
+    ReadDataFromTxBuffer <=#Tp 1'b0;
+  else
+  if(SetReadDataFromTxBuffer)
+    ReadDataFromTxBuffer <=#Tp 1'b1;
+end
+
+wire ReadDataFromTxBuffer_2 = ReadDataFromTxBuffer & ~BlockReadDataFromTxBuffer;
+wire [31:0] TxData_wb;
+wire ReadTxDataFromFifo_wb;
+
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    BlockReadDataFromTxBuffer <=#Tp 1'b0;
+  else
+  if(ReadTxDataFromFifo_wb)
+    BlockReadDataFromTxBuffer <=#Tp 1'b0;
+  else
+//  if((TxBufferAlmostFull | TxLengthLt4)& MasterWbTX)
+  if((TxBufferAlmostFull | TxLength <= 4)& MasterWbTX)
+    BlockReadDataFromTxBuffer <=#Tp 1'b1;
+end
+
+
+
+assign MasterAccessFinished = m_wb_ack_i | m_wb_err_i;
+
+assign m_wb_sel_o = 4'hf;
+
+
+ reg [3:0]debug;
+
+
+// Enabling master wishbone access to the memory for two devices TX and RX.
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    begin
+      MasterWbTX <=#Tp 1'b0;
+      MasterWbRX <=#Tp 1'b0;
+      m_wb_dat_o <=#Tp 32'h0;
+      m_wb_adr_o <=#Tp 32'h0;
+      m_wb_cyc_o <=#Tp 1'b0;
+      m_wb_stb_o <=#Tp 1'b0;
+      m_wb_we_o  <=#Tp 1'b0;
+      debug <=#Tp 0;
+    end
+  else
+    begin
+      // Switching between two stages depends on enable signals
+      casex ({MasterWbTX, MasterWbRX, ReadDataFromTxBuffer_2, WriteDataToRxBuffer, MasterAccessFinished})  // synopsys parallel_case full_case
+        5'b00_x1_x :
+          begin
+            MasterWbTX <=#Tp 1'b0;  // idle and master write is needed (data write to rx buffer)
+            MasterWbRX <=#Tp 1'b1;
+            m_wb_dat_o <=#Tp rx_fifo_data_out;
+            m_wb_adr_o <=#Tp RxPointer;
+            m_wb_cyc_o <=#Tp 1'b1;
+            m_wb_stb_o <=#Tp 1'b1;
+            m_wb_we_o  <=#Tp 1'b1;
+            debug <=#Tp 1;
+          end
+        5'b00_10_x :
+          begin
+            $display("\n\tHere we go again");
+            MasterWbTX <=#Tp 1'b1;  // idle and master read is needed (data read from tx buffer)
+            MasterWbRX <=#Tp 1'b0;
+            m_wb_adr_o <=#Tp TxPointer;
+            m_wb_cyc_o <=#Tp 1'b1;
+            m_wb_stb_o <=#Tp 1'b1;
+            m_wb_we_o  <=#Tp 1'b0;
+            debug <=#Tp 2;
+          end
+        5'b10_10_1 :
+          begin
+            $display("\n\tHere we go again");
+            MasterWbTX <=#Tp 1'b1;  // master read and master read is needed (data read from tx buffer)
+            MasterWbRX <=#Tp 1'b0;
+            m_wb_adr_o <=#Tp TxPointer;
+            m_wb_cyc_o <=#Tp 1'b1;
+            m_wb_stb_o <=#Tp 1'b1;
+            m_wb_we_o  <=#Tp 1'b0;
+            debug <=#Tp 6;
+          end
+        5'b01_01_1 :
+          begin
+            MasterWbTX <=#Tp 1'b0;  // master write and master write is needed (data write to rx buffer)
+            MasterWbRX <=#Tp 1'b1;
+            m_wb_dat_o <=#Tp rx_fifo_data_out;
+            m_wb_adr_o <=#Tp RxPointer;
+            m_wb_we_o  <=#Tp 1'b1;
+            debug <=#Tp 7;
+          end
+        5'b10_x1_1 :
+          begin
+            MasterWbTX <=#Tp 1'b0;  // master read and master write is needed (data write to rx buffer)
+            MasterWbRX <=#Tp 1'b1;
+            m_wb_dat_o <=#Tp rx_fifo_data_out;
+            m_wb_adr_o <=#Tp RxPointer;
+            m_wb_we_o  <=#Tp 1'b1;
+            debug <=#Tp 3;
+          end
+        5'b01_1x_1 :
+          begin
+            MasterWbTX <=#Tp 1'b1;  // master write and master read is needed (data read from tx buffer)
+            MasterWbRX <=#Tp 1'b0;
+            m_wb_adr_o <=#Tp TxPointer;
+            m_wb_we_o  <=#Tp 1'b0;
+            debug <=#Tp 4;
+          end
+        5'bxx_00_1 :
+          begin
+            MasterWbTX <=#Tp 1'b0;  // whatever and no master read or write is needed (ack or err comes finishing previous access)
+            MasterWbRX <=#Tp 1'b0;
+            m_wb_cyc_o <=#Tp 1'b0;
+            m_wb_stb_o <=#Tp 1'b0;
+            debug <=#Tp 8;
+          end
+      endcase
+    end
+end
+
+wire TxFifoClear;
+assign TxFifoClear = (TxAbort_wb | TxRetry_wb) & ~TxBDReady;
+eth_fifo tx_fifo (.data_in(m_wb_dat_i),   .data_out(TxData_wb),            .clk(WB_CLK_I), 
+                  .reset(WB_RST_I),       .write(MasterWbTX & m_wb_ack_i), .read(ReadTxDataFromFifo_wb),
+                  .clear(TxFifoClear),    .full(TxBufferFull),             .almost_full(TxBufferAlmostFull),
+                  .almost_empty(TxBufferAlmostEmpty),                      .empty(TxBufferEmpty));
+
+
+
 
 
 // Latching Rx buffer descriptor status
@@ -579,84 +886,140 @@ begin
 end
 
 
-// Signal GetNewTxData_wb that requests new data from the DMA must be latched since the DMA response
-// might be delayed.
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    GetNewTxData_wb_latched <=#Tp 1'b0;
-  else
-  if(GetNewTxData_wb)
-    GetNewTxData_wb_latched <=#Tp 1'b1;
-  else
-  if(DMACycleFinishedTx)
-    GetNewTxData_wb_latched <=#Tp 1'b0;
-end
+reg StartOccured;
+reg TxStartFrm_sync1;
+reg TxStartFrm_sync2;
+reg TxStartFrm_syncb1;
+reg TxStartFrm_syncb2;
 
 
-// New tx data is avaliable after the DMA access is finished
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    NewTxDataAvaliable_wb <=#Tp 1'b0;
-  else
-  if(DMACycleFinishedTx & GetNewTxData_wb_latched)
-    NewTxDataAvaliable_wb <=#Tp 1'b1;
-  else
-  if(NewTxDataAvaliable_wb)
-    NewTxDataAvaliable_wb <=#Tp 1'b0;
-end
 
-
-// Tx Buffer descriptor is only read at the beginning. This signal is used for generation of the
-// TxStartFrm_wb signal.
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxBDAccessed <=#Tp 1'b0;
-  else
-  if(TxBDRead)
-    TxBDAccessed <=#Tp 1'b1;
-  else
-  if(TxStartFrm_wb)
-    TxBDAccessed <=#Tp 1'b0;
-end
-
-
-// TxStartFrm_wb: indicator of the start frame (synchronized to WB_CLK_I)
+// Start: Generation of the TxStartFrm_wb which is then synchronized to the MTxClk
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
     TxStartFrm_wb <=#Tp 1'b0;
   else
-  if(DMACycleFinishedTx & TxBDAccessed & ~TxStartFrm_wb)
+  if(TxBDReady & ~StartOccured & (TxBufferFull | TxLengthEq0))
     TxStartFrm_wb <=#Tp 1'b1;
   else
-  if(TxStartFrm_wb)
+  if(TxStartFrm_syncb2)
     TxStartFrm_wb <=#Tp 1'b0;
 end
+
+// StartOccured: TxStartFrm_wb occurs only ones at the beginning. Then it's blocked.
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    StartOccured <=#Tp 1'b0;
+  else
+  if(TxStartFrm_wb)
+    StartOccured <=#Tp 1'b1;
+  else
+  if(ResetTxBDReady)
+    StartOccured <=#Tp 1'b0;
+end
+
+// Synchronizing TxStartFrm_wb to MTxClk
+always @ (posedge MTxClk or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    TxStartFrm_sync1 <=#Tp 1'b0;
+  else
+    TxStartFrm_sync1 <=#Tp TxStartFrm_wb;
+end
+
+always @ (posedge MTxClk or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    TxStartFrm_sync2 <=#Tp 1'b0;
+  else
+    TxStartFrm_sync2 <=#Tp TxStartFrm_sync1;
+end
+
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    TxStartFrm_syncb1 <=#Tp 1'b0;
+  else
+    TxStartFrm_syncb1 <=#Tp TxStartFrm_sync2;
+end
+
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    TxStartFrm_syncb2 <=#Tp 1'b0;
+  else
+    TxStartFrm_syncb2 <=#Tp TxStartFrm_syncb1;
+end
+
+always @ (posedge MTxClk or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    TxStartFrm <=#Tp 1'b0;
+  else
+  if(TxStartFrm_sync2)
+    TxStartFrm <=#Tp 1'b1;      // igor !!! Dodaj se pogoj, da ni vmes prisel kaksen abort ali kaj podobnega
+  else
+  if(TxUsedData_q)
+    TxStartFrm <=#Tp 1'b0;
+end
+// End: Generation of the TxStartFrm_wb which is then synchronized to the MTxClk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // TxEndFrm_wb: indicator of the end of frame
-assign TxEndFrm_wb = (TxLength <= 4) & TxUsedData;
-
-
-// Input latch of the end-of-frame indicator
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
-    TxEndFrm_wbLatched <=#Tp 1'b0;
+    TxEndFrm_wb <=#Tp 1'b0;
   else
-  if(TxEndFrm_wb)
-    TxEndFrm_wbLatched <=#Tp 1'b1;
+  if(TxLengthLt4 & TxBufferAlmostEmpty & TxUsedData)
+    TxEndFrm_wb <=#Tp 1'b1;
   else
-  if(TxRestartPulse | TxDonePulse | TxAbortPulse)
-    TxEndFrm_wbLatched <=#Tp 1'b0;
+  if(TxRetryPulse | TxDonePulse | TxAbortPulse)
+    TxEndFrm_wb <=#Tp 1'b0;
 end
 
 
 // Marks which bytes are valid within the word.
-assign TxValidBytes = (TxLength >= 4)? 2'b0 : TxLength[1:0];
+assign TxValidBytes = TxLengthLt4 ? TxLength[1:0] : 2'b0;
+
+reg LatchValidBytes;
+reg LatchValidBytes_q;
+
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    LatchValidBytes <=#Tp 1'b0;
+  else
+  if(TxLengthLt4 & TxBDReady)
+    LatchValidBytes <=#Tp 1'b1;
+  else
+    LatchValidBytes <=#Tp 1'b0;
+end
+
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    LatchValidBytes_q <=#Tp 1'b0;
+  else
+    LatchValidBytes_q <=#Tp LatchValidBytes;
+end
 
 
 // Latching valid bytes
@@ -665,33 +1028,11 @@ begin
   if(WB_RST_I)
     TxValidBytesLatched <=#Tp 2'h0;
   else
-  if(TxEndFrm_wb & ~TxEndFrm_wbLatched)
+  if(LatchValidBytes & ~LatchValidBytes_q)
     TxValidBytesLatched <=#Tp TxValidBytes;
   else
-  if(TxRestartPulse | TxDonePulse | TxAbortPulse)
+  if(TxRetryPulse | TxDonePulse | TxAbortPulse)
     TxValidBytesLatched <=#Tp 2'h0;
-end
-
-
-// Input Tx data latch 
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxDataLatched_wb <=#Tp 32'h0;
-  else
-  if(DMACycleFinishedTx)
-    TxDataLatched_wb <=#Tp WB_DAT_I;
-end
-
-
-// TxStartFrmRequest is set when a new frame is avaliable or when new data of the same frame is avaliable)
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxStartFrmRequest <=#Tp 1'b0;
-  else
-  if(TxStartFrm_wb | NewTxDataAvaliable_wb)
-    TxStartFrmRequest <=#Tp TxStartFrm_wb;
 end
 
 
@@ -745,9 +1086,9 @@ assign WrapRxStatusBit = RxStatus[13];
 
 
 // Temporary Tx and Rx buffer descriptor address 
-assign TempTxBDAddress[7:0] = {8{ TxStatusWrite    & ~WrapTxStatusBit}} & (TxBDAddress + 1) ; // Tx BD increment or wrap (last BD)
+assign TempTxBDAddress[7:0] = {8{ TxStatusWrite     & ~WrapTxStatusBit}} & (TxBDAddress + 2'h2) ; // Tx BD increment or wrap (last BD)
 assign TempRxBDAddress[7:0] = {8{ WrapRxStatusBit}} & (r_TxBDNum)       | // Using first Rx BD
-                              {8{~WrapRxStatusBit}} & (RxBDAddress + 1) ; // Using next Rx BD (incremenrement address)
+                              {8{~WrapRxStatusBit}} & (RxBDAddress + 2'h2) ; // Using next Rx BD (incremenrement address)
 
 
 // Latching Tx buffer descriptor address
@@ -793,10 +1134,12 @@ assign NewRxStatus[15:0] = {1'b0, WbWriteError, RxStatus[13:0]};
 
 
 //assign BDDataIn  = TxStatusWrite ? {TxLength[15:0], StatusIzTxEthMACModula} : {RxLength, NewRxStatus};
-assign BDDataIn  = TxStatusWrite ? {TxStatus[31:9], 9'h0} 
-                                 : {RxLength, NewRxStatus};
-
-assign BDStatusWrite = TxStatusWrite | RxStatusWrite;
+//assign BDDataIn  = TxStatusWrite ? {TxStatus[31:9], 9'h0} 
+//                                 : {RxLength, NewRxStatus};
+assign RxBDDataIn = {RxLength, NewRxStatus};  // tu dopolni, da se bo vpisoval status
+//assign TxBDDataIn = {16'h0, TxStatus[15:9], 9'h0};   // tu dopolni, da se bo vpisoval status
+//assign TxBDDataIn = {32'hdead00ef};   // tu dopolni, da se bo vpisoval status
+assign TxBDDataIn = {32'h004380ef};   // tu dopolni, da se bo vpisoval status
 
 
 // Generating delayed signals
@@ -804,25 +1147,19 @@ always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
     begin
-      TxRestart_wb_q        <=#Tp 1'b0;
-      TxDone_wb_q           <=#Tp 1'b0;
-      TxAbort_wb_q          <=#Tp 1'b0;
+      TxRetry_wb_q          <=#Tp 1'b0;
       BDRead_q              <=#Tp 1'b0;
-      DMACycleFinishedTx_q  <=#Tp 1'b0;
     end
   else
     begin
-      TxRestart_wb_q        <=#Tp TxRetry_wb;
-      TxDone_wb_q           <=#Tp TxDone_wb;
-      TxAbort_wb_q          <=#Tp TxAbort_wb;
+      TxRetry_wb_q          <=#Tp TxRetry_wb;
       BDRead_q              <=#Tp BDRead;
-      DMACycleFinishedTx_q  <=#Tp DMACycleFinishedTx;
     end                 
 end                      
 
 
 // Signals used for various purposes
-assign TxRestartPulse = TxRetry_wb   & ~TxRestart_wb_q;
+assign TxRetryPulse   = TxRetry_wb   & ~TxRetry_wb_q;
 assign TxDonePulse    = TxDone_wb    & ~TxDone_wb_q;
 assign TxAbortPulse   = TxAbort_wb   & ~TxAbort_wb_q;
 
@@ -852,7 +1189,7 @@ begin
   if(WB_RST_I)
     WB_RD_O <=#Tp 1'b0;
   else
-  if(TxRestartPulse)
+  if(TxRetryPulse)
     WB_RD_O <=#Tp 1'b1;
   else
   if(WB_RD_O)
@@ -860,60 +1197,47 @@ begin
 end
 
 
-assign SetClearTxBDReady = ~TxUsedData & TxUsedData_q;
-assign ResetClearTxBDReady = ClearTxBDReady | WB_RST_I;
+// assign ClearTxBDReady = ~TxUsedData & TxUsedData_q;
+
+assign TPauseRq = 0; // igor !!! v koncni fazi mora tu biti pause request
+assign TxPauseTV[15:0] = TxLength[15:0]; // igor !!! v koncni fazi mora tu biti pause request
+
+// reg  WillSendControlFrameSync1;
+// reg  WillSendControlFrameSync2;
+// reg  WillSendControlFrameSync3;
+// wire WillSendControlFrame_wb;
 
 
-always @ (posedge SetClearTxBDReady or posedge ResetClearTxBDReady)
-begin
-  if(ResetClearTxBDReady)
-    ClearTxBDReadySync1 <=#Tp 1'b0;
-  else
-    ClearTxBDReadySync1 <=#Tp 1'b1;
-end
-
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    ClearTxBDReadySync2 <=#Tp 1'b0;
-  else
-  if(ClearTxBDReadySync1 & ~ClearTxBDReady)
-    ClearTxBDReadySync2 <=#Tp 1'b1;
-  else
-    ClearTxBDReadySync2 <=#Tp 1'b0;
-end
-
-
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    ClearTxBDReady <=#Tp 1'b0;
-  else
-  if(ClearTxBDReadySync2 & ~ClearTxBDReady)
-    ClearTxBDReady <=#Tp 1'b1;
-  else
-    ClearTxBDReady <=#Tp 1'b0;
-end
+// always @ (posedge WB_CLK_I or posedge WB_RST_I)
+// begin
+//   if(WB_RST_I)
+//     WillSendControlFrameSync1 <=#Tp 1'b0;
+//   else
+//     WillSendControlFrameSync1 <=#Tp WillSendControlFrame;
+// end
+// 
+// always @ (posedge WB_CLK_I or posedge WB_RST_I)
+// begin
+//   if(WB_RST_I)
+//     WillSendControlFrameSync2 <=#Tp 1'b0;
+//   else
+//     WillSendControlFrameSync2 <=#Tp WillSendControlFrameSync1;
+// end
+// 
+// always @ (posedge WB_CLK_I or posedge WB_RST_I)
+// begin
+//   if(WB_RST_I)
+//     WillSendControlFrameSync3 <=#Tp 1'b0;
+//   else
+//     WillSendControlFrameSync3 <=#Tp WillSendControlFrameSync2;
+// end
+// 
+// assign WillSendControlFrame_wb = WillSendControlFrameSync2 & ~WillSendControlFrameSync3;
 
 
 
-// Latching and synchronizing the Tx pause request signal
-eth_sync_clk1_clk2 syn1 (.clk1(MTxClk),     .clk2(WB_CLK_I),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-                         .set2(TxPauseRq),  .sync_out(TPauseRqSync2)
-                        );
 
 
-always @ (posedge MTxClk or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TPauseRq <=#Tp 1'b0;
-  else
-  if(TPauseRq )
-    TPauseRq <=#Tp 1'b0;
-  else
-  if(TPauseRqSync2)
-    TPauseRq <=#Tp 1'b1;
-end
 
 
 
@@ -922,31 +1246,46 @@ always @ (posedge MTxClk or posedge WB_RST_I)
 begin
   if(WB_RST_I)
     begin
-      TxAbort_q     <=#Tp 1'b0;
-      TxDone_q      <=#Tp 1'b0;
-      TxRetry_q     <=#Tp 1'b0;
-      TxUsedData_q  <=#Tp 1'b0;
+      TxAbort_q      <=#Tp 1'b0;
+      TxRetry_q      <=#Tp 1'b0;
+      TxUsedData_q   <=#Tp 1'b0;
+      TxCtrlEndFrm_q <=#Tp 1'b0;
     end
   else
     begin
-      TxAbort_q     <=#Tp TxAbort;
-      TxDone_q      <=#Tp TxDone;
-      TxRetry_q     <=#Tp TxRetry;
-      TxUsedData_q  <=#Tp TxUsedData;
+      TxAbort_q      <=#Tp TxAbort;
+      TxRetry_q      <=#Tp TxRetry;
+      TxUsedData_q   <=#Tp TxUsedData;
+      TxCtrlEndFrm_q <=#Tp TxCtrlEndFrm;
+    end
+end
+
+// Generating delayed signals
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    begin
+      TxDone_wb_q   <=#Tp 1'b0;
+      TxAbort_wb_q  <=#Tp 1'b0;
+    end
+  else
+    begin
+      TxDone_wb_q   <=#Tp TxDone_wb;
+      TxAbort_wb_q  <=#Tp TxAbort_wb;
     end
 end
 
 
-
 // Sinchronizing and evaluating tx data
-assign SetGotData = (TxStartFrm_wb | NewTxDataAvaliable_wb & ~TxAbort_wb & ~TxRetry_wb) & ~WB_CLK_I;
+//assign SetGotData = (TxStartFrm_wb | NewTxDataAvaliable_wb & ~TxAbort_wb & ~TxRetry_wb) & ~WB_CLK_I;
+assign SetGotData = (TxStartFrm_wb); // igor namesto zgornje
 
 eth_sync_clk1_clk2 syn2 (.clk1(MTxClk),     .clk2(WB_CLK_I),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
                          .set2(SetGotData), .sync_out(GotDataSync3));
 
 
 // Evaluating data. If abort or retry occured meanwhile than data is ignored.
-assign GotDataEvaluate = GotDataSync3 & ~GotData & (~TxRetry & ~TxAbort | (TxRetry | TxAbort) & (TxStartFrmRequest | TxStartFrm));
+assign GotDataEvaluate = GotDataSync3 & ~GotData & (~TxRetry & ~TxAbort | (TxRetry | TxAbort) & (TxStartFrm));
 
 
 // Indication of good data
@@ -962,19 +1301,19 @@ begin
 end
 
 
-// Tx start frame generation
-always @ (posedge MTxClk or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxStartFrm <=#Tp 1'b0;
-  else
-  if(TxUsedData_q | TxAbort & ~TxAbort_q | TxRetry & ~TxRetry_q)
-    TxStartFrm <=#Tp 1'b0;
-  else
-  if(TxBDReady & GotData & TxStartFrmRequest)
-    TxStartFrm <=#Tp 1'b1;
-end
-
+// // Tx start frame generation
+// always @ (posedge MTxClk or posedge WB_RST_I)
+// begin
+//   if(WB_RST_I)
+//     TxStartFrm <=#Tp 1'b0;
+//   else
+//   if(TxUsedData_q | TxAbort & ~TxAbort_q | TxRetry & ~TxRetry_q)
+//     TxStartFrm <=#Tp 1'b0;
+//   else
+//   if(TxBDReady & GotData & TxStartFrmRequest)
+//     TxStartFrm <=#Tp 1'b1;
+// end
+// 
 
 // Indication of the last word
 always @ (posedge MTxClk or posedge WB_RST_I)
@@ -986,7 +1325,8 @@ begin
     LastWord <=#Tp 1'b0;
   else
   if(TxUsedData & Flop & TxByteCnt == 2'h3)
-    LastWord <=#Tp TxEndFrm_wbLatched;
+//    LastWord <=#Tp TxEndFrm_wbLatched;
+    LastWord <=#Tp TxEndFrm_wb;
 end
 
 
@@ -996,7 +1336,7 @@ begin
   if(WB_RST_I)
     TxEndFrm <=#Tp 1'b0;
   else
-  if(Flop & TxEndFrm | TxAbort | TxRetry_q)
+  if(Flop & TxEndFrm | TxAbort | TxRetry_q)     // igor !!! zakaj je tu TxRetry_q ?
     TxEndFrm <=#Tp 1'b0;        
   else
   if(Flop & LastWord)
@@ -1018,8 +1358,8 @@ begin
   if(WB_RST_I)
     TxData <=#Tp 8'h0;
   else
-  if(GotData & ~TxStartFrm & ~TxUsedData)
-    TxData <=#Tp TxDataLatched_wb[7:0];
+  if(TxStartFrm_sync2 & ~TxStartFrm)
+    TxData <=#Tp TxData_wb[7:0];
   else
   if(TxUsedData & Flop)
     begin
@@ -1039,38 +1379,21 @@ begin
   if(WB_RST_I)
     TxDataLatched[31:0] <=#Tp 32'h0;
   else
-  if(GotData & ~TxUsedData & ~TxStartFrm)
-    TxDataLatched[31:0] <=#Tp TxDataLatched_wb[31:0];
-  else
-  if(TxUsedData & Flop & TxByteCnt == 2'h3)
-    TxDataLatched[31:0] <=#Tp TxDataLatched_wb[31:0];
-end
-
-
-// Generation of the DataNotAvaliable signal which is used for the generation of the TxUnderRun signal
-assign ResetDataNotAvaliable = DMACycleFinishedTx_q | WB_RST_I;
-assign SetDataNotAvaliable = GotData & ~TxUsedData & ~TxStartFrm | TxUsedData & Flop & TxByteCnt == 2'h3;
-
-always @ (posedge MTxClk or posedge ResetDataNotAvaliable)
-begin
-  if(ResetDataNotAvaliable)
-    DataNotAvaliable <=#Tp 1'b0;
-  else
-  if(SetDataNotAvaliable) // data is latched here
-    DataNotAvaliable <=#Tp 1'b1;
+  if(TxStartFrm_sync2 & ~TxStartFrm | TxUsedData & Flop & TxByteCnt == 2'h3)
+    TxDataLatched[31:0] <=#Tp TxData_wb[31:0];
 end
 
 
 // Tx under run
-always @ (posedge MTxClk or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
     TxUnderRun <=#Tp 1'b0;
   else
-  if(TxAbort & ~TxAbort_q)
+  if(TxAbortPulse)
     TxUnderRun <=#Tp 1'b0;
   else
-  if(TxUsedData & Flop & TxByteCnt == 2'h3 & ~LastWord & DataNotAvaliable)
+  if(TxBufferEmpty & ReadTxDataFromFifo_wb)
     TxUnderRun <=#Tp 1'b1;
 end
 
@@ -1093,196 +1416,137 @@ begin
 end
 
 
-// Generation of the GetNewTxData signal
+// Start: Generation of the ReadTxDataFromFifo_tck signal and synchronization to the WB_CLK_I
+reg ReadTxDataFromFifo_sync1;
+reg ReadTxDataFromFifo_sync2;
+reg ReadTxDataFromFifo_sync3;
+reg ReadTxDataFromFifo_syncb1;
+reg ReadTxDataFromFifo_syncb2;
+
+
 always @ (posedge MTxClk or posedge WB_RST_I)
 begin
   if(WB_RST_I)
-    GetNewTxData <=#Tp 1'b0;
+    ReadTxDataFromFifo_tck <=#Tp 1'b0;
   else
-  if(GetNewTxData)
-    GetNewTxData <=#Tp 1'b0;
+  if(ReadTxDataFromFifo_syncb2)
+    ReadTxDataFromFifo_tck <=#Tp 1'b0;
   else
-  if(TxBDReady & GotData & ~(TxStartFrm | TxUsedData))
-     GetNewTxData <=#Tp 1'b1;
-  else
-  if(TxUsedData & ~TxEndFrm_wbLatched & TxByteCnt == 2'h3)
-    GetNewTxData <=#Tp ~LastWord;
+//  if(TxUsedData & ~TxEndFrm_wbLatched & TxByteCnt == 2'h3)
+//    ReadTxDataFromFifo_tck <=#Tp ~LastWord;
+//  if(TxStartFrm_sync2 & ~TxStartFrm | TxUsedData & Flop & TxByteCnt == 2'h3)
+  if(TxStartFrm_sync2 & ~TxStartFrm | TxUsedData & Flop & TxByteCnt == 2'h3 & ~LastWord)
+     ReadTxDataFromFifo_tck <=#Tp 1'b1;
 end
 
+// Synchronizing TxStartFrm_wb to MTxClk
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    ReadTxDataFromFifo_sync1 <=#Tp 1'b0;
+  else
+    ReadTxDataFromFifo_sync1 <=#Tp ReadTxDataFromFifo_tck;
+end
 
-// TxRetryLatched
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    ReadTxDataFromFifo_sync2 <=#Tp 1'b0;
+  else
+    ReadTxDataFromFifo_sync2 <=#Tp ReadTxDataFromFifo_sync1;
+end
+
 always @ (posedge MTxClk or posedge WB_RST_I)
 begin
   if(WB_RST_I)
-    TxRetryLatched <=#Tp 1'b0;
+    ReadTxDataFromFifo_syncb1 <=#Tp 1'b0;
   else
-  if(TxStartFrm)
-    TxRetryLatched <=#Tp 1'b0;
-  else
-  if(TxRetry)
-    TxRetryLatched <=#Tp 1'b1;
-end    
-
-
-
-// Synchronizing request for a new tx data
-
-//ne eth_sync_clk1_clk2 syn3 (.clk1(MTxClk),     .clk2(WB_CLK_I),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-//                         .set2(SetGotData), .sync_out(GotDataSync3));
-
-// This section still needs to be changed due to ASIC demands
-assign ResetSyncGetNewTxData_wb = SyncGetNewTxData_wb3 | TxAbort_wb | TxRetry_wb | WB_RST_I;
-assign SetSyncGetNewTxData_wb = GetNewTxData;
-
-
-// Sync. stage 1
-always @ (posedge SetSyncGetNewTxData_wb or posedge ResetSyncGetNewTxData_wb)
-begin
-  if(ResetSyncGetNewTxData_wb)
-    SyncGetNewTxData_wb1 <=#Tp 1'b0;
-  else
-    SyncGetNewTxData_wb1 <=#Tp 1'b1;
+    ReadTxDataFromFifo_syncb1 <=#Tp ReadTxDataFromFifo_sync2;
 end
 
+always @ (posedge MTxClk or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    ReadTxDataFromFifo_syncb2 <=#Tp 1'b0;
+  else
+    ReadTxDataFromFifo_syncb2 <=#Tp ReadTxDataFromFifo_syncb1;
+end
 
-// Sync. stage 2
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
-    SyncGetNewTxData_wb2 <=#Tp 1'b0;
+    ReadTxDataFromFifo_sync3 <=#Tp 1'b0;
   else
-  if(SyncGetNewTxData_wb1 & ~GetNewTxData_wb & ~TxAbort_wb & ~TxRetry_wb)
-    SyncGetNewTxData_wb2 <=#Tp 1'b1;
-  else
-    SyncGetNewTxData_wb2 <=#Tp 1'b0;
+    ReadTxDataFromFifo_sync3 <=#Tp ReadTxDataFromFifo_sync2;
 end
 
+assign ReadTxDataFromFifo_wb = ReadTxDataFromFifo_sync2 & ~ReadTxDataFromFifo_sync3;
+// End: Generation of the ReadTxDataFromFifo_tck signal and synchronization to the WB_CLK_I
 
-// Sync. stage 3
+
+// Synchronizing TxRetry signal (synchronized to WISHBONE clock)
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
-    SyncGetNewTxData_wb3 <=#Tp 1'b0;
+    TxRetrySync1 <=#Tp 1'b0;
   else
-  if(SyncGetNewTxData_wb2 & ~GetNewTxData_wb & ~TxAbort_wb & ~TxRetry_wb)
-    SyncGetNewTxData_wb3 <=#Tp 1'b1;
-  else
-    SyncGetNewTxData_wb3 <=#Tp 1'b0;
+    TxRetrySync1 <=#Tp TxRetry;
 end
 
-
-// Synchronized request for a new tx data
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    GetNewTxData_wb <=#Tp 1'b0;
-  else
-  if(GetNewTxData_wb)
-    GetNewTxData_wb <=#Tp 1'b0;
-  else
-  if(SyncGetNewTxData_wb3 & ~GetNewTxData_wb & ~TxAbort_wb & ~TxRetry_wb)
-    GetNewTxData_wb <=#Tp 1'b1;
-end
-
-
-// Synchronizine transmit done signal
-// Sinchronizing and evaluating tx data
-eth_sync_clk1_clk2 syn4 (.clk1(WB_CLK_I),     .clk2(MTxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-                         .set2(TxDone),       .sync_out(TxDoneSync3)
-                        );
-
-
-// Syncronized signal TxDone_wb (sync. to WISHBONE clock)
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxDone_wb <=#Tp 1'b0;
-  else
-  if(TxStartFrm_wb | WillSendControlFrame)
-    TxDone_wb <=#Tp 1'b0;
-  else
-  if(TxDoneSync3 & ~TxStartFrmRequest)
-    TxDone_wb <=#Tp 1'b1;
-end
-
-
-assign ResetTxCtrlEndFrm_wb = TxCtrlEndFrm_wb | WB_RST_I;
-assign SetTxCtrlEndFrm_wb = TxCtrlEndFrm;
-
-
-// Sync stage 1
-always @ (posedge SetTxCtrlEndFrm_wb or posedge ResetTxCtrlEndFrm_wb)
-begin
-  if(ResetTxCtrlEndFrm_wb)
-    TxCtrlEndFrm_wbSync1 <=#Tp 1'b0;
-  else
-    TxCtrlEndFrm_wbSync1 <=#Tp 1'b1;
-end
-
-
-// Sync stage 2
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxCtrlEndFrm_wbSync2 <=#Tp 1'b0;
-  else
-  if(TxCtrlEndFrm_wbSync1 & ~TxCtrlEndFrm_wb)
-    TxCtrlEndFrm_wbSync2 <=#Tp 1'b1;
-  else
-    TxCtrlEndFrm_wbSync2 <=#Tp 1'b0;
-end
-
-
-// Synchronized Tx  control end frame
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxCtrlEndFrm_wb <=#Tp 1'b0;
-  else
-  if(TxCtrlEndFrm_wbSync2 & ~TxCtrlEndFrm_wb)
-    TxCtrlEndFrm_wb <=#Tp 1'b1;
-  else
-  if(StartTxStatusWrite)
-    TxCtrlEndFrm_wb <=#Tp 1'b0;
-end
-
-
-// Synchronizing TxRetry signal
-eth_sync_clk1_clk2 syn6 (.clk1(WB_CLK_I),       .clk2(MTxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-                         .set2(TxRetryLatched), .sync_out(TxRetrySync3));
-
-
-// Synchronized signal TxRetry_wb (synchronized to WISHBONE clock)
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
     TxRetry_wb <=#Tp 1'b0;
   else
-  if(TxStartFrm_wb | WillSendControlFrame)
-    TxRetry_wb <=#Tp 1'b0;
-  else
-  if(TxRetrySync3)
-    TxRetry_wb <=#Tp 1'b1;
+    TxRetry_wb <=#Tp TxRetrySync1;
 end
 
 
-// Synchronizing TxAbort signal
-eth_sync_clk1_clk2 syn7 (.clk1(WB_CLK_I), .clk2(MTxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
-                         .set2(TxAbort),  .sync_out(TxAbortSync3));
+// Synchronized TxDone_wb signal (synchronized to WISHBONE clock)
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    TxDoneSync1 <=#Tp 1'b0;
+  else
+    TxDoneSync1 <=#Tp TxDone;
+end
 
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    TxDone_wb <=#Tp 1'b0;
+  else
+    TxDone_wb <=#Tp TxDoneSync1;
+end
 
-// Synchronized TxAbort_wb signal (synchronized to WISHBONE clock)
+// Synchronizing TxAbort signal (synchronized to WISHBONE clock)
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    TxAbortSync1 <=#Tp 1'b0;
+  else
+    TxAbortSync1 <=#Tp TxAbort;
+end
+
 always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
     TxAbort_wb <=#Tp 1'b0;
   else
-  if(TxStartFrm_wb)
-    TxAbort_wb <=#Tp 1'b0;
-  else
-  if(TxAbortSync3 & ~TxStartFrmRequest)
-    TxAbort_wb <=#Tp 1'b1;
+    TxAbort_wb <=#Tp TxAbortSync1;
 end
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // Reading of the next receive buffer descriptor starts after reception status is
@@ -1596,7 +1860,7 @@ end
 
 
 // Selecting the data for the WISHBONE
-assign WB_DAT_O[31:0] = BDRead? WB_BDDataOut : RxData_wb;
+//assign WB_DAT_O[31:0] = BDRead? WB_BDDataOut : RxData_wb;
 
 
 // Generation of the end-of-frame signal
