@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2002/04/22 13:51:44  mohor
+// Short frame and ReceivedLengthOK were not detected correctly.
+//
 // Revision 1.8  2002/02/18 10:40:17  mohor
 // Small fixes.
 //
@@ -93,7 +96,7 @@ module eth_macstatus(
                       r_RecSmall, r_MinFL, r_MaxFL, ShortFrame, DribbleNibble, ReceivedPacketTooBig, r_HugEn,
                       LoadRxStatus, StartTxDone, StartTxAbort, RetryCnt, RetryCntLatched, MTxClk, MaxCollisionOccured, 
                       RetryLimit, LateCollision, LateCollLatched, StartDefer, DeferLatched, TxStartFrm,
-                      StatePreamble, StateData, CarrierSense, CarrierSenseLost, TxUsedData
+                      StatePreamble, StateData, CarrierSense, CarrierSenseLost, TxUsedData, LatchedMRxErr
                     );
 
 
@@ -153,6 +156,7 @@ output        RetryLimit;
 output        LateCollLatched;
 output        DeferLatched;
 output        CarrierSenseLost;
+output        LatchedMRxErr;
 
 
 reg           ReceiveEnd;
@@ -190,16 +194,15 @@ begin
   if(Reset)
     LatchedMRxErr <=#Tp 1'b0;
   else
-  if(~MRxErr & MRxDV & RxStateIdle & ~Transmitting)
-    LatchedMRxErr <=#Tp 1'b0;
-  else
   if(MRxErr & MRxDV & (RxStatePreamble | RxStateSFD | (|RxStateData) | RxStateIdle & ~Transmitting))
     LatchedMRxErr <=#Tp 1'b1;
+  else
+    LatchedMRxErr <=#Tp 1'b0;
 end
 
 
 // ReceivedPacketGood
-assign ReceivedPacketGood = ~LatchedCrcError & ~LatchedMRxErr;
+assign ReceivedPacketGood = ~LatchedCrcError;
 
 
 // ReceivedLengthOK
@@ -236,7 +239,7 @@ end
 
 
 // Invalid Symbol received during 100Mbps mode
-assign SetInvalidSymbol = MRxDV & MRxErr & ~LatchedMRxErr & MRxD[3:0] == 4'he;
+assign SetInvalidSymbol = MRxDV & MRxErr & MRxD[3:0] == 4'he;
 
 
 // InvalidSymbol
