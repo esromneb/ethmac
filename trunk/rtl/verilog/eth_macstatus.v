@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2002/02/18 10:40:17  mohor
+// Small fixes.
+//
 // Revision 1.7  2002/02/15 17:07:39  mohor
 // Status was not written correctly when frames were discarted because of
 // address mismatch.
@@ -200,7 +203,7 @@ assign ReceivedPacketGood = ~LatchedCrcError & ~LatchedMRxErr;
 
 
 // ReceivedLengthOK
-assign ReceivedLengthOK = RxByteCnt[15:0] > 63 & RxByteCnt[15:0] < 1519;
+assign ReceivedLengthOK = RxByteCnt[15:0] >= r_MinFL[15:0] & RxByteCnt[15:0] <= r_MaxFL[15:0];
 
 
 
@@ -292,7 +295,7 @@ begin
     ShortFrame <=#Tp 1'b0;
   else
   if(TakeSample)
-    ShortFrame <=#Tp r_RecSmall & RxByteCnt[15:0] < r_MinFL[15:0];
+    ShortFrame <=#Tp RxByteCnt[15:0] < r_MinFL[15:0];
 end
 
 
