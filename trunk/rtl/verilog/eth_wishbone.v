@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2002/02/15 11:59:10  mohor
+// Changes that were lost when updating from 1.5 to 1.8 fixed.
+//
 // Revision 1.8  2002/02/14 20:54:33  billditt
 // Addition  of new module eth_addrcheck.v
 //
@@ -374,7 +377,7 @@ generic_spram #(8, 32) ram (
 
 assign ram_ce = 1'b1;
 assign ram_we = BDWrite & WbEn & WbEn_q | TxStatusWrite | RxStatusWrite;
-assign ram_oe = BDRead & WbEn & WbEn_q | TxEn & TxEn_q & (TxBDRead | TxPointerRead) | RxEn & RxEn_q & (RxBDRead | RxPointerRead);     // Tu manjka se read kadar se bere RxBD
+assign ram_oe = BDRead & WbEn & WbEn_q | TxEn & TxEn_q & (TxBDRead | TxPointerRead) | RxEn & RxEn_q & (RxBDRead | RxPointerRead);
 
 
 always @ (posedge WB_CLK_I or posedge Reset)
@@ -889,9 +892,9 @@ begin
     TxStartFrm <=#Tp 1'b0;
   else
   if(TxStartFrm_sync2)
-    TxStartFrm <=#Tp 1'b1;      // igor !!! Dodaj se pogoj, da ni vmes prisel kaksen abort ali kaj podobnega
+    TxStartFrm <=#Tp 1'b1;
   else
-  if(TxUsedData_q)
+  if(TxUsedData_q | ~TxStartFrm_sync2 & (TxRetry | TxAbort))
     TxStartFrm <=#Tp 1'b0;
 end
 // End: Generation of the TxStartFrm_wb which is then synchronized to the MTxClk
@@ -1313,7 +1316,7 @@ begin
   if(RxEn & RxEn_q & RxBDRead)
     RxBDReady <=#Tp ram_do[15]; // RxBDReady is sampled only once at the beginning
   else
-  if(ShiftEnded | RxAbort)   // igor !!! tx del ima tu ResetTxBDReady
+  if(ShiftEnded | RxAbort)
     RxBDReady <=#Tp 1'b0;
 end
 
@@ -1737,25 +1740,24 @@ end
 
          
 // TX
-// bit 15 od tx je ready
-// bit 14 od tx je interrupt (Tx buffer ali tx error bit se postavi v interrupt registru, ko se ta buffer odda)
-// bit 13 od tx je wrap
-// bit 12 od tx je pad
-// bit 11 od tx je crc
-// bit 10 od tx je last (crc se doda le ce je bit 11 in hkrati bit 10)
-// bit 9  od tx je pause request (control frame)
-    // Vsi zgornji biti gredo ven, spodnji biti (od 8 do 0) pa so statusni in se vpisejo po koncu oddajanja
-// bit 8  od tx je defer indication           done
-// bit 7  od tx je late collision             done
-// bit 6  od tx je retransmittion limit       done
-// bit 5  od tx je underrun                   done
-// bit 4  od tx je carrier sense lost
-// bit [3:0] od tx je retry count             done
+// bit 15 ready
+// bit 14 interrupt
+// bit 13 wrap
+// bit 12 pad
+// bit 11 crc
+// bit 10 last
+// bit 9  pause request (control frame)
+// bit 8  TxUnderRun          
+// bit 7-4 RetryCntLatched    
+// bit 3  retransmittion limit
+// bit 2  LateCollLatched        
+// bit 1  DeferLatched        
+// bit 0  CarrierSenseLost    
 
 
 // RX
 // bit 15 od rx je empty
-// bit 14 od rx je interrupt (Rx buffer ali rx frame received se postavi v interrupt registru, ko se ta buffer zapre)
+// bit 14 od rx je interrupt
 // bit 13 od rx je wrap
 // bit 12 od rx je reserved
 // bit 11 od rx je reserved
