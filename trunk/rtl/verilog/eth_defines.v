@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2002/08/16 22:09:47  mohor
+// Defines for register width added. mii_rst signal in MIIMODER register
+// changed.
+//
 // Revision 1.20  2002/08/14 19:31:48  mohor
 // Register TX_BD_NUM is changed so it contains value of the Tx buffer descriptors. No
 // need to multiply or devide any more.
@@ -157,6 +161,8 @@
 `define ETH_MAC_ADDR1_ADR     8'h11   // 0x44
 `define ETH_HASH0_ADR         8'h12   // 0x48
 `define ETH_HASH1_ADR         8'h13   // 0x4C
+`define ETH_TX_CTRL_ADR       8'h14   // 0x50
+`define ETH_RX_CTRL_ADR       8'h15   // 0x54
 
 
 `define ETH_MODER_DEF         17'h0A800
@@ -179,6 +185,7 @@
 `define ETH_MAC_ADDR1_DEF     16'h0000
 `define ETH_HASH0_DEF         32'h00000000
 `define ETH_HASH1_DEF         32'h00000000
+`define ETH_RX_CTRL_DEF       16'h0
 
 
 `define ETH_MODER_WIDTH       17
@@ -198,6 +205,8 @@
 `define ETH_MAC_ADDR1_WIDTH   16
 `define ETH_HASH0_WIDTH       32
 `define ETH_HASH1_WIDTH       32
+`define ETH_TX_CTRL_WIDTH     17
+`define ETH_RX_CTRL_WIDTH     16
 
 
 // Outputs are registered (uncomment when needed)
