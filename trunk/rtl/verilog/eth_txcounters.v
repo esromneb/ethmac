@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.3  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -161,7 +164,7 @@ end
 assign NibCntEq7   = &NibCnt[2:0];
 assign NibCntEq15  = &NibCnt[3:0];
 
-assign NibbleMinFl = NibCnt >= ((MinFL<<1) -1);
+assign NibbleMinFl = NibCnt >= (((MinFL-3'h4)<<1) -1);  // FCS should not be included in NibbleMinFl
 
 assign ExcessiveDeferCnt = NibCnt[13:0] == 16'h17b7;
 
