@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2002/09/13 18:41:45  mohor
+// Rearanged testcases
+//
 // Revision 1.8  2002/09/13 14:50:15  mohor
 // Bug in MIIM fixed.
 //
@@ -4254,7 +4257,20 @@ begin
       test_fail("WB INT signal should not be set");
       fail = fail + 1;
     end
-
+    // INTERMEDIATE DISPLAYS
+    if (i_length == min_tmp - 4)
+      tmp_data = min_tmp;
+    if (i_length == (max_tmp - 4))
+    begin
+      $display("    packets with lengths (including FCS) from %d to %d are checked",
+               tmp_data, (i_length + 4));
+    end
+    else if (i_length[7:0] == 8'h7C) // 8'h7C + 8'h04 = 8'h80 (128), because i_length has length - 4 value
+    begin
+      $display("    packets with lengths (including FCS) from %d to %d are checked",
+               tmp_data, (i_length + 4));
+      tmp_data = i_length + 4 + 1; // next starting length is for +1 longer
+    end
   end
   // disable TX
   wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
