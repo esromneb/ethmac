@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2002/02/18 10:40:17  mohor
+// Small fixes.
+//
 // Revision 1.19  2002/02/16 14:03:44  mohor
 // Registered trimmed. Unused registers removed.
 //
@@ -310,8 +313,10 @@ wire        r_IFG;          // Minimum interframe gap for incoming packets
 wire        TxB_IRQ;        // Interrupt Tx Buffer
 wire        TxE_IRQ;        // Interrupt Tx Error
 wire        RxB_IRQ;        // Interrupt Rx Buffer
-wire        RxF_IRQ;        // Interrupt Rx Frame
+wire        RxE_IRQ;        // Interrupt Rx Error
 wire        Busy_IRQ;       // Interrupt Busy (lack of buffers)
+wire        TxC_IRQ;        // Interrupt Tx Control Frame
+wire        RxC_IRQ;        // Interrupt Rx Control Frame
 
 wire        DWord;
 wire        BDAck;
@@ -341,9 +346,9 @@ eth_registers ethreg1
   .r_ExDfrEn(r_ExDfrEn),                  .r_NoBckof(r_NoBckof),                      .r_LoopBck(r_LoopBck), 
   .r_IFG(r_IFG),                          .r_Pro(r_Pro),                              .r_Iam(), 
   .r_Bro(r_Bro),                          .r_NoPre(r_NoPre),                          .r_TxEn(r_TxEn), 
-  .r_RxEn(r_RxEn),                        .Busy_IRQ(Busy_IRQ),                        .RxF_IRQ(RxF_IRQ), 
+  .r_RxEn(r_RxEn),                        .Busy_IRQ(Busy_IRQ),                        .RxE_IRQ(RxE_IRQ), 
   .RxB_IRQ(RxB_IRQ),                      .TxE_IRQ(TxE_IRQ),                          .TxB_IRQ(TxB_IRQ), 
-  .r_IPGT(r_IPGT), 
+  .TxC_IRQ(TxC_IRQ),                      .RxC_IRQ(RxC_IRQ),                          .r_IPGT(r_IPGT), 
   .r_IPGR1(r_IPGR1),                      .r_IPGR2(r_IPGR2),                          .r_MinFL(r_MinFL), 
   .r_MaxFL(r_MaxFL),                      .r_MaxRet(r_MaxRet),                        .r_CollValid(r_CollValid), 
   .r_TxFlow(r_TxFlow),                    .r_RxFlow(r_RxFlow),                        .r_PassAll(r_PassAll), 
@@ -584,14 +589,14 @@ eth_wishbone wishbone
   .WB_DAT_O(DMA_WB_DAT_O), 
 
   // WISHBONE slave
-  .WB_ADR_I(wb_adr_i[9:2]),           .WB_SEL_I(wb_sel_i),                      .WB_WE_I(wb_we_i), 
+  .WB_ADR_I(wb_adr_i[9:2]),           .WB_WE_I(wb_we_i), 
   .BDCs(BDCs),                        .WB_ACK_O(BDAck), 
 
   .Reset(wb_rst_i), 
 
 `ifdef EXTERNAL_DMA
   .WB_REQ_O(wb_req_o),                .WB_ND_O(wb_nd_o),                        .WB_RD_O(wb_rd_o), 
-  .WB_ACK_I(wb_ack_i),
+  .WB_ACK_I(wb_ack_i),                .r_DmaEn(1'b1),
 `else
   // WISHBONE master
   .m_wb_adr_o(m_wb_adr_o),            .m_wb_sel_o(m_wb_sel_o),                  .m_wb_we_o(m_wb_we_o), 
@@ -611,13 +616,14 @@ eth_wishbone wishbone
 
   // Register
   .r_TxEn(r_TxEn),                    .r_RxEn(r_RxEn),                          .r_TxBDNum(r_TxBDNum), 
-  .r_DmaEn(1'b1),                     .TX_BD_NUM_Wr(TX_BD_NUM_Wr),              .r_RecSmall(r_RecSmall), 
+  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),        .r_RecSmall(r_RecSmall), 
 
   //RX
   .MRxClk(mrx_clk_pad_i),             .RxData(RxData),                          .RxValid(RxValid), 
   .RxStartFrm(RxStartFrm),            .RxEndFrm(RxEndFrm),                      
-  .Busy_IRQ(Busy_IRQ),                .RxF_IRQ(RxF_IRQ),                        .RxB_IRQ(RxB_IRQ), 
-  .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ),
+  .Busy_IRQ(Busy_IRQ),                .RxE_IRQ(RxE_IRQ),                        .RxB_IRQ(RxB_IRQ), 
+  .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ),                        .TxC_IRQ(TxC_IRQ), 
+  .RxC_IRQ(RxC_IRQ), 
 
 `ifdef EXTERNAL_DMA
 `else
@@ -628,7 +634,7 @@ eth_wishbone wishbone
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
   .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus),     .RetryCntLatched(RetryCntLatched),
   .RetryLimit(RetryLimit),            .LateCollLatched(LateCollLatched),        .DeferLatched(DeferLatched),   
-  .CarrierSenseLost(CarrierSenseLost)   
+  .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood)  
   
 
 
