@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2002/04/22 14:03:44  mohor
+// Interrupts are visible in the ETH_INT_SOURCE regardless if they are enabled
+// or not.
+//
 // Revision 1.13  2002/02/26 16:18:09  mohor
 // Reset values are passed to registers through parameters
 //
@@ -324,27 +328,16 @@ eth_register #(32, `ETH_HASH1_DEF)       RXHASH1     (.DataIn(DataIn),       .Da
 
 
 reg LinkFailRegister;
-wire ResetLinkFailRegister = Address == `ETH_MIISTATUS_ADR & Read;
-reg ResetLinkFailRegister_q1;
-reg ResetLinkFailRegister_q2;
 
 always @ (posedge Clk or posedge Reset)
 begin
   if(Reset)
-    begin
-      LinkFailRegister <= #Tp 0;
-      ResetLinkFailRegister_q1 <= #Tp 0;
-      ResetLinkFailRegister_q2 <= #Tp 0;
-    end
+    LinkFailRegister <= #Tp 0;
   else
-    begin
-      ResetLinkFailRegister_q1 <= #Tp ResetLinkFailRegister;
-      ResetLinkFailRegister_q2 <= #Tp ResetLinkFailRegister_q1;
-      if(LinkFail)
-        LinkFailRegister <= #Tp 1;
-      if(~ResetLinkFailRegister_q1 & ResetLinkFailRegister_q2)
-        LinkFailRegister <= #Tp 0;    
-    end
+  if(LinkFail)
+    LinkFailRegister <= #Tp 1;
+  else
+    LinkFailRegister <= #Tp 0;
 end
 
 
