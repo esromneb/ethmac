@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.36  2002/10/18 17:04:20  tadejm
+// Changed BIST scan signals.
+//
 // Revision 1.35  2002/10/11 13:36:58  mohor
 // Typo error fixed. (When using Bist)
 //
@@ -408,7 +411,8 @@ assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] &  wb_adr_i[10];   //
 assign CsMiss = wb_stb_i & wb_cyc_i & DWord & wb_adr_i[11];                   // 0x800 - 0xfFF
 assign temp_wb_ack_o = RegCs | BDAck;
 assign temp_wb_dat_o = (RegCs & ~wb_we_i)? RegDataOut : BD_WB_DAT_O;
-assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~DWord | BDCs & r_Rst | CsMiss);
+//assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~DWord | BDCs & r_Rst | CsMiss);
+assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~DWord | CsMiss);
 
 `ifdef ETH_REGISTERED_OUTPUTS
   assign wb_ack_o = temp_wb_ack_o_reg;
@@ -513,8 +517,8 @@ eth_maccontrol maccontrol1
   .RxFlow(r_RxFlow),                            .DlyCrcEn(r_DlyCrcEn),
   .MAC(r_MAC),                                  .PadIn(r_Pad | PerPacketPad), 
   .PadOut(PadOut),                              .CrcEnIn(r_CrcEn | PerPacketCrcEn), 
-  .CrcEnOut(CrcEnOut),                          .TxReset(r_Rst), 
-  .RxReset(r_Rst),                              .ReceivedLengthOK(ReceivedLengthOK),
+  .CrcEnOut(CrcEnOut),                          .TxReset(wb_rst_i), 
+  .RxReset(wb_rst_i),                           .ReceivedLengthOK(ReceivedLengthOK),
   .TxDataOut(TxDataOut),                        .TxStartFrmOut(TxStartFrmOut), 
   .TxEndFrmOut(TxEndFrmOut),                    .TxUsedDataOut(TxUsedData), 
   .TxDoneOut(TxDone),                           .TxAbortOut(TxAbort), 
@@ -554,7 +558,7 @@ assign MRxD_Lb[3:0] = r_LoopBck? mtxd_pad_o[3:0] : mrxd_pad_i[3:0];
 // Connecting TxEthMAC
 eth_txethmac txethmac1
 (
-  .MTxClk(mtx_clk_pad_i),             .Reset(r_Rst),                      .CarrierSense(TxCarrierSense), 
+  .MTxClk(mtx_clk_pad_i),             .Reset(wb_rst_i),                   .CarrierSense(TxCarrierSense), 
   .Collision(Collision),              .TxData(TxDataOut),                 .TxStartFrm(TxStartFrmOut), 
   .TxUnderRun(TxUnderRun),            .TxEndFrm(TxEndFrmOut),             .Pad(PadOut),  
   .MinFL(r_MinFL),                    .CrcEn(CrcEnOut),                   .FullD(r_FullD), 
@@ -590,7 +594,7 @@ eth_rxethmac rxethmac1
 (
   .MRxClk(mrx_clk_pad_i),               .MRxDV(MRxDV_Lb),                     .MRxD(MRxD_Lb),
   .Transmitting(Transmitting),          .HugEn(r_HugEn),                      .DlyCrcEn(r_DlyCrcEn), 
-  .MaxFL(r_MaxFL),                      .r_IFG(r_IFG),                        .Reset(r_Rst),
+  .MaxFL(r_MaxFL),                      .r_IFG(r_IFG),                        .Reset(wb_rst_i),
   .RxData(RxData),                      .RxValid(RxValid),                    .RxStartFrm(RxStartFrm), 
   .RxEndFrm(RxEndFrm),                  .ByteCnt(RxByteCnt), 
   .ByteCntEq0(RxByteCntEq0),            .ByteCntGreat2(RxByteCntGreat2),      .ByteCntMaxFrame(RxByteCntMaxFrame), 
@@ -602,9 +606,9 @@ eth_rxethmac rxethmac1
 
 
 // MII Carrier Sense Synchronization
-always @ (posedge mtx_clk_pad_i or posedge r_Rst)
+always @ (posedge mtx_clk_pad_i or posedge wb_rst_i)
 begin
-  if(r_Rst)
+  if(wb_rst_i)
     begin
       CarrierSense_Tx1 <= #Tp 1'b0;
       CarrierSense_Tx2 <= #Tp 1'b0;
@@ -620,9 +624,9 @@ assign TxCarrierSense = ~r_FullD & CarrierSense_Tx2;
 
 
 // MII Collision Synchronization
-always @ (posedge mtx_clk_pad_i or posedge r_Rst)
+always @ (posedge mtx_clk_pad_i or posedge wb_rst_i)
 begin
-  if(r_Rst)
+  if(wb_rst_i)
     begin
       Collision_Tx1 <= #Tp 1'b0;
       Collision_Tx2 <= #Tp 1'b0;
@@ -645,9 +649,9 @@ assign Collision = ~r_FullD & Collision_Tx2;
 
 
 // Carrier sense is synchronized to receive clock.
-always @ (posedge mrx_clk_pad_i or posedge r_Rst)
+always @ (posedge mrx_clk_pad_i or posedge wb_rst_i)
 begin
-  if(r_Rst)
+  if(wb_rst_i)
     begin
       CarrierSense_Rx1 <= #Tp 1'h0;
       RxCarrierSense <= #Tp 1'h0;
@@ -673,9 +677,9 @@ assign Transmitting = ~r_FullD & WillTransmit_q2;
 
 
 // Synchronized Receive Enable
-always @ (posedge mrx_clk_pad_i or posedge r_Rst)
+always @ (posedge mrx_clk_pad_i or posedge wb_rst_i)
 begin
-  if(r_Rst)
+  if(wb_rst_i)
     RxEnSync <= #Tp 1'b0;
   else
   if(~RxCarrierSense | RxCarrierSense & Transmitting)
@@ -728,7 +732,7 @@ eth_wishbone wishbone
   .WB_ADR_I(wb_adr_i[9:2]),           .WB_WE_I(wb_we_i), 
   .BDCs(BDCs),                        .WB_ACK_O(BDAck), 
 
-  .Reset(r_Rst), 
+  .Reset(wb_rst_i), 
 
   // WISHBONE master
   .m_wb_adr_o(m_wb_adr_o),            .m_wb_sel_o(m_wb_sel_o),                  .m_wb_we_o(m_wb_we_o), 
@@ -780,7 +784,7 @@ eth_wishbone wishbone
 // Connecting MacStatus module
 eth_macstatus macstatus1 
 (
-  .MRxClk(mrx_clk_pad_i),             .Reset(r_Rst),
+  .MRxClk(mrx_clk_pad_i),             .Reset(wb_rst_i),
   .ReceiveEnd(ReceiveEnd),            .ReceivedPacketGood(ReceivedPacketGood),     .ReceivedLengthOK(ReceivedLengthOK), 
   .RxCrcError(RxCrcError),            .MRxErr(MRxErr_Lb),                          .MRxDV(MRxDV_Lb), 
   .RxStateSFD(RxStateSFD),            .RxStateData(RxStateData),                   .RxStatePreamble(RxStatePreamble), 
