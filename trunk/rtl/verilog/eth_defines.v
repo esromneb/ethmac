@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.28  2002/11/15 14:27:15  mohor
+// Since r_Rst bit is not used any more, default value is changed to 0xa000.
+//
 // Revision 1.27  2002/11/01 18:19:34  mohor
 // Defines fixed to use generic RAM by default.
 //
@@ -224,7 +227,7 @@
 `define ETH_PACKETLEN_WIDTH   32
 `define ETH_TX_BD_NUM_WIDTH   8
 `define ETH_CTRLMODER_WIDTH   3
-`define ETH_MIIMODER_WIDTH    10
+`define ETH_MIIMODER_WIDTH    9
 `define ETH_MIITX_DATA_WIDTH  16
 `define ETH_MIIRX_DATA_WIDTH  16
 `define ETH_MIISTATUS_WIDTH   3

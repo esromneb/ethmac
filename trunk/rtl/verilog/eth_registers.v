@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2002/11/14 18:37:20  mohor
+// r_Rst signal does not reset any module any more and is removed from the design.
+//
 // Revision 1.21  2002/09/10 10:35:23  mohor
 // Ethernet debug registers removed.
 //
@@ -145,7 +148,7 @@ module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut,
                       TxB_IRQ, TxE_IRQ, RxB_IRQ, RxE_IRQ, Busy_IRQ, 
                       r_IPGT, r_IPGR1, r_IPGR2, r_MinFL, r_MaxFL, r_MaxRet, 
                       r_CollValid, r_TxFlow, r_RxFlow, r_PassAll, 
-                      r_MiiMRst, r_MiiNoPre, r_ClkDiv, r_WCtrlData, r_RStat, r_ScanStat, 
+                      r_MiiNoPre, r_ClkDiv, r_WCtrlData, r_RStat, r_ScanStat, 
                       r_RGAD, r_FIAD, r_CtrlData, NValid_stat, Busy_stat, 
                       LinkFail, r_MAC, WCtrlDataStart, RStatStart,
                       UpdateMIIRX_DATAReg, Prsd, r_TxBDNum, TX_BD_NUM_Wr, int_o,
@@ -213,7 +216,6 @@ output r_TxFlow;
 output r_RxFlow;
 output r_PassAll;
 
-output r_MiiMRst;
 output r_MiiNoPre;
 output [7:0] r_ClkDiv;
 
@@ -682,7 +684,6 @@ assign r_TxFlow           = CTRLMODEROut[2];
 assign r_RxFlow           = CTRLMODEROut[1];
 assign r_PassAll          = CTRLMODEROut[0];
 
-assign r_MiiMRst          = MIIMODEROut[9];
 assign r_MiiNoPre         = MIIMODEROut[8];
 assign r_ClkDiv[7:0]      = MIIMODEROut[7:0];
 

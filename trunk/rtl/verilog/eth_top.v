@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.40  2002/11/19 17:34:25  mohor
+// AddressMiss status is connecting to the Rx BD. AddressMiss is identifying
+// that a frame was received because of the promiscous mode.
+//
 // Revision 1.39  2002/11/18 17:31:55  mohor
 // wb_rst_i is used for MIIM reset.
 //
@@ -314,7 +318,6 @@ wire            r_ScanStat;
 wire            NValid_stat;
 wire            Busy_stat;
 wire            LinkFail;
-wire            r_MiiMRst;
 wire    [15:0]  Prsd;             // Read Status Data (data read from the PHY)
 wire            WCtrlDataStart;
 wire            RStatStart;
@@ -469,7 +472,7 @@ eth_registers ethreg1
   .r_IPGR1(r_IPGR1),                      .r_IPGR2(r_IPGR2),                          .r_MinFL(r_MinFL), 
   .r_MaxFL(r_MaxFL),                      .r_MaxRet(r_MaxRet),                        .r_CollValid(r_CollValid), 
   .r_TxFlow(r_TxFlow),                    .r_RxFlow(r_RxFlow),                        .r_PassAll(r_PassAll), 
-  .r_MiiMRst(r_MiiMRst),                  .r_MiiNoPre(r_MiiNoPre),                    .r_ClkDiv(r_ClkDiv), 
+  .r_MiiNoPre(r_MiiNoPre),                .r_ClkDiv(r_ClkDiv), 
   .r_WCtrlData(r_WCtrlData),              .r_RStat(r_RStat),                          .r_ScanStat(r_ScanStat), 
   .r_RGAD(r_RGAD),                        .r_FIAD(r_FIAD),                            .r_CtrlData(r_CtrlData), 
   .NValid_stat(NValid_stat),              .Busy_stat(Busy_stat),                   
