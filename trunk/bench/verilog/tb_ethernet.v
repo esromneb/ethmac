@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2002/07/19 13:57:53  mohor
+// Testing environment also includes traffic cop, memory interface and host
+// interface.
+//
 //
 //
 //
@@ -224,9 +228,9 @@ begin
 //  forever #2.5 wb_clk_o = ~wb_clk_o;  // 2*2.5 ns -> 200.0 MHz    
 //  forever #5 wb_clk_o = ~wb_clk_o;  // 2*5 ns -> 100.0 MHz    
 //  forever #10 wb_clk_o = ~wb_clk_o;  // 2*10 ns -> 50.0 MHz    
-//  forever #12.5 wb_clk_o = ~wb_clk_o;  // 2*12.5 ns -> 40 MHz    
+  forever #12.5 wb_clk_o = ~wb_clk_o;  // 2*12.5 ns -> 40 MHz    
 //  forever #15 wb_clk_o = ~wb_clk_o;  // 2*10 ns -> 33.3 MHz    
-  forever #20 wb_clk_o = ~wb_clk_o;  // 2*20 ns -> 25 MHz    
+//  forever #20 wb_clk_o = ~wb_clk_o;  // 2*20 ns -> 25 MHz    
 //  forever #25 wb_clk_o = ~wb_clk_o;  // 2*25 ns -> 20.0 MHz
 //  forever #31.25 wb_clk_o = ~wb_clk_o;  // 2*31.25 ns -> 16.0 MHz    
 //  forever #50 wb_clk_o = ~wb_clk_o;  // 2*50 ns -> 10.0 MHz
@@ -245,8 +249,8 @@ end
 initial
 begin
   mrx_clk=0;
-  #16 forever #20 mrx_clk = ~mrx_clk;   // 2*20 ns -> 25 MHz
-//  #16 forever #200 mrx_clk = ~mrx_clk;   // 2*200 ns -> 2.5 MHz
+//  #16 forever #20 mrx_clk = ~mrx_clk;   // 2*20 ns -> 25 MHz
+  #16 forever #200 mrx_clk = ~mrx_clk;   // 2*200 ns -> 2.5 MHz
 end
 
 reg [31:0] tmp;
