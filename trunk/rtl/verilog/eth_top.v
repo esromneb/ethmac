@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.33  2002/10/10 16:29:30  mohor
+// BIST added.
+//
 // Revision 1.32  2002/09/20 17:12:58  mohor
 // CsMiss added. When address between 0x800 and 0xfff is accessed within
 // Ethernet Core, error acknowledge is generated.
@@ -186,6 +189,10 @@ module eth_top
   m_wb_dat_o, m_wb_dat_i, m_wb_cyc_o, 
   m_wb_stb_o, m_wb_ack_i, m_wb_err_i, 
 
+`ifdef ETH_WISHBONE_B3
+  m_wb_cti_o, m_wb_bte_o, 
+`endif
+
   //TX
   mtx_clk_pad_i, mtxd_pad_o, mtxen_pad_o, mtxerr_pad_o,
 
@@ -234,6 +241,10 @@ output          m_wb_stb_o;
 input           m_wb_ack_i;
 input           m_wb_err_i;
 
+`ifdef ETH_WISHBONE_B3
+output   [2:0]  m_wb_cti_o;   // Cycle Type Identifier
+output   [1:0]  m_wb_bte_o;   // Burst Type Extension
+`endif
 
 // Tx
 input           mtx_clk_pad_i; // Transmit clock (from PHY)
@@ -710,6 +721,11 @@ eth_wishbone wishbone
   .m_wb_adr_o(m_wb_adr_o),            .m_wb_sel_o(m_wb_sel_o),                  .m_wb_we_o(m_wb_we_o), 
   .m_wb_dat_i(m_wb_dat_i),            .m_wb_dat_o(m_wb_dat_o),                  .m_wb_cyc_o(m_wb_cyc_o), 
   .m_wb_stb_o(m_wb_stb_o),            .m_wb_ack_i(m_wb_ack_i),                  .m_wb_err_i(m_wb_err_i), 
+  
+`ifdef ETH_WISHBONE_B3
+  .m_wb_cti_o(m_wb_cti_o),            .m_wb_bte_o(m_wb_bte_o), 
+`endif
+  
 
     //TX
   .MTxClk(mtx_clk_pad_i),             .TxStartFrm(TxStartFrm),                  .TxEndFrm(TxEndFrm), 
