@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/03/25 13:33:04  mohor
+// When clear and read/write are active at the same time, cnt and pointers are
+// set to 1.
+//
 // Revision 1.1  2002/02/05 16:44:39  mohor
 // Both rx and tx part are finished. Tested with wb_clk_i between 10 and 200
 // MHz. Statuses, overrun, control frame transmission and reception still  need
@@ -48,9 +52,10 @@
 //
 //
 
+`include "eth_defines.v"
 `include "timescale.v"
 
-module eth_fifo (data_in, data_out, clk, reset, write, read, clear, almost_full, full, almost_empty, empty);
+module eth_fifo (data_in, data_out, clk, reset, write, read, clear, almost_full, full, almost_empty, empty, cnt);
 
 parameter DATA_WIDTH    = 32;
 parameter DEPTH         = 8;
@@ -70,8 +75,13 @@ output                    almost_full;
 output                    full;
 output                    almost_empty;
 output                    empty;
+output  [CNT_WIDTH-1:0]   cnt;
 
-reg     [DATA_WIDTH-1:0]  fifo  [0:DEPTH-1];
+`ifdef ETH_FIFO_XILINX
+`else
+  reg     [DATA_WIDTH-1:0]  fifo  [0:DEPTH-1];
+`endif
+
 reg     [CNT_WIDTH-1:0]   cnt;
 reg     [CNT_WIDTH-2:0]   read_pointer;
 reg     [CNT_WIDTH-2:0]   write_pointer;
@@ -121,13 +131,29 @@ assign almost_empty = cnt == 1;
 assign full  = cnt == DEPTH;
 assign almost_full  = &cnt[CNT_WIDTH-2:0];
 
-always @ (posedge clk)
-begin
-  if(write & ~full)
-    fifo[write_pointer] <=#Tp data_in;
-end
 
-assign data_out = fifo[read_pointer];
+
+`ifdef ETH_FIFO_XILINX
+  xilinx_dist_ram_16x32 fifo
+  ( .data_out(data_out), 
+    .we(write & ~full),
+    .data_in(data_in),
+    .read_address( clear ? {CNT_WIDTH-1{1'b0}} : read_pointer),
+    .write_address(clear ? {CNT_WIDTH-1{1'b0}} : write_pointer),
+    .wclk(clk)
+  );
+`else
+  always @ (posedge clk)
+  begin
+    if(write & clear)
+      fifo[0] <=#Tp data_in;
+    else
+   if(write & ~full)
+      fifo[write_pointer] <=#Tp data_in;
+  end
+  
+  assign data_out = clear ? fifo[0] : fifo[read_pointer];
+`endif
 
 
 endmodule
