@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.30  2002/09/10 10:35:23  mohor
+// Ethernet debug registers removed.
+//
 // Revision 1.29  2002/09/09 13:03:13  mohor
 // Error acknowledge is generated when accessing BDs and RST bit in the
 // MODER register (r_Rst) is set.
@@ -735,7 +738,7 @@ eth_macstatus macstatus1
   .LateCollLatched(LateCollLatched),  .StartDefer(StartDefer),                     .DeferLatched(DeferLatched),
   .TxStartFrm(TxStartFrmOut),         .StatePreamble(StatePreamble),               .StateData(StateData),
   .CarrierSense(CarrierSense_Tx2),    .CarrierSenseLost(CarrierSenseLost),         .TxUsedData(TxUsedDataIn),
-  .LatchedMRxErr(LatchedMRxErr),      .Loopback(r_LoopBck)
+  .LatchedMRxErr(LatchedMRxErr),      .Loopback(r_LoopBck),                        .r_FullD(r_FullD)
 );
 
 

@@ -8,12 +8,12 @@
 ////  Author(s):                                                  ////
 ////      - Igor Mohor (igorM@opencores.org)                      ////
 ////                                                              ////
-////  All additional information is avaliable in the Readme.txt   ////
+////  All additional information is available in the Readme.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2001 Authors                                   ////
+//// Copyright (C) 2001, 2002 Authors                             ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2002/09/04 18:38:03  mohor
+// CarrierSenseLost status is not set when working in loopback mode.
+//
 // Revision 1.10  2002/07/25 18:17:46  mohor
 // InvalidSymbol generation changed.
 //
@@ -99,7 +102,8 @@ module eth_macstatus(
                       r_RecSmall, r_MinFL, r_MaxFL, ShortFrame, DribbleNibble, ReceivedPacketTooBig, r_HugEn,
                       LoadRxStatus, StartTxDone, StartTxAbort, RetryCnt, RetryCntLatched, MTxClk, MaxCollisionOccured, 
                       RetryLimit, LateCollision, LateCollLatched, StartDefer, DeferLatched, TxStartFrm,
-                      StatePreamble, StateData, CarrierSense, CarrierSenseLost, TxUsedData, LatchedMRxErr, Loopback
+                      StatePreamble, StateData, CarrierSense, CarrierSenseLost, TxUsedData, LatchedMRxErr, Loopback, 
+                      r_FullD
                     );
 
 
@@ -143,6 +147,7 @@ input   [1:0] StateData;
 input         CarrierSense;
 input         TxUsedData;
 input         Loopback;
+input         r_FullD;
 
 
 output        ReceivedLengthOK;
@@ -390,7 +395,7 @@ begin
   if(Reset)
     CarrierSenseLost <=#Tp 1'b0;
   else
-  if((StatePreamble | (|StateData)) & ~CarrierSense & ~Loopback & ~Collision)
+  if((StatePreamble | (|StateData)) & ~CarrierSense & ~Loopback & ~Collision & ~r_FullD)
     CarrierSenseLost <=#Tp 1'b1;
   else
   if(TxStartFrm)
