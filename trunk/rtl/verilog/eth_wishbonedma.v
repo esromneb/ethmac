@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2002/02/12 17:03:47  mohor
+// RxOverRun added to statuses.
+//
 // Revision 1.13  2002/02/11 09:18:22  mohor
 // Tx status is written back to the BD.
 //
@@ -113,7 +116,7 @@ module eth_wishbonedma
     WB_CLK_I, Reset, WB_DAT_I, WB_DAT_O, 
 
     // WISHBONE slave
- 		WB_ADR_I, WB_SEL_I, WB_WE_I, WB_ACK_O, 
+ 		WB_ADR_I, WB_WE_I, WB_ACK_O, 
  		WB_REQ_O, WB_ACK_I, WB_ND_O, WB_RD_O, BDCs, 
 
     //TX
@@ -150,7 +153,6 @@ output [31:0]   WB_DAT_O;       // WISHBONE data output
 
 // WISHBONE slave
 input   [9:2]   WB_ADR_I;       // WISHBONE address input
-input   [3:0]   WB_SEL_I;       // WISHBONE byte select input
 input           WB_WE_I;        // WISHBONE write enable input
 input           BDCs;           // Buffer descriptors are selected
 output          WB_ACK_O;       // WISHBONE acknowledge output
