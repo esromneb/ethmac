@@ -42,6 +42,13 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2002/11/22 02:12:16  mohor
+// test_mac_full_duplex_flow_control tests pretty much finished.
+// TEST 0: INSERT CONTROL FRM. WHILE TRANSMITTING NORMAL
+// FRM. AT 4 TX BD ( 10Mbps ) finished.
+// TEST 2: RECEIVE CONTROL FRAMES WITH PASSALL OPTION
+// TURNED OFF AT ONE RX BD ( 10Mbps ) finished.
+//
 // Revision 1.22  2002/11/21 13:56:50  mohor
 // test_mac_full_duplex_flow test 0 finished. Sending the control (PAUSE) frame
 // finished.
@@ -451,7 +458,7 @@ begin
   eth_phy.carrier_sense_real_delay(0);
 //    test_mac_full_duplex_transmit(8, 9);    // 0 - (21)
 //    test_mac_full_duplex_receive(8, 9);
-    test_mac_full_duplex_flow_control(0, 2);
+    test_mac_full_duplex_flow_control(2, 2);
 
   test_note("PHY generates 'real delayed' Carrier sense and Collision signals for following tests");
   eth_phy.carrier_sense_real_delay(1);
@@ -14161,6 +14168,7 @@ task test_mac_full_duplex_flow_control;
   reg    [15:0]  min_tmp;
   reg            PassAll;
   reg            RxFlow;
+  reg            enable_irq_in_rxbd;
 begin
 // MAC FULL DUPLEX FLOW CONTROL TEST
 test_heading("MAC FULL DUPLEX FLOW CONTROL TEST");
@@ -14701,13 +14709,164 @@ begin
     #Tp eth_phy.control_bit8_0   = 9'h1_00;  // bit 6 reset  - (10/100), bit 8 set - FD
     speed = 10;
 
+    // RXB and RXC interrupts masked
+    wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXE | `ETH_INT_BUSY |
+                             `ETH_INT_TXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+
+    // Test irq logic while RXB and RXC interrupts are masked. IRQ in RxBD is cleared
+    for (i=0; i<3; i=i+1)
+    begin
+      // choose generating carrier sense and collision for first and last 64 lengths of frames
+      case (i)
+      0: // PASSALL = 0, RXFLOW = 1, IRQ in RxBD = 1
+      begin
+        PassAll=0; RxFlow=1; enable_irq_in_rxbd=1;
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b1, `MEMORY_BASE);
+        // Set PASSALL = 0 and RXFLOW = 0
+        wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_RXFLOW, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      1: // PASSALL = 1, RXFLOW = 0, IRQ in RxBD = 1
+      begin
+        PassAll=1; RxFlow=0; enable_irq_in_rxbd=1;
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b1, `MEMORY_BASE);
+        // Set PASSALL = 0 and RXFLOW = 0
+        wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_PASSALL, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      2: // PASSALL = 1, RXFLOW = 0, IRQ in RxBD = 0
+      begin
+        PassAll=1; RxFlow=0; enable_irq_in_rxbd=0;
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b0, `MEMORY_BASE);
+        // Set PASSALL = 0 and RXFLOW = 0
+        wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_PASSALL, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      default: 
+      begin
+        $display("*E We should never get here !!!");
+        test_fail("We should never get here !!!");
+        fail = fail + 1;
+      end
+      endcase
+
+      // not detect carrier sense in FD and no collision
+      eth_phy.no_carrier_sense_rx_fd_detect(0);
+      eth_phy.collision(0);
+
+      // set wrap bit and empty bit
+      set_rx_bd_wrap(127);
+      set_rx_bd_empty(127, 127);
+
+      fork
+        begin
+            #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h7, 8'hD5, 0, 64, 1'b0);
+          repeat(10) @(posedge mrx_clk);
+        end
+        begin
+          #1 check_rx_bd(127, data);
+          wait (MRxDV === 1'b1); // start transmit
+          #1 check_rx_bd(127, data);          
+          if (data[15] !== 1)
+          begin
+            $display("*E Wrong buffer descriptor's ready bit read out from MAC");
+            test_fail("Wrong buffer descriptor's ready bit read out from MAC");
+            fail = fail + 1;
+          end
+          
+          wait (MRxDV === 1'b0); // end transmit
+          repeat(50) @(posedge mrx_clk);  // Wait some time so frame is received and
+          repeat (100) @(posedge wb_clk); // status/irq is written.
+        end
+      join
+
+      #1 check_rx_bd(127, data);
+      // Checking buffer descriptor
+      if(PassAll)
+      begin
+        if(enable_irq_in_rxbd)
+        begin
+          if(data !== 32'h406100)    // Rx BD must not be marked as EMPTY (control frame is received)
+          begin
+            $display("*E Rx BD is not OK. Control frame should be received because PASSALL bit is 1");
+            $display("RxBD = 0x%0x", data);
+            test_fail("Rx BD is not OK. Control frame should be received because PASSALL bit is 1");
+            fail = fail + 1;
+          end
+        end
+        else
+        begin
+          if(data !== 32'h402100)    // Rx BD must not be marked as EMPTY (control frame is received)
+          begin
+            $display("*E Rx BD is not OK. Control frame should be received because PASSALL bit is 1");
+            $display("RxBD = 0x%0x", data);
+            test_fail("Rx BD is not OK. Control frame should be received because PASSALL bit is 1");
+            fail = fail + 1;
+          end
+        end
+      end
+      else
+      begin
+        if(data !== 32'he000)    // Rx BD must be marked as EMPTY (no packet received)
+        begin
+          $display("*E Rx BD should be marked as EMPTY because a control frame was received while PASSALL bit is 0");
+          $display("RxBD = 0x%0x", data);
+          test_fail("Rx BD should be marked as EMPTY because a control frame was received while PASSALL bit is 0");
+          fail = fail + 1;
+        end
+      end
+      
+      // Checking if interrupt was generated
+      if (wb_int)
+      begin
+        `TIME; $display("*E WB INT signal should not be set because both RXB and RXC interrupts are masked");
+        test_fail("WB INT signal should not be set because both RXB and RXC interrupts are masked");
+        fail = fail + 1;
+      end
+
+      wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      if(RxFlow)
+      begin
+        if(data !== (`ETH_INT_RXC))
+        begin
+          test_fail("RXC is not set or multiple IRQs active!");
+          fail = fail + 1;
+          `TIME; $display("*E RXC is not set or multiple IRQs active! (ETH_INT=0x%0x)", data);
+        end
+        // Clear RXC interrupt
+        wbm_write(`ETH_INT, `ETH_INT_RXC, 4'hF, 1, 4'h0, 4'h0);
+      end
+      else if(enable_irq_in_rxbd)
+      begin
+        if(data !== (`ETH_INT_RXB))
+        begin
+          test_fail("RXB is not set or multiple IRQs active!");
+          fail = fail + 1;
+          `TIME; $display("*E RXB is not set or multiple IRQs active! (ETH_INT=0x%0x)", data);
+        end
+        // Clear RXC interrupt
+        wbm_write(`ETH_INT, `ETH_INT_RXB, 4'hF, 1, 4'h0, 4'h0);
+      end
+      else
+      begin
+        if(data !== 0)
+        begin
+          test_fail("Some IRQs is active!");
+          fail = fail + 1;
+          `TIME; $display("*E Some IRQs is active! (ETH_INT=0x%0x)", data);
+        end
+      end
+    end
+    // End: Test is irq is set while RXB and RXC interrupts are masked.
+    
+
+
+    // Now all interrupts are unmasked. Performing tests again.
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
 
     for (i=0; i<4; i=i+1)
-//    i=3;
     begin
-$display("i=%0d", i);
       // choose generating carrier sense and collision for first and last 64 lengths of frames
       case (i)
       0: // PASSALL = 0, RXFLOW = 0
@@ -14851,7 +15010,7 @@ $display("i=%0d", i);
         end
       end
     end
-    
+
     
     // disable RX
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
