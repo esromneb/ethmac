@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/02/15 13:44:28  mohor
+// RxAbort is an output. No need to have is declared as wire.
+//
 // Revision 1.6  2002/02/15 11:17:48  mohor
 // File format changed.
 //
@@ -84,9 +87,8 @@
 
 
 module eth_rxethmac (MRxClk, MRxDV, MRxD, Reset, Transmitting, MaxFL, r_IFG, HugEn, DlyCrcEn, 
-                     RxData, RxValid, RxStartFrm, RxEndFrm, CrcHash, CrcHashGood, Broadcast, 
-                     Multicast, ByteCnt, ByteCntEq0, ByteCntGreat2, ByteCntMaxFrame, 
-                     CrcError, StateIdle, StatePreamble, StateSFD, StateData,
+                     RxData, RxValid, RxStartFrm, RxEndFrm, ByteCnt, ByteCntEq0, ByteCntGreat2, 
+                     ByteCntMaxFrame, CrcError, StateIdle, StatePreamble, StateSFD, StateData,
                      MAC, r_Pro, r_Bro,r_HASH0, r_HASH1, RxAbort
                     );
 
@@ -112,10 +114,6 @@ output  [7:0] RxData;
 output        RxValid;
 output        RxStartFrm;
 output        RxEndFrm;
-output  [8:0] CrcHash;
-output        CrcHashGood;
-output        Broadcast;
-output        Multicast;
 output [15:0] ByteCnt;
 output        ByteCntEq0;
 output        ByteCntGreat2;

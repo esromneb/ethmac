@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2002/02/15 13:49:39  mohor
+// RxAbort is connected differently.
+//
 // Revision 1.15  2002/02/15 11:38:26  mohor
 // Changes that were lost when updating from 1.11 to 1.14 fixed.
 //
@@ -470,8 +473,7 @@ eth_rxethmac rxethmac1
   .Transmitting(Transmitting),          .HugEn(r_HugEn),                      .DlyCrcEn(r_DlyCrcEn), 
   .MaxFL(r_MaxFL),                      .r_IFG(r_IFG),                        .Reset(r_Rst),
   .RxData(RxData),                      .RxValid(RxValid),                    .RxStartFrm(RxStartFrm), 
-  .RxEndFrm(RxEndFrm),                  .CrcHash(),                           .CrcHashGood(), 
-  .Broadcast(),                         .Multicast(),                         .ByteCnt(RxByteCnt), 
+  .RxEndFrm(RxEndFrm),                  .ByteCnt(RxByteCnt), 
   .ByteCntEq0(RxByteCntEq0),            .ByteCntGreat2(RxByteCntGreat2),      .ByteCntMaxFrame(RxByteCntMaxFrame), 
   .CrcError(RxCrcError),                .StateIdle(RxStateIdle),              .StatePreamble(RxStatePreamble), 
   .StateSFD(RxStateSFD),                .StateData(RxStateData),

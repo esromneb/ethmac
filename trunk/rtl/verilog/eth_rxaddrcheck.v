@@ -52,12 +52,12 @@
 `include "timescale.v"
 
 
-module eth_rxaddrcheck(  MRxClk,  Reset, RxData, Broadcast ,r_Bro ,r_Pro,
-						 ByteCntEq2, ByteCntEq3, ByteCntEq4, ByteCntEq5,
-					     ByteCntEq6, ByteCntEq7, HASH0, HASH1, 
-						 CrcHash, CrcHashGood, StateData, RxEndFrm,
-						 Multicast, MAC, RxAbort
-                       );
+module eth_rxaddrcheck(MRxClk,  Reset, RxData, Broadcast ,r_Bro ,r_Pro,
+                       ByteCntEq2, ByteCntEq3, ByteCntEq4, ByteCntEq5,
+                       ByteCntEq6, ByteCntEq7, HASH0, HASH1, 
+                       CrcHash,    CrcHashGood, StateData, RxEndFrm,
+                       Multicast, MAC, RxAbort
+                      );
 
 parameter Tp = 1;
 
@@ -92,121 +92,98 @@ parameter Tp = 1;
  wire ByteCntEq5;
  wire RxAddressInvalid;
  wire RxCheckEn;
- reg [31:0] IntHash;
+ wire HashBit;
+ wire [31:0] IntHash;
  reg [7:0]  ByteHash;
  reg MulticastOK;
  reg UnicastOK;
  reg RxAbort;
  reg CrcHashGood_d;  // delay HashGood by one cycle
- reg HashBit;
  
- assign RxAddressInvalid = ~(UnicastOK | BroadcastOK | MulticastOK);
+assign RxAddressInvalid = ~(UnicastOK | BroadcastOK | MulticastOK);
  
+assign BroadcastOK = Broadcast;
  
- assign BroadcastOK = (Broadcast & ~r_Bro ) | r_Pro;
- 
- assign RxCheckEn   = | StateData;
+assign RxCheckEn   = | StateData;
  
  // Address Error Reported at end of address cycle
  // RxAbort clears after one cycle
  
- always @ (posedge MRxClk or posedge Reset)
- begin
-   if(Reset)
-     RxAbort <= #Tp 1'b0;
-   else if( CrcHashGood_d & RxAddressInvalid & RxCheckEn)
- 	RxAbort <= #Tp 1'b1;
-   else
-      RxAbort <= #Tp 1'b0;
- end
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    RxAbort <= #Tp 1'b0;
+  else if(CrcHashGood_d & RxAddressInvalid & ~r_Pro & RxCheckEn)
+    RxAbort <= #Tp 1'b1;
+  else
+    RxAbort <= #Tp 1'b0;
+end
  
- // Hash Address Check, Multicast
+// Hash Address Check, Multicast
 
 
 // delay CrcHashGood by 1 cycle
 always @ (posedge MRxClk or posedge Reset)
-  begin
-    if(Reset)
-      CrcHashGood_d <= #Tp 1'b0;
-	else
-	  CrcHashGood_d <= #Tp CrcHashGood;  
-  end
+begin
+  if(Reset)
+    CrcHashGood_d <= #Tp 1'b0;
+  else
+    CrcHashGood_d <= #Tp CrcHashGood;  
+end
 
- always @ (posedge MRxClk or posedge Reset)
-  begin
-    if(Reset)
-      MulticastOK <= #Tp 1'b0;
-	else if (RxEndFrm | RxAbort)
-       MulticastOK <= #Tp 1'b0;
-    else if(CrcHashGood & Multicast)
-  	  MulticastOK <= #Tp HashBit;
-    
-  end
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    MulticastOK <= #Tp 1'b0;
+  else if(RxEndFrm | RxAbort)
+    MulticastOK <= #Tp 1'b0;
+  else if(CrcHashGood & Multicast)
+    MulticastOK <= #Tp HashBit;
+end
  
  
- 
- 
- // Address Detection (unicast)
- // start with ByteCntEq2 due to delay of addres from RxData
- 
+// Address Detection (unicast)
+// start with ByteCntEq2 due to delay of addres from RxData
 always @ (posedge MRxClk or posedge Reset)
 begin
   if(Reset)
     UnicastOK <= #Tp 1'b0;
   else
-  if( RxCheckEn & ByteCntEq2)
+  if(RxCheckEn & ByteCntEq2)
     UnicastOK <= #Tp   RxData[7:0] == MAC[7:0];
   else
-  if( RxCheckEn & ByteCntEq3)
+  if(RxCheckEn & ByteCntEq3)
     UnicastOK <= #Tp ( RxData[7:0] == MAC[15:8]) & UnicastOK;
   else
-  if( RxCheckEn & ByteCntEq4)
+  if(RxCheckEn & ByteCntEq4)
     UnicastOK <= #Tp ( RxData[7:0] == MAC[23:16]) & UnicastOK;
   else
-  if( RxCheckEn & ByteCntEq5)
+  if(RxCheckEn & ByteCntEq5)
     UnicastOK <= #Tp ( RxData[7:0] == MAC[31:24]) & UnicastOK;
   else
-  if( RxCheckEn & ByteCntEq6)
+  if(RxCheckEn & ByteCntEq6)
     UnicastOK <= #Tp ( RxData[7:0] == MAC[39:32])  & UnicastOK;
   else
-  if( RxCheckEn & ByteCntEq7)
+  if(RxCheckEn & ByteCntEq7)
     UnicastOK <= #Tp ( RxData[7:0] == MAC[47:40]) & UnicastOK;
   else
   if(RxEndFrm | RxAbort)
     UnicastOK <= #Tp 1'b0;
 end
    
- always@(HASH0 or HASH1 or CrcHash[5])
-	begin
-	if (CrcHash[5])
-	  IntHash = HASH1;
-	else
-	  IntHash = HASH0;
-	  
-	end
-	
-    always@(CrcHash or IntHash)
-		begin
-		  case(CrcHash[4:3])
-		    2'b00: ByteHash = IntHash[7:0];
-		    2'b01: ByteHash = IntHash[15:8];
-		    2'b10: ByteHash = IntHash[23:16];
-		    2'b11: ByteHash = IntHash[31:24];
-		  endcase
-	    end
-		  
-  always@(CrcHash or ByteHash)
-     begin
-	   case(CrcHash[2:0])
-	   	 3'h0: HashBit =  ByteHash[0];
-		 3'h1: HashBit =  ByteHash[1]; 
-		 3'h2: HashBit =  ByteHash[2];
-		 3'h3: HashBit =  ByteHash[3];
-		 3'h4: HashBit =  ByteHash[4];
-		 3'h5: HashBit =  ByteHash[5];
-		 3'h6: HashBit =  ByteHash[6];
-		 3'h7: HashBit =  ByteHash[7];
-	   endcase
-	 end
+assign IntHash = (CrcHash[5])? HASH1 : HASH0;
+  
+always@(CrcHash or IntHash)
+begin
+  case(CrcHash[4:3])
+    2'b00: ByteHash = IntHash[7:0];
+    2'b01: ByteHash = IntHash[15:8];
+    2'b10: ByteHash = IntHash[23:16];
+    2'b11: ByteHash = IntHash[31:24];
+  endcase
+end
+      
+assign HashBit = ByteHash[CrcHash[2:0]];
+
 
 endmodule
