@@ -121,12 +121,12 @@ echo "-hdlvar ../bin/hdl.var" >> ../run/ncvlog.args
 echo "-logfile ../log/ncvlog.log" >> ../run/ncvlog.args
 echo "-update" >> ../run/ncvlog.args
 echo "-messages" >> ../run/ncvlog.args
-echo "-INCDIR ../../../../bench/verilog" >> ../run/ncvlog.args
-echo "-INCDIR ../../../../rtl/verilog" >> ../run/ncvlog.args
+echo "-INCDIR ../../../bench/verilog" >> ../run/ncvlog.args
+echo "-INCDIR ../../../rtl/verilog" >> ../run/ncvlog.args
 echo "-DEFINE SIM" >> ../run/ncvlog.args
 # adding defines to .args file
 if ($arg_regression == 1) then
-    cat ./defines.args >> ../run/ncvlog.args
+    cat ../run/defines.args >> ../run/ncvlog.args
 endif
 # adding RTL and Sim files to .args file
 cat ../bin/rtl_file_list.lst >> ../run/ncvlog.args
