@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/02/15 11:13:29  mohor
+// Format of the file changed a bit.
+//
 // Revision 1.4  2002/02/14 20:19:41  billditt
 // Modified for Address Checking,
 // addition of eth_addrcheck.v
@@ -83,7 +86,7 @@
 module eth_rxcounters (MRxClk, Reset, MRxDV, StateIdle, StateSFD, StateData, StateDrop, StatePreamble, 
                        MRxDEqD, DlyCrcEn, DlyCrcCnt, Transmitting, MaxFL, r_IFG, HugEn, IFGCounterEq24, 
                        ByteCntEq0, ByteCntEq1, ByteCntEq2,ByteCntEq3,ByteCntEq4,ByteCntEq5, ByteCntEq6,
-                       ByteCntEq7, ByteCntGreat2, ByteCntSmall7, ByteCntMaxFrame, ByteCnt
+                       ByteCntEq7, ByteCntGreat2, ByteCntSmall7, ByteCntMaxFrame, ByteCntOut
                       );
 
 parameter Tp = 1;
@@ -116,7 +119,7 @@ output        ByteCntEq7;               // Byte counter = 7
 output        ByteCntGreat2;            // Byte counter > 2
 output        ByteCntSmall7;            // Byte counter < 7
 output        ByteCntMaxFrame;          // Byte counter = MaxFL
-output [15:0] ByteCnt;                  // Byte counter
+output [15:0] ByteCntOut;               // Byte counter
 
 wire          ResetByteCounter;
 wire          IncrementByteCounter;
@@ -127,6 +130,8 @@ wire          ByteCntMax;
 reg   [15:0]  ByteCnt;
 reg   [3:0]   DlyCrcCnt;
 reg   [4:0]   IFGCounter;
+
+wire  [15:0]  ByteCntDelayed;
 
 
 
@@ -141,16 +146,19 @@ assign IncrementByteCounter = ~ResetByteCounter & MRxDV &
 always @ (posedge MRxClk or posedge Reset)
 begin
   if(Reset)
-    ByteCnt[15:0] <= #Tp 11'h0;
+    ByteCnt[15:0] <= #Tp 16'h0;
   else
     begin
       if(ResetByteCounter)
-        ByteCnt[15:0] <= #Tp 11'h0;
+        ByteCnt[15:0] <= #Tp 16'h0;
       else
       if(IncrementByteCounter)
         ByteCnt[15:0] <= #Tp ByteCnt[15:0] + 1'b1;
      end
 end
+
+assign ByteCntDelayed = ByteCnt + 3'h4;
+assign ByteCntOut = DlyCrcEn? ByteCntDelayed : ByteCnt;
 
 assign ByteCntEq0       = ByteCnt == 16'h0;
 assign ByteCntEq1       = ByteCnt == 16'h1;
@@ -164,7 +172,6 @@ assign ByteCntGreat2    = ByteCnt >  16'h2;
 assign ByteCntSmall7    = ByteCnt <  16'h7;
 assign ByteCntMax       = ByteCnt == 16'hffff;
 assign ByteCntMaxFrame  = ByteCnt == MaxFL[15:0] & ~HugEn;
-
 
 
 assign ResetIFGCounter = StateSFD  &  MRxDV & MRxDEqD | StateDrop;
