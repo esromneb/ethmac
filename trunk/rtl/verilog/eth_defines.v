@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.30  2003/06/13 11:55:37  mohor
+// Define file in eth_cop.v is changed to eth_defines.v. Some defines were
+// moved from tb_eth_defines.v to eth_defines.v.
+//
 // Revision 1.29  2002/11/19 18:13:49  mohor
 // r_MiiMRst is not used for resetting the MIIM module. wb_rst used instead.
 //
@@ -173,6 +177,7 @@
 
 // Ethernet implemented in ASIC with Virtual Silicon RAMs
 // `define ETH_VIRTUAL_SILICON_RAM     // Virtual Silicon RAMS used storing buffer decriptors (ASIC implementation)
+// `define ETH_ARTISAN_RAM             // Artisan RAMS used storing buffer decriptors (ASIC implementation)
 
 `define ETH_MODER_ADR         8'h0    // 0x0 
 `define ETH_INT_SOURCE_ADR    8'h1    // 0x4 

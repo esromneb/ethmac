@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/10/18 17:04:20  tadejm
+// Changed BIST scan signals.
+//
 // Revision 1.3  2002/10/10 16:29:30  mohor
 // BIST added.
 //
@@ -148,6 +151,33 @@ module eth_spram_256x32(
 
 `else   // !ETH_VIRTUAL_SILICON_RAM
 
+`ifdef  ETH_ARTISAN_RAM
+  `ifdef ETH_BIST
+      art_hssp_256x32_bist ram0_bist
+  `else
+      art_hssp_256x32 ram0
+  `endif
+      (
+        .CLK        (clk),
+        .CEN        (!ce),
+        .WEN        (!we),
+        .OEN        (!oe),
+        .A          (addr),
+        .D          (di),
+        .Q          (do)
+
+      `ifdef ETH_BIST
+        ,
+        // debug chain signals
+        .scanb_rst      (scanb_rst),
+        .scanb_clk      (scanb_clk),
+        .scanb_si       (scanb_si),
+        .scanb_so       (scanb_so),
+        .scanb_en       (scanb_en)
+      `endif
+      );
+
+`else   // !ETH_ARTISAN_RAM
 	//
 	// Generic single-port synchronous RAM model
 	//
@@ -191,6 +221,7 @@ module eth_spram_256x32(
   	end
 	endtask
 
+`endif  // !ETH_ARTISAN_RAM
 `endif  // !ETH_VIRTUAL_SILICON_RAM
 `endif  // !ETH_XILINX_RAMB4
 
