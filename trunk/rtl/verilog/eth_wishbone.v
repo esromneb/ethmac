@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2002/03/09 16:08:45  mohor
+// rx_fifo was not always cleared ok. Fixed.
+//
 // Revision 1.16  2002/03/09 13:51:20  mohor
 // Status was not latched correctly sometimes. Fixed.
 //
@@ -323,7 +326,6 @@ wire            TxDonePulse;
 wire            TxAbortPulse;
 
 wire            StartRxBDRead;
-wire            StartRxStatusWrite;
 
 wire            StartTxBDRead;
 
@@ -440,8 +442,8 @@ begin
   else
     begin
       // Switching between three stages depends on enable signals
-      casex ({WbEn_q, RxEn_q, TxEn_q, RxEn_needed, TxEn_needed})  // synopsys parallel_case
-        5'b100_1x :
+      case ({WbEn_q, RxEn_q, TxEn_q, RxEn_needed, TxEn_needed})  // synopsys parallel_case
+        5'b100_10, 5'b100_11 :
           begin
             WbEn <=#Tp 1'b0;
             RxEn <=#Tp 1'b1;  // wb access stage and r_RxEn is enabled
@@ -457,7 +459,7 @@ begin
             ram_addr <=#Tp TxBDAddress + TxPointerRead;
             ram_di <=#Tp TxBDDataIn;
           end
-        5'b010_x0 :
+        5'b010_00, 5'b010_10 :
           begin
             WbEn <=#Tp 1'b1;  // RxEn access stage and r_TxEn is disabled
             RxEn <=#Tp 1'b0;
@@ -467,7 +469,7 @@ begin
             BDWrite <=#Tp BDCs & WB_WE_I;
             BDRead <=#Tp BDCs & ~WB_WE_I;
           end
-        5'b010_x1 :
+        5'b010_01, 5'b010_11 :
           begin
             WbEn <=#Tp 1'b0;
             RxEn <=#Tp 1'b0;
@@ -475,7 +477,7 @@ begin
             ram_addr <=#Tp TxBDAddress + TxPointerRead;
             ram_di <=#Tp TxBDDataIn;
           end
-        5'b001_xx :
+        5'b001_00, 5'b001_01, 5'b001_10, 5'b001_11 :
           begin
             WbEn <=#Tp 1'b1;  // TxEn access stage (we always go to wb access stage)
             RxEn <=#Tp 1'b0;
@@ -569,7 +571,7 @@ begin
   if(Reset)
     TxBDRead <=#Tp 1'b1;
   else
-  if(StartTxBDRead)
+  if(StartTxBDRead & ~TxBDReady)
     TxBDRead <=#Tp 1'b1;
   else
   if(TxBDReady)
@@ -619,7 +621,7 @@ begin
   if(Reset)
     BlockingTxBDRead <=#Tp 1'b0;
   else
-  if(StartTxBDRead)
+  if(StartTxBDRead & ~TxBDReady)
     BlockingTxBDRead <=#Tp 1'b1;
   else
   if(TxStartFrm_wb)
@@ -753,7 +755,7 @@ begin
   if(Reset)
     BlockReadTxDataFromMemory <=#Tp 1'b0;
   else
-  if(ReadTxDataFromFifo_wb)
+  if(ReadTxDataFromFifo_wb | ResetReadTxDataFromMemory)
     BlockReadTxDataFromMemory <=#Tp 1'b0;
   else
   if((TxBufferAlmostFull | TxLength <= 4)& MasterWbTX)
@@ -765,7 +767,7 @@ end
 assign MasterAccessFinished = m_wb_ack_i | m_wb_err_i;
 
 assign m_wb_sel_o = 4'hf;
-
+reg[3:0] state;
 
 // Enabling master wishbone access to the memory for two devices TX and RX.
 always @ (posedge WB_CLK_I or posedge Reset)
@@ -778,6 +780,7 @@ begin
       m_wb_cyc_o <=#Tp 1'b0;
       m_wb_stb_o <=#Tp 1'b0;
       m_wb_we_o  <=#Tp 1'b0;
+state <=#Tp 4'h0;
     end
   else
     begin
@@ -791,6 +794,7 @@ begin
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b1;
+state <=#Tp 4'h1;
           end
         5'b00_10_0, 5'b00_10_1 :
           begin
@@ -800,6 +804,7 @@ begin
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
+state <=#Tp 4'h2;
           end
         5'b10_10_1 :
           begin
@@ -809,6 +814,7 @@ begin
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
+state <=#Tp 4'h3;
           end
         5'b01_01_1 :
           begin
@@ -816,6 +822,7 @@ begin
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp RxPointer;
             m_wb_we_o  <=#Tp 1'b1;
+state <=#Tp 4'h4;
           end
         5'b10_01_1, 5'b10_11_1 :
           begin
@@ -823,6 +830,7 @@ begin
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp RxPointer;
             m_wb_we_o  <=#Tp 1'b1;
+state <=#Tp 4'h5;
           end
         5'b01_10_1, 5'b01_11_1 :
           begin
@@ -830,6 +838,7 @@ begin
             MasterWbRX <=#Tp 1'b0;
             m_wb_adr_o <=#Tp TxPointer;
             m_wb_we_o  <=#Tp 1'b0;
+state <=#Tp 4'h6;
           end
         5'b10_00_1, 5'b01_00_1 :
           begin
@@ -837,6 +846,7 @@ begin
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b0;
             m_wb_stb_o <=#Tp 1'b0;
+state <=#Tp 4'h7;
           end
         default:                            // Don't touch
           begin
@@ -844,6 +854,7 @@ begin
             MasterWbRX <=#Tp MasterWbRX;
             m_wb_cyc_o <=#Tp m_wb_cyc_o;
             m_wb_stb_o <=#Tp m_wb_stb_o;
+state <=#Tp state;
           end
       endcase
     end
@@ -1333,7 +1344,7 @@ begin
 end
 
 
-assign StartRxBDRead = RxStatusWrite | RxAbort;
+assign StartRxBDRead = RxStatusWrite | RxAbortLatched;
 
 // Reading the Rx buffer descriptor
 always @ (posedge WB_CLK_I or posedge Reset)
@@ -1341,7 +1352,7 @@ begin
   if(Reset)
     RxBDRead <=#Tp 1'b1;
   else
-  if(StartRxBDRead)
+  if(StartRxBDRead & ~RxBDReady)
     RxBDRead <=#Tp 1'b1;
   else
   if(RxBDReady)
@@ -1627,12 +1638,53 @@ reg RxAbortSync2;
 reg RxAbortSyncb1;
 reg RxAbortSyncb2;
 
+reg LatchedRxStartFrm;
+reg SyncRxStartFrm;
+reg SyncRxStartFrm_q;
+wire RxFifoReset;
+
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    LatchedRxStartFrm <=#Tp 0;
+  else
+  if(RxStartFrm & ~SyncRxStartFrm)
+    LatchedRxStartFrm <=#Tp 1;
+  else
+  if(SyncRxStartFrm)
+    LatchedRxStartFrm <=#Tp 0;
+end
+
+
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    SyncRxStartFrm <=#Tp 0;
+  else
+  if(LatchedRxStartFrm)
+    SyncRxStartFrm <=#Tp 1;
+  else
+    SyncRxStartFrm <=#Tp 0;
+end
+
+
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    SyncRxStartFrm_q <=#Tp 0;
+  else
+    SyncRxStartFrm_q <=#Tp SyncRxStartFrm;
+end
+
+
+assign RxFifoReset = SyncRxStartFrm & ~SyncRxStartFrm_q;
+
 
 eth_fifo #(`RX_FIFO_DATA_WIDTH, `RX_FIFO_DEPTH, `RX_FIFO_CNT_WIDTH)
 rx_fifo (.data_in(RxDataLatched2),                      .data_out(m_wb_dat_o), 
          .clk(WB_CLK_I),                                .reset(Reset), 
          .write(WriteRxDataToFifo_wb),                  .read(MasterWbRX & m_wb_ack_i), 
-         .clear(RxAbortSync2 | RxStatusWriteLatched),   .full(RxBufferFull), 
+         .clear(RxFifoReset),                           .full(RxBufferFull), 
          .almost_full(RxBufferAlmostFull),              .almost_empty(RxBufferAlmostEmpty), 
          .empty(RxBufferEmpty)
         );
@@ -1647,10 +1699,10 @@ begin
   if(Reset)
     ShiftEnded_tck <=#Tp 1'b0;
   else
-  if(SetWriteRxDataToFifo & StartShiftWillEnd & ~RxAbort)
+  if(SetWriteRxDataToFifo & StartShiftWillEnd & ~RxAbort & ~ShiftEnded_tck)
     ShiftEnded_tck <=#Tp 1'b1;
   else
-  if(ShiftEndedSync2 | RxAbort)
+  if(ShiftEnded | RxAbort)
     ShiftEnded_tck <=#Tp 1'b0;
 end
 
@@ -1667,11 +1719,7 @@ begin
   if(Reset)
     ShiftEndedSync2 <=#Tp 1'b0;
   else
-  if(ShiftEndedSync1)
-    ShiftEndedSync2 <=#Tp 1'b1;
-  else
-  if(ShiftEnded)
-    ShiftEndedSync2 <=#Tp 1'b0;
+    ShiftEndedSync2 <=#Tp ShiftEndedSync1;
 end
 
 
@@ -1681,7 +1729,7 @@ begin
   if(Reset)
     ShiftEnded <=#Tp 1'b0;
   else
-  if(ShiftEndedSync2 & MasterWbRX & m_wb_ack_i & RxBufferAlmostEmpty)
+  if(ShiftEndedSync2 & MasterWbRX & m_wb_ack_i & RxBufferAlmostEmpty & ~ShiftEnded)
     ShiftEnded <=#Tp 1'b1;
   else
   if(RxStatusWrite)
