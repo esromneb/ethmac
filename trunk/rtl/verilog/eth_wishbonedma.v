@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2002/02/11 09:18:22  mohor
+// Tx status is written back to the BD.
+//
 // Revision 1.12  2002/02/08 16:21:54  mohor
 // Rx status is written back to the BD.
 //
@@ -114,7 +117,7 @@ module eth_wishbonedma
  		WB_REQ_O, WB_ACK_I, WB_ND_O, WB_RD_O, BDCs, 
 
     //TX
-    MTxClk, TxStartFrm, TxEndFrm, TxUsedData, TxData, StatusIzTxEthMACModula, 
+    MTxClk, TxStartFrm, TxEndFrm, TxUsedData, TxData, 
     TxRetry, TxAbort, TxUnderRun, TxDone, TPauseRq, TxPauseTV, PerPacketCrcEn, 
     PerPacketPad, 
 
@@ -179,7 +182,6 @@ input           CarrierSenseLost;
 // Tx
 input           MTxClk;         // Transmit clock (from PHY)
 input           TxUsedData;     // Transmit packet used data
-input  [15:0]   StatusIzTxEthMACModula;
 input           TxRetry;        // Transmit packet retry
 input           TxAbort;        // Transmit packet abort
 input           TxDone;         // Transmission ended

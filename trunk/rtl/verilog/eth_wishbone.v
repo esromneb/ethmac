@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/02/11 09:18:22  mohor
+// Tx status is written back to the BD.
+//
 // Revision 1.5  2002/02/08 16:21:54  mohor
 // Rx status is written back to the BD.
 //
@@ -94,7 +97,7 @@ module eth_wishbone
     m_wb_stb_o, m_wb_ack_i, m_wb_err_i, 
 
     //TX
-    MTxClk, TxStartFrm, TxEndFrm, TxUsedData, TxData, StatusIzTxEthMACModula, 
+    MTxClk, TxStartFrm, TxEndFrm, TxUsedData, TxData, 
     TxRetry, TxAbort, TxUnderRun, TxDone, TPauseRq, TxPauseTV, PerPacketCrcEn, 
     PerPacketPad, 
 
@@ -166,7 +169,6 @@ input           CarrierSenseLost; // Carrier Sense was lost during the frame tra
 // Tx
 input           MTxClk;         // Transmit clock (from PHY)
 input           TxUsedData;     // Transmit packet used data
-input  [15:0]   StatusIzTxEthMACModula;
 input           TxRetry;        // Transmit packet retry
 input           TxAbort;        // Transmit packet abort
 input           TxDone;         // Transmission ended
@@ -268,6 +270,7 @@ reg             WriteRxDataToFifo;
 reg    [15:0]   LatchedRxLength;
 
 reg             ShiftEnded;
+reg             RxOverrun;
 
 reg             BDWrite;                    // BD Write Enable for access from WISHBONE side
 reg             BDRead;                     // BD Read access from WISHBONE side
@@ -300,8 +303,8 @@ wire            GotDataEvaluate;
 
 reg             temp_ack;
 
-wire    [5:0]   RxStatusIn;
-reg     [5:0]   RxStatusInLatched;
+wire    [6:0]   RxStatusIn;
+reg     [6:0]   RxStatusInLatched;
 
 `ifdef ETH_REGISTERED_OUTPUTS
 reg             temp_ack2;
@@ -320,7 +323,6 @@ reg [31:0]  ram_di;
 wire [31:0] ram_do;
 
 wire StartTxPointerRead;
-wire ResetTxPointerRead;
 reg  TxPointerRead;
 reg TxEn_needed;
 reg RxEn_needed;
@@ -943,52 +945,12 @@ begin
 end
 
 
-// Bit 14 is used as a wrap bit. When active it indicates the last buffer descriptor in a row. After
-// using this descriptor, first BD will be used again.
-
-// TX
-// bit 15 od tx je ready
-// bit 14 od tx je interrupt (Tx buffer ali tx error bit se postavi v interrupt registru, ko se ta buffer odda)
-// bit 13 od tx je wrap
-// bit 12 od tx je pad
-// bit 11 od tx je crc
-// bit 10 od tx je last (crc se doda le ce je bit 11 in hkrati bit 10)
-// bit 9  od tx je pause request (control frame)
-    // Vsi zgornji biti gredo ven, spodnji biti (od 8 do 0) pa so statusni in se vpisejo po koncu oddajanja
-// bit 8  od tx je defer indication           done
-// bit 7  od tx je late collision             done
-// bit 6  od tx je retransmittion limit       done
-// bit 5  od tx je underrun                   done
-// bit 4  od tx je carrier sense lost
-// bit [3:0] od tx je retry count             done
-
-//assign TxBDReady      = TxStatus[15];     // already used
 assign TxIRQEn          = TxStatus[14];
-assign WrapTxStatusBit  = TxStatus[13];                                                   // ok povezan
-assign PerPacketPad     = TxStatus[12];                                                   // ok povezan
+assign WrapTxStatusBit  = TxStatus[13];
+assign PerPacketPad     = TxStatus[12];
 assign PerPacketCrcEn   = TxStatus[11];
 //assign TxPauseRq      = TxStatus[9];      // already used     Ta gre ven, ker bo stvar izvedena preko registrov
 
-
-
-// RX
-// bit 15 od rx je empty
-// bit 14 od rx je interrupt (Rx buffer ali rx frame received se postavi v interrupt registru, ko se ta buffer zapre)
-// bit 13 od rx je wrap
-// bit 12 od rx je reserved
-// bit 11 od rx je reserved
-// bit 10 od rx je reserved
-// bit 9  od rx je reserved
-// bit 8  od rx je reserved
-// bit 7  od rx je reserved
-// bit 6  od rx je underrun         still missing
-// bit 5  od rx je InvalidSymbol
-// bit 4  od rx je DribbleNibble
-// bit 3  od rx je ReceivedPacketTooBig
-// bit 2  od rx je ShortFrame
-// bit 1  od rx je LatchedCrcError
-// bit 0  od rx je RxLateCollision
-assign RxStatusIn = {InvalidSymbol, DribbleNibble, ReceivedPacketTooBig, ShortFrame, LatchedCrcError, RxLateCollision};
 
 assign WrapRxStatusBit = RxStatus[13];
 
@@ -1025,7 +987,7 @@ end
 
 wire [8:0] TxStatusInLatched = {TxUnderRun, RetryCntLatched[3:0], RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost};
 
-assign RxBDDataIn = {LatchedRxLength, 1'b0, RxStatus, 7'h0, RxStatusInLatched};
+assign RxBDDataIn = {LatchedRxLength, 1'b0, RxStatus, 6'h0, RxStatusInLatched};
 assign TxBDDataIn = {LatchedTxLength, 1'b0, TxStatus, 2'h0, TxStatusInLatched};
 
 
@@ -1742,8 +1704,7 @@ begin
 end
 
 
-
-assign RxStatusIn = {InvalidSymbol, DribbleNibble, ReceivedPacketTooBig, ShortFrame, LatchedCrcError, RxLateCollision};
+assign RxStatusIn = {RxOverrun, InvalidSymbol, DribbleNibble, ReceivedPacketTooBig, ShortFrame, LatchedCrcError, RxLateCollision};
 
 always @ (posedge MRxClk or posedge Reset)
 begin
@@ -1754,6 +1715,55 @@ begin
     RxStatusInLatched <=#Tp RxStatusIn;
 end
 
+
+// Rx overrun
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    RxOverrun <=#Tp 1'b0;
+  else
+  if(RxStatusWrite)
+    RxOverrun <=#Tp 1'b0;
+  else
+  if(RxBufferFull & WriteRxDataToFifo_wb)
+    RxOverrun <=#Tp 1'b1;
+end
+
+         
+// TX
+// bit 15 od tx je ready
+// bit 14 od tx je interrupt (Tx buffer ali tx error bit se postavi v interrupt registru, ko se ta buffer odda)
+// bit 13 od tx je wrap
+// bit 12 od tx je pad
+// bit 11 od tx je crc
+// bit 10 od tx je last (crc se doda le ce je bit 11 in hkrati bit 10)
+// bit 9  od tx je pause request (control frame)
+    // Vsi zgornji biti gredo ven, spodnji biti (od 8 do 0) pa so statusni in se vpisejo po koncu oddajanja
+// bit 8  od tx je defer indication           done
+// bit 7  od tx je late collision             done
+// bit 6  od tx je retransmittion limit       done
+// bit 5  od tx je underrun                   done
+// bit 4  od tx je carrier sense lost
+// bit [3:0] od tx je retry count             done
+
+
+// RX
+// bit 15 od rx je empty
+// bit 14 od rx je interrupt (Rx buffer ali rx frame received se postavi v interrupt registru, ko se ta buffer zapre)
+// bit 13 od rx je wrap
+// bit 12 od rx je reserved
+// bit 11 od rx je reserved
+// bit 10 od rx je reserved
+// bit 9  od rx je reserved
+// bit 8  od rx je reserved
+// bit 7  od rx je reserved
+// bit 6  od rx je RxOverrun
+// bit 5  od rx je InvalidSymbol
+// bit 4  od rx je DribbleNibble
+// bit 3  od rx je ReceivedPacketTooBig
+// bit 2  od rx je ShortFrame
+// bit 1  od rx je LatchedCrcError
+// bit 0  od rx je RxLateCollision
 
 endmodule
 
