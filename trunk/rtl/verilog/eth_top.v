@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.37  2002/11/13 22:25:36  tadejm
+// All modules are reset with wb_rst instead of the r_Rst. Exception is MII module.
+//
 // Revision 1.36  2002/10/18 17:04:20  tadejm
 // Changed BIST scan signals.
 //
@@ -346,7 +349,6 @@ eth_miim miim1
 wire        RegCs;          // Connected to registers
 wire [31:0] RegDataOut;     // Multiplexed to wb_dat_o
 wire        r_RecSmall;     // Receive small frames
-wire        r_Rst;          // Reset
 wire        r_LoopBck;      // Loopback
 wire        r_TxEn;         // Tx Enable
 wire        r_RxEn;         // Rx Enable
@@ -411,7 +413,6 @@ assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] &  wb_adr_i[10];   //
 assign CsMiss = wb_stb_i & wb_cyc_i & DWord & wb_adr_i[11];                   // 0x800 - 0xfFF
 assign temp_wb_ack_o = RegCs | BDAck;
 assign temp_wb_dat_o = (RegCs & ~wb_we_i)? RegDataOut : BD_WB_DAT_O;
-//assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~DWord | BDCs & r_Rst | CsMiss);
 assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~DWord | CsMiss);
 
 `ifdef ETH_REGISTERED_OUTPUTS
@@ -452,7 +453,7 @@ eth_registers ethreg1
   .Cs(RegCs),                             .Clk(wb_clk_i),                             .Reset(wb_rst_i), 
   .DataOut(RegDataOut),                   .r_RecSmall(r_RecSmall), 
   .r_Pad(r_Pad),                          .r_HugEn(r_HugEn),                          .r_CrcEn(r_CrcEn), 
-  .r_DlyCrcEn(r_DlyCrcEn),                .r_Rst(r_Rst),                              .r_FullD(r_FullD), 
+  .r_DlyCrcEn(r_DlyCrcEn),                .r_FullD(r_FullD), 
   .r_ExDfrEn(r_ExDfrEn),                  .r_NoBckof(r_NoBckof),                      .r_LoopBck(r_LoopBck), 
   .r_IFG(r_IFG),                          .r_Pro(r_Pro),                              .r_Iam(), 
   .r_Bro(r_Bro),                          .r_NoPre(r_NoPre),                          .r_TxEn(r_TxEn), 

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2002/09/10 10:35:23  mohor
+// Ethernet debug registers removed.
+//
 // Revision 1.20  2002/09/04 18:40:25  mohor
 // ETH_TXCTRL and ETH_RXCTRL registers added. Interrupts related to
 // the control frames connected.
@@ -137,7 +140,7 @@
 
 module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut, 
                       r_RecSmall, r_Pad, r_HugEn, r_CrcEn, r_DlyCrcEn, 
-                      r_Rst, r_FullD, r_ExDfrEn, r_NoBckof, r_LoopBck, r_IFG, 
+                      r_FullD, r_ExDfrEn, r_NoBckof, r_LoopBck, r_IFG, 
                       r_Pro, r_Iam, r_Bro, r_NoPre, r_TxEn, r_RxEn, 
                       TxB_IRQ, TxE_IRQ, RxB_IRQ, RxE_IRQ, Busy_IRQ, 
                       r_IPGT, r_IPGR1, r_IPGR2, r_MinFL, r_MaxFL, r_MaxRet, 
@@ -174,7 +177,6 @@ output r_Pad;
 output r_HugEn;
 output r_CrcEn;
 output r_DlyCrcEn;
-output r_Rst;
 output r_FullD;
 output r_ExDfrEn;
 output r_NoBckof;
@@ -651,7 +653,7 @@ assign r_Pad              = MODEROut[15];
 assign r_HugEn            = MODEROut[14];
 assign r_CrcEn            = MODEROut[13];
 assign r_DlyCrcEn         = MODEROut[12];
-assign r_Rst              = MODEROut[11];
+// assign r_Rst           = MODEROut[11];   This signal is not used any more
 assign r_FullD            = MODEROut[10];
 assign r_ExDfrEn          = MODEROut[9];
 assign r_NoBckof          = MODEROut[8];
