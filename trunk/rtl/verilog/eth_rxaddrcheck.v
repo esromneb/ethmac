@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/03/02 21:06:32  mohor
+// Log info was missing.
+//
 //
 // Revision 1.1  2002/02/08 12:51:54  ditt
 // Initial release of the ethernet addresscheck module.
@@ -102,7 +105,7 @@ parameter Tp = 1;
  reg RxAbort;
  reg CrcHashGood_d;  // delay HashGood by one cycle
  
-assign RxAddressInvalid = ~(UnicastOK | BroadcastOK | MulticastOK);
+assign RxAddressInvalid = ~(UnicastOK | BroadcastOK | MulticastOK | r_Pro);
  
 assign BroadcastOK = Broadcast & ~r_Bro;
  
@@ -115,7 +118,7 @@ always @ (posedge MRxClk or posedge Reset)
 begin
   if(Reset)
     RxAbort <= #Tp 1'b0;
-  else if(CrcHashGood_d & RxAddressInvalid & ~r_Pro & RxCheckEn)
+  else if(CrcHashGood_d & RxAddressInvalid & RxCheckEn)
     RxAbort <= #Tp 1'b1;
   else
     RxAbort <= #Tp 1'b0;
