@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2002/08/16 22:14:22  mohor
+// Synchronous reset added to all registers. Defines used for width. r_MiiMRst
+// changed from bit position 10 to 9.
+//
 // Revision 1.15  2002/08/14 18:26:37  mohor
 // LinkFailRegister is reflecting the status of the PHY's link fail status bit.
 //
@@ -462,7 +466,7 @@ assign MIIADDRESSOut[31:13] = 0;
 eth_register #(`ETH_MIITX_DATA_WIDTH, `ETH_MIITX_DATA_DEF) MIITX_DATA
   (
    .DataIn    (DataIn[`ETH_MIITX_DATA_WIDTH-1:0]),
-   .DataOut   (MIITX_DATAOut[`ETH_MIITX_DATA_WIDTH-1:0])
+   .DataOut   (MIITX_DATAOut[`ETH_MIITX_DATA_WIDTH-1:0]), 
    .Write     (MIITX_DATA_Wr),
    .Clk       (Clk),
    .Reset     (Reset),
