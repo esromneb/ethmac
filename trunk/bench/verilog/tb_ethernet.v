@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/07/23 16:34:31  mohor
+// gsr added for use when ETH_XILINX_RAMB4 define is set.
+//
 // Revision 1.2  2002/07/19 14:02:47  mohor
 // Clock mrx_clk set to 2.5 MHz.
 //
@@ -245,9 +248,9 @@ begin
 //  forever #2.5 wb_clk_o = ~wb_clk_o;  // 2*2.5 ns -> 200.0 MHz    
 //  forever #5 wb_clk_o = ~wb_clk_o;  // 2*5 ns -> 100.0 MHz    
 //  forever #10 wb_clk_o = ~wb_clk_o;  // 2*10 ns -> 50.0 MHz    
-  forever #12.5 wb_clk_o = ~wb_clk_o;  // 2*12.5 ns -> 40 MHz    
+//  forever #12.5 wb_clk_o = ~wb_clk_o;  // 2*12.5 ns -> 40 MHz    
 //  forever #15 wb_clk_o = ~wb_clk_o;  // 2*10 ns -> 33.3 MHz    
-//  forever #20 wb_clk_o = ~wb_clk_o;  // 2*20 ns -> 25 MHz    
+  forever #20 wb_clk_o = ~wb_clk_o;  // 2*20 ns -> 25 MHz    
 //  forever #25 wb_clk_o = ~wb_clk_o;  // 2*25 ns -> 20.0 MHz
 //  forever #31.25 wb_clk_o = ~wb_clk_o;  // 2*31.25 ns -> 16.0 MHz    
 //  forever #50 wb_clk_o = ~wb_clk_o;  // 2*50 ns -> 10.0 MHz
@@ -258,16 +261,16 @@ end
 initial
 begin
   mtx_clk=0;
-//  #3 forever #20 mtx_clk = ~mtx_clk;   // 2*20 ns -> 25 MHz
-  #3 forever #200 mtx_clk = ~mtx_clk;   // 2*200 ns -> 2.5 MHz
+  #3 forever #20 mtx_clk = ~mtx_clk;   // 2*20 ns -> 25 MHz
+//  #3 forever #200 mtx_clk = ~mtx_clk;   // 2*200 ns -> 2.5 MHz
 end
 
 // Generating mrx_clk clock
 initial
 begin
   mrx_clk=0;
-//  #16 forever #20 mrx_clk = ~mrx_clk;   // 2*20 ns -> 25 MHz
-  #16 forever #200 mrx_clk = ~mrx_clk;   // 2*200 ns -> 2.5 MHz
+  #16 forever #20 mrx_clk = ~mrx_clk;   // 2*20 ns -> 25 MHz
+//  #16 forever #200 mrx_clk = ~mrx_clk;   // 2*200 ns -> 2.5 MHz
 end
 
 reg [31:0] tmp;
@@ -278,32 +281,65 @@ begin
 
   eth_host.wb_write(`ETH_MODER, 4'hf, 32'h0); // Reset OFF
   eth_host.wb_read(`ETH_MODER, 4'hf, tmp);
-
-  eth_host.wb_write(32'hd0000000, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | `ETH_MODER_PRO | 
-                                        `ETH_MODER_CRCEN | `ETH_MODER_PAD); // Set MODER register
-  eth_host.wb_read(32'hd0000000, 4'hf, tmp);
-  
+  eth_host.wb_write(`ETH_MAC_ADDR1, 4'hf, 32'h0002); // Set ETH_MAC_ADDR1 register
+  eth_host.wb_write(`ETH_MAC_ADDR0, 4'hf, 32'h03040506); // Set ETH_MAC_ADDR0 register
 
   initialize_txbd(3);
-  initialize_rxbd(6);
+  initialize_rxbd(2);
 
-  set_packet(16'h34, 8'h1);
+//  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | `ETH_MODER_PRO | 
+//                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD); // Set MODER register
+//  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | 
+//                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD); // Set MODER register
+  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | `ETH_MODER_BRO | 
+                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD); // Set MODER register
+//  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | `ETH_MODER_PRO | 
+//                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD | `ETH_MODER_LOOPBCK); // Set MODER register
+//  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | `ETH_MODER_PRO | 
+//                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD | `ETH_MODER_LOOPBCK | 
+//                                      `ETH_MODER_FULLD); // Set MODER register
+  eth_host.wb_read(`ETH_MODER, 4'hf, tmp);
+
+  set_packet(16'h64, 8'h1);
   set_packet(16'h34, 8'h11);
   send_packet;
   set_packet(16'h34, 8'h21);
   set_packet(16'h34, 8'h31);
+/*
+  eth_host.wb_write(`ETH_CTRLMODER, 4'hf, 32'h4);   // Enable Tx Flow control
+  eth_host.wb_write(`ETH_CTRLMODER, 4'hf, 32'h5);   // Enable Tx Flow control
+  eth_host.wb_write(`ETH_TX_CTRL, 4'hf, 32'h10013); // Send Control frame with PAUSE_TV=0x0013
+*/
   send_packet;
+*/
 
-  GetDataOnMRxD(100, `BROADCAST_XFR); // LengthRx bytes is comming on MRxD[3:0] signals
+  GetDataOnMRxD(100, `UNICAST_XFR); // LengthRx bytes is comming on MRxD[3:0] signals
 
-  repeat (100) @(posedge mrx_clk);   // Waiting for TxEthMac to finish transmit
+  repeat (1000) @(posedge wb_clk_o);   // Waiting for TxEthMac to finish transmit
+
+  GetDataOnMRxD(500, `BROADCAST_XFR); // LengthRx bytes is comming on MRxD[3:0] signals
+
+  repeat (1000) @(posedge mrx_clk);   // Waiting for TxEthMac to finish transmit
 
 
-  GetDataOnMRxD(70, `BROADCAST_XFR); // LengthRx bytes is comming on MRxD[3:0] signals
+  GetDataOnMRxD(1200, `BROADCAST_XFR); // LengthRx bytes is comming on MRxD[3:0] signals
 
+
+  GetDataOnMRxD(1000, `UNICAST_XFR); // LengthRx bytes is comming on MRxD[3:0] signals
 
   repeat (10000) @(posedge wb_clk_o);   // Waiting for TxEthMac to finish transmit
   
+  // Reading and printing interrupts
+  eth_host.wb_read(`ETH_INT, 4'hf, tmp);
+  $display("Print irq = 0x%0x", tmp);
+  
+  //Clearing all interrupts
+  eth_host.wb_write(`ETH_INT, 4'hf, 32'h60);
+
+  // Reading and printing interrupts
+  eth_host.wb_read(`ETH_INT, 4'hf, tmp);
+  $display("Print irq = 0x%0x", tmp);
+
   $display("\n\n End of simulation");
   $stop;
 
