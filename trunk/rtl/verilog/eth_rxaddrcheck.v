@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/09/04 18:41:06  mohor
+// Bug when last byte of destination address was not checked fixed.
+//
 // Revision 1.6  2002/03/20 15:14:11  mohor
 // When in promiscous mode some frames were not received correctly. Fixed.
 //
@@ -64,7 +67,7 @@ module eth_rxaddrcheck(MRxClk,  Reset, RxData, Broadcast ,r_Bro ,r_Pro,
                        ByteCntEq2, ByteCntEq3, ByteCntEq4, ByteCntEq5,
                        ByteCntEq6, ByteCntEq7, HASH0, HASH1, 
                        CrcHash,    CrcHashGood, StateData, RxEndFrm,
-                       Multicast, MAC, RxAbort
+                       Multicast, MAC, RxAbort, AddressMiss
                       );
 
 parameter Tp = 1;
@@ -91,7 +94,7 @@ parameter Tp = 1;
   input        RxEndFrm;
   
   output       RxAbort;
-
+  output       AddressMiss;
 
  wire BroadcastOK;
  wire ByteCntEq2;
@@ -106,6 +109,7 @@ parameter Tp = 1;
  reg MulticastOK;
  reg UnicastOK;
  reg RxAbort;
+ reg AddressMiss;
  
 assign RxAddressInvalid = ~(UnicastOK | BroadcastOK | MulticastOK | r_Pro);
  
@@ -126,9 +130,18 @@ begin
     RxAbort <= #Tp 1'b0;
 end
  
+
+// This ff holds the "Address Miss" information that is written to the RX BD status.
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    AddressMiss <= #Tp 1'b0;
+  else if(ByteCntEq7 & RxCheckEn)
+    AddressMiss <= #Tp (~(UnicastOK | BroadcastOK | MulticastOK));
+end
+
+
 // Hash Address Check, Multicast
-
-
 always @ (posedge MRxClk or posedge Reset)
 begin
   if(Reset)

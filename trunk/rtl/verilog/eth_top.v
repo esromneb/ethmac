@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.39  2002/11/18 17:31:55  mohor
+// wb_rst_i is used for MIIM reset.
+//
 // Revision 1.38  2002/11/14 18:37:20  mohor
 // r_Rst signal does not reset any module any more and is removed from the design.
 //
@@ -589,7 +592,7 @@ wire          RxStateIdle;
 wire          RxStatePreamble;
 wire          RxStateSFD;
 wire   [1:0]  RxStateData;
-
+wire          AddressMiss;
 
 
 
@@ -605,7 +608,8 @@ eth_rxethmac rxethmac1
   .CrcError(RxCrcError),                .StateIdle(RxStateIdle),              .StatePreamble(RxStatePreamble), 
   .StateSFD(RxStateSFD),                .StateData(RxStateData),
   .MAC(r_MAC),                          .r_Pro(r_Pro),                        .r_Bro(r_Bro),
-  .r_HASH0(r_HASH0),                    .r_HASH1(r_HASH1),                    .RxAbort(RxAbort)
+  .r_HASH0(r_HASH0),                    .r_HASH1(r_HASH1),                    .RxAbort(RxAbort), 
+  .AddressMiss(AddressMiss)
 );
 
 
@@ -771,7 +775,7 @@ eth_wishbone wishbone
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
   .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus),     .RetryCntLatched(RetryCntLatched),
   .RetryLimit(RetryLimit),            .LateCollLatched(LateCollLatched),        .DeferLatched(DeferLatched),   
-  .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood)
+  .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood),  .AddressMiss(AddressMiss) 
   
 `ifdef ETH_BIST
   ,

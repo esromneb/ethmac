@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2002/02/16 07:15:27  mohor
+// Testbench fixed, code simplified, unused signals removed.
+//
 // Revision 1.7  2002/02/15 13:44:28  mohor
 // RxAbort is an output. No need to have is declared as wire.
 //
@@ -89,7 +92,7 @@
 module eth_rxethmac (MRxClk, MRxDV, MRxD, Reset, Transmitting, MaxFL, r_IFG, HugEn, DlyCrcEn, 
                      RxData, RxValid, RxStartFrm, RxEndFrm, ByteCnt, ByteCntEq0, ByteCntGreat2, 
                      ByteCntMaxFrame, CrcError, StateIdle, StatePreamble, StateSFD, StateData,
-                     MAC, r_Pro, r_Bro,r_HASH0, r_HASH1, RxAbort
+                     MAC, r_Pro, r_Bro,r_HASH0, r_HASH1, RxAbort, AddressMiss
                     );
 
 parameter Tp = 1;
@@ -124,6 +127,7 @@ output        StatePreamble;
 output        StateSFD;
 output  [1:0] StateData;
 output        RxAbort;
+output        AddressMiss;
 
 reg     [7:0] RxData;
 reg           RxValid;
@@ -199,7 +203,7 @@ eth_rxaddrcheck rxaddrcheck1
                .HASH0(r_HASH0),         .HASH1(r_HASH1),           
                .CrcHash(CrcHash[5:0]),  .CrcHashGood(CrcHashGood),.StateData(StateData),
                .Multicast(Multicast),   .MAC(MAC),               .RxAbort(RxAbort),
-               .RxEndFrm(RxEndFrm)
+               .RxEndFrm(RxEndFrm),     .AddressMiss(AddressMiss)
               );
 
 

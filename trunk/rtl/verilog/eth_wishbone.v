@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.44  2002/11/13 22:21:40  tadejm
+// RxError is not generated when small frame reception is enabled and small
+// frames are received.
+//
 // Revision 1.43  2002/10/18 20:53:34  mohor
 // case changed to casex.
 //
@@ -235,7 +239,7 @@ module eth_wishbone
     
     // Rx Status
     InvalidSymbol, LatchedCrcError, RxLateCollision, ShortFrame, DribbleNibble,
-    ReceivedPacketTooBig, RxLength, LoadRxStatus, ReceivedPacketGood, 
+    ReceivedPacketTooBig, RxLength, LoadRxStatus, ReceivedPacketGood, AddressMiss, 
     
     // Tx Status
     RetryCntLatched, RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost
@@ -299,6 +303,7 @@ input           ReceivedPacketTooBig;// Received packet is bigger than r_MaxFL
 input    [15:0] RxLength;         // Length of the incoming frame
 input           LoadRxStatus;     // Rx status was loaded
 input           ReceivedPacketGood;// Received packet's length and CRC are good
+input           AddressMiss;      // When a packet is received AddressMiss status is written to the Rx BD
 
 // Tx Status signals
 input     [3:0] RetryCntLatched;  // Latched Retry Counter
@@ -463,8 +468,8 @@ wire            GotDataEvaluate;
 
 reg             WB_ACK_O;
 
-wire    [6:0]   RxStatusIn;
-reg     [6:0]   RxStatusInLatched;
+wire    [7:0]   RxStatusIn;
+reg     [7:0]   RxStatusInLatched;
 
 reg WbEn, WbEn_q;
 reg RxEn, RxEn_q;
@@ -1343,7 +1348,7 @@ end
 
 wire [8:0] TxStatusInLatched = {TxUnderRun, RetryCntLatched[3:0], RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost};
 
-assign RxBDDataIn = {LatchedRxLength, 1'b0, RxStatus, 6'h0, RxStatusInLatched};
+assign RxBDDataIn = {LatchedRxLength, 1'b0, RxStatus, 5'h0, RxStatusInLatched};
 assign TxBDDataIn = {LatchedTxLength, 1'b0, TxStatus, 2'h0, TxStatusInLatched};
 
 
@@ -2359,7 +2364,7 @@ begin
 end
 
 
-assign RxStatusIn = {RxOverrun, InvalidSymbol, DribbleNibble, ReceivedPacketTooBig, ShortFrame, LatchedCrcError, RxLateCollision};
+assign RxStatusIn = {AddressMiss, RxOverrun, InvalidSymbol, DribbleNibble, ReceivedPacketTooBig, ShortFrame, LatchedCrcError, RxLateCollision};
 
 always @ (posedge MRxClk or posedge Reset)
 begin
@@ -2392,7 +2397,9 @@ assign TxError = TxUnderRun | RetryLimit | LateCollLatched | CarrierSenseLost;
 wire RxError;
 
 // ShortFrame (RxStatusInLatched[2]) can not set an error because short frames
-// are aborted when signal r_RecSmall is set to 0 in MODER register.
+// are aborted when signal r_RecSmall is set to 0 in MODER register. 
+// AddressMiss is identifying that a frame was received because of the promiscous
+// mode and is not an error
 assign RxError = (|RxStatusInLatched[6:3]) | (|RxStatusInLatched[1:0]);
 
 // Tx Done Interrupt
