@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 4.96
-define waveform window namepane 15.18
+define waveform window listpane 5.84
+define waveform window namepane 16.26
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -180,6 +180,48 @@ add group \
       tb_ethernet.eth_top.m_wb_err_i \
 
 add group \
+    "MAC FIFO" \
+      tb_ethernet.eth_top.wishbone.rx_fifo.write \
+      tb_ethernet.eth_top.wishbone.rx_fifo.data_in[31:0]'h \
+      tb_ethernet.eth_top.wishbone.rx_fifo.write_pointer[3:0]'h \
+      tb_ethernet.eth_top.wishbone.rx_fifo.almost_full \
+      tb_ethernet.eth_top.wishbone.rx_fifo.full \
+      tb_ethernet.eth_top.wishbone.rx_fifo.read \
+      tb_ethernet.eth_top.wishbone.rx_fifo.data_out[31:0]'h \
+      tb_ethernet.eth_top.wishbone.rx_fifo.read_pointer[3:0]'h \
+      tb_ethernet.eth_top.wishbone.rx_fifo.almost_empty \
+      tb_ethernet.eth_top.wishbone.rx_fifo.empty \
+
+add group \
+    "MAC registers" \
+      tb_ethernet.eth_top.ethreg1.MODEROut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.INT_SOURCEOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.INT_MASKOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.IPGTOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.IPGR1Out[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.IPGR2Out[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.PACKETLENOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.COLLCONFOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.TX_BD_NUMOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.CTRLMODEROut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.MIIMODEROut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.MIICOMMANDOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.MIIADDRESSOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.MIITX_DATAOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.MIIRX_DATAOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.MIISTATUSOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.MAC_ADDR0Out[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.MAC_ADDR1Out[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.HASH0Out[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.HASH1Out[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.TXCTRLOut[31:0]'h \
+
+add group \
+    testbench_test_signals \
+      tb_ethernet.test_mac_full_duplex_transmit.i_length's \
+      tb_ethernet.test_mac_full_duplex_transmit.tmp_len's \
+
+add group \
     "MAC common" \
       tb_ethernet.eth_top.mcoll_pad_i \
       tb_ethernet.eth_top.mcrs_pad_i \
@@ -215,7 +257,16 @@ add group \
 add group \
     "Test signals" \
       tb_ethernet.test_name[799:0]'a \
+      tb_ethernet.eth_top.miim1.Nvalid \
+      tb_ethernet.eth_top.miim1.Busy \
+      tb_ethernet.eth_top.miim1.LinkFail \
+      tb_ethernet.eth_top.miim1.WriteDataOp \
+      tb_ethernet.eth_top.miim1.ReadStatusOp \
+      tb_ethernet.eth_top.miim1.ScanStatusOp \
       tb_ethernet.eth_top.ethreg1.MIISTATUSOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.MIITX_DATAOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.MIIRX_DATAOut[31:0]'h \
+      tb_ethernet.eth_top.ethreg1.MIIMODEROut[31:0]'h \
       tb_ethernet.eth_top.miim1.InProgress \
       tb_ethernet.eth_top.miim1.InProgress_q1 \
       tb_ethernet.eth_top.miim1.InProgress_q2 \
@@ -287,6 +338,6 @@ add group \
 
 
 deselect all
-open window designbrowser 1 geometry 56 117 855 550
+open window designbrowser 1 geometry 56 119 855 550
 open window waveform 1 geometry 10 59 1592 1094
-zoom at 4981823.979(0)ns 0.00025639 0.00000000
+zoom at 0(0)ns 0.00000403 0.00000000
