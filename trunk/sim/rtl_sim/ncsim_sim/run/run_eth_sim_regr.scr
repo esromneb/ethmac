@@ -118,8 +118,8 @@ echo "-hdlvar ../bin/hdl.var" >> ./ncvlog.args
 echo "-logfile ../log/ncvlog.log" >> ./ncvlog.args
 echo "-update" >> ./ncvlog.args
 echo "-messages" >> ./ncvlog.args
-echo "-INCDIR ../../../bench/verilog" >> ./ncvlog.args
-echo "-INCDIR ../../../rtl/verilog" >> ./ncvlog.args
+echo "-INCDIR ../../../../bench/verilog" >> ./ncvlog.args
+echo "-INCDIR ../../../../rtl/verilog" >> ./ncvlog.args
 echo "-DEFINE SIM" >> ./ncvlog.args
 # adding defines to .args file
 if ($arg_regression == 1) then
