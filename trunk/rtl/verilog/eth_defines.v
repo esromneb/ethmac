@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2002/08/14 19:31:48  mohor
+// Register TX_BD_NUM is changed so it contains value of the Tx buffer descriptors. No
+// need to multiply or devide any more.
+//
 // Revision 1.19  2002/07/23 15:28:31  mohor
 // Ram , used for BDs changed from generic_spram to eth_spram_256x32.
 //
@@ -156,7 +160,6 @@
 
 
 `define ETH_MODER_DEF         17'h0A800
-`define ETH_INT_SOURCE_DEF    32'h00000000
 `define ETH_INT_MASK_DEF      7'h0
 `define ETH_IPGT_DEF          7'h12
 `define ETH_IPGR1_DEF         7'h0C
@@ -166,7 +169,7 @@
 `define ETH_COLLCONF1_DEF     4'hF
 `define ETH_TX_BD_NUM_DEF     8'h40
 `define ETH_CTRLMODER_DEF     3'h0
-`define ETH_MIIMODER_DEF      11'h064
+`define ETH_MIIMODER_DEF      10'h064
 `define ETH_MIIADDRESS0_DEF   5'h00
 `define ETH_MIIADDRESS1_DEF   5'h00
 `define ETH_MIITX_DATA_DEF    16'h0000
@@ -176,6 +179,25 @@
 `define ETH_MAC_ADDR1_DEF     16'h0000
 `define ETH_HASH0_DEF         32'h00000000
 `define ETH_HASH1_DEF         32'h00000000
+
+
+`define ETH_MODER_WIDTH       17
+`define ETH_INT_SOURCE_WIDTH  7
+`define ETH_INT_MASK_WIDTH    7
+`define ETH_IPGT_WIDTH        7
+`define ETH_IPGR1_WIDTH       7
+`define ETH_IPGR2_WIDTH       7
+`define ETH_PACKETLEN_WIDTH   32
+`define ETH_TX_BD_NUM_WIDTH   8
+`define ETH_CTRLMODER_WIDTH   3
+`define ETH_MIIMODER_WIDTH    10
+`define ETH_MIITX_DATA_WIDTH  16
+`define ETH_MIIRX_DATA_WIDTH  16
+`define ETH_MIISTATUS_WIDTH   3
+`define ETH_MAC_ADDR0_WIDTH   32
+`define ETH_MAC_ADDR1_WIDTH   16
+`define ETH_HASH0_WIDTH       32
+`define ETH_HASH1_WIDTH       32
 
 
 // Outputs are registered (uncomment when needed)
