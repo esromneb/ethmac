@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/09/13 12:29:14  mohor
+// Headers changed.
+//
 // Revision 1.6  2002/09/13 11:57:20  mohor
 // New testbench. Thanks to Tadej M - "The Spammer".
 //
@@ -385,8 +388,9 @@ begin
 
   //  Call tests
   //  ----------
-    test_access_to_mac_reg(0, 3);          // 0 - 3
-    test_mii(0, 17);                        // 0 - 17
+//    test_access_to_mac_reg(0, 3);          // 0 - 3
+//    test_mii(0, 17);                        // 0 - 17
+    test_mii(0, 1);                        // 0 - 17
   test_note("PHY generates ideal Carrier sense and Collision signals for following tests");
   eth_phy.carrier_sense_real_delay(0);
     test_mac_full_duplex_transmit(0, 3);   // 0 - (3)

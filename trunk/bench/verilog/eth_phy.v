@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/09/13 12:29:14  mohor
+// Headers changed.
+//
 // Revision 1.1  2002/09/13 11:57:20  mohor
 // New testbench. Thanks to Tadej M - "The Spammer".
 //
@@ -411,8 +414,9 @@ begin
       end
       else // with preamble
       begin
+        #4 ;
         `ifdef VERBOSE
-        #4 $fdisplay(phy_log, "   (%0t)(%m)MIIM - 32-bit preamble received", $time);
+        $fdisplay(phy_log, "   (%0t)(%m)MIIM - 32-bit preamble received", $time);
         `endif
         if (md_io_reg !== 1'b0)
         begin
