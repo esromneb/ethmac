@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/09/09 12:54:13  mohor
+// error acknowledge cycle termination added to display.
+//
 // Revision 1.1  2002/08/14 17:16:07  mohor
 // Traffic cop with 2 wishbone master interfaces and 2 wishbona slave
 // interfaces:
@@ -338,7 +341,7 @@ end
 always @ (posedge wb_clk_i)
 begin
   if(cnt==1000) begin
-    $display("(%0t) ERROR: WB activity ??? ", $time);
+    $display("(%0t)(%m) ERROR: WB activity ??? ", $time);
     if(s1_wb_cyc_o) begin
       $display("s1_wb_dat_o = 0x%0x", s1_wb_dat_o);
       $display("s1_wb_adr_o = 0x%0x", s1_wb_adr_o);
