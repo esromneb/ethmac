@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2002/07/09 20:44:41  mohor
+// m_wb_cyc_o signal released after every single transfer.
+//
 // Revision 1.23  2002/05/03 10:15:50  mohor
 // Outputs registered. Reset changed for eth_wishbone module.
 //
@@ -887,7 +890,7 @@ begin
             m_wb_sel_o <=#Tp m_wb_sel_tmp_rx;
             cyc_cleared<=#Tp 1'b0;
           end
-        6'b01_10_1_0, 6'b01_11_0_1 :
+        6'b01_10_0_1, 6'b01_11_0_1 :
           begin
             MasterWbTX <=#Tp 1'b1;  // master write and master read is needed (data read from tx buffer)
             MasterWbRX <=#Tp 1'b0;
