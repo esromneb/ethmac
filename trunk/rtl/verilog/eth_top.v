@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2002/02/11 09:18:22  mohor
+// Tx status is written back to the BD.
+//
 // Revision 1.11  2002/02/08 16:21:54  mohor
 // Rx status is written back to the BD.
 //
@@ -311,7 +314,7 @@ assign wb_dat_o[31:0] = (RegCs & ~wb_we_i)? RegDataOut : DMA_WB_DAT_O;
 // Connecting Ethernet registers
 eth_registers ethreg1
 (
-  .DataIn(wb_dat_i),                      .Address(wb_adr_i[7:2]),                    .Rw(wb_we_i), 
+  .DataIn(wb_dat_i),                      .Address(wb_adr_i[9:2]),                    .Rw(wb_we_i), 
   .Cs(RegCs),                             .Clk(wb_clk_i),                             .Reset(wb_rst_i), 
   .DataOut(RegDataOut),                   .r_DmaEn(r_DmaEn),                          .r_RecSmall(r_RecSmall), 
   .r_Pad(r_Pad),                          .r_HugEn(r_HugEn),                          .r_CrcEn(r_CrcEn), 
@@ -331,7 +334,8 @@ eth_registers ethreg1
   .NValid_stat(NValid_stat),              .Busy_stat(Busy_stat),                   
   .LinkFail(LinkFail),                    .r_MAC(r_MAC),                              .WCtrlDataStart(WCtrlDataStart),
   .RStatStart(RStatStart),                .UpdateMIIRX_DATAReg(UpdateMIIRX_DATAReg),  .Prsd(Prsd), 
-  .r_TxBDNum(r_TxBDNum),                  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),                .int_o(int_o)
+  .r_TxBDNum(r_TxBDNum),                  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),                .int_o(int_o),
+  .r_HASH0(),                             .r_HASH1()
 );
 
 
@@ -581,7 +585,7 @@ eth_wishbone wishbone
 
     //TX
   .MTxClk(mtx_clk_pad_i),             .TxStartFrm(TxStartFrm),                  .TxEndFrm(TxEndFrm), 
-  .TxUsedData(TxUsedData),            .TxData(TxData),                          .StatusIzTxEthMACModula(16'h0), 
+  .TxUsedData(TxUsedData),            .TxData(TxData),
   .TxRetry(TxRetry),                  .TxAbort(TxAbort),                        .TxUnderRun(TxUnderRun), 
   .TxDone(TxDone),                    .TPauseRq(TPauseRq),                      .TxPauseTV(TxPauseTV), 
   .PerPacketCrcEn(PerPacketCrcEn),    .PerPacketPad(PerPacketPad),              .WillSendControlFrame(WillSendControlFrame), 
