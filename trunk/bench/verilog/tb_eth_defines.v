@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2002/03/19 12:53:54  mohor
+// Some defines that are used in testbench only were moved to tb_eth_defines.v
+// file.
+//
 //
 //
 //
@@ -51,6 +55,8 @@
 `define MULTICAST_XFR          0
 `define UNICAST_XFR            1
 `define BROADCAST_XFR          2
+`define UNICAST_WRONG_XFR      3
 
 `define MEMORY_BASE           32'h0
+`define TX_BUF_BASE           `MEMORY_BASE
 `define RX_BUF_BASE           `MEMORY_BASE + 32'h8000
