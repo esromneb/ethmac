@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.20  2002/03/25 16:19:12  mohor
+// Any address can be used for Tx and Rx BD pointers. Address does not need
+// to be aligned.
+//
 // Revision 1.19  2002/03/19 12:51:50  mohor
 // Comments in Slovene language removed.
 //
@@ -1638,6 +1642,7 @@ begin
   else
   if(ShiftEnded_tck | RxAbort)
     RxByteCnt <=#Tp 2'h0;
+  else
   if(RxValid & RxStartFrm & RxBDReady)
     case(RxPointerLatched)
       2'h0 : RxByteCnt <=#Tp 2'h1;
