@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2002/03/19 12:46:52  mohor
+// casex changed with case, fifo reset changed.
+//
 // Revision 1.17  2002/03/09 16:08:45  mohor
 // rx_fifo was not always cleared ok. Fixed.
 //
@@ -138,7 +141,7 @@ module eth_wishbone
     // Register
     r_TxEn, r_RxEn, r_TxBDNum, TX_BD_NUM_Wr, r_RecSmall, 
 
-    WillSendControlFrame, TxCtrlEndFrm, // igor !!! WillSendControlFrame gre najbrz ven
+    WillSendControlFrame, TxCtrlEndFrm, // WillSendControlFrame out ?
     
     // Interrupts
     TxB_IRQ, TxE_IRQ, RxB_IRQ, RxE_IRQ, Busy_IRQ, TxC_IRQ, RxC_IRQ, 
@@ -767,7 +770,6 @@ end
 assign MasterAccessFinished = m_wb_ack_i | m_wb_err_i;
 
 assign m_wb_sel_o = 4'hf;
-reg[3:0] state;
 
 // Enabling master wishbone access to the memory for two devices TX and RX.
 always @ (posedge WB_CLK_I or posedge Reset)
@@ -780,7 +782,6 @@ begin
       m_wb_cyc_o <=#Tp 1'b0;
       m_wb_stb_o <=#Tp 1'b0;
       m_wb_we_o  <=#Tp 1'b0;
-state <=#Tp 4'h0;
     end
   else
     begin
@@ -794,7 +795,6 @@ state <=#Tp 4'h0;
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b1;
-state <=#Tp 4'h1;
           end
         5'b00_10_0, 5'b00_10_1 :
           begin
@@ -804,7 +804,6 @@ state <=#Tp 4'h1;
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
-state <=#Tp 4'h2;
           end
         5'b10_10_1 :
           begin
@@ -814,7 +813,6 @@ state <=#Tp 4'h2;
             m_wb_cyc_o <=#Tp 1'b1;
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
-state <=#Tp 4'h3;
           end
         5'b01_01_1 :
           begin
@@ -822,7 +820,6 @@ state <=#Tp 4'h3;
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp RxPointer;
             m_wb_we_o  <=#Tp 1'b1;
-state <=#Tp 4'h4;
           end
         5'b10_01_1, 5'b10_11_1 :
           begin
@@ -830,7 +827,6 @@ state <=#Tp 4'h4;
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp RxPointer;
             m_wb_we_o  <=#Tp 1'b1;
-state <=#Tp 4'h5;
           end
         5'b01_10_1, 5'b01_11_1 :
           begin
@@ -838,7 +834,6 @@ state <=#Tp 4'h5;
             MasterWbRX <=#Tp 1'b0;
             m_wb_adr_o <=#Tp TxPointer;
             m_wb_we_o  <=#Tp 1'b0;
-state <=#Tp 4'h6;
           end
         5'b10_00_1, 5'b01_00_1 :
           begin
@@ -846,7 +841,6 @@ state <=#Tp 4'h6;
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b0;
             m_wb_stb_o <=#Tp 1'b0;
-state <=#Tp 4'h7;
           end
         default:                            // Don't touch
           begin
@@ -854,7 +848,6 @@ state <=#Tp 4'h7;
             MasterWbRX <=#Tp MasterWbRX;
             m_wb_cyc_o <=#Tp m_wb_cyc_o;
             m_wb_stb_o <=#Tp m_wb_stb_o;
-state <=#Tp state;
           end
       endcase
     end
@@ -1059,8 +1052,8 @@ assign TxAbortPulse   = TxAbort_wb   & ~TxAbort_wb_q;
 
 // assign ClearTxBDReady = ~TxUsedData & TxUsedData_q;
 
-assign TPauseRq = 0; // igor !!! v koncni fazi mora tu biti pause request
-assign TxPauseTV[15:0] = TxLength[15:0]; // igor !!! v koncni fazi mora tu biti pause request
+assign TPauseRq = 0;
+assign TxPauseTV[15:0] = TxLength[15:0];
 
 
 // Generating delayed signals
@@ -1127,7 +1120,7 @@ begin
   if(Reset)
     TxEndFrm <=#Tp 1'b0;
   else
-  if(Flop & TxEndFrm | TxAbort | TxRetry_q)     // igor !!! zakaj je tu TxRetry_q ?
+  if(Flop & TxEndFrm | TxAbort | TxRetry_q)
     TxEndFrm <=#Tp 1'b0;        
   else
   if(Flop & LastWord)
