@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2002/02/16 13:06:33  mohor
+// EXTERNAL_DMA used instead of WISHBONE_DMA.
+//
 // Revision 1.12  2002/02/15 10:58:31  mohor
 // Changed that were lost with last update put back to the file.
 //
@@ -133,27 +136,27 @@
 `define ETH_HASH1_ADR         8'h13   // 0x4C
 
 
-`define ETH_MODER_DEF         32'h0000A800
+`define ETH_MODER_DEF         17'h0A800
 `define ETH_INT_SOURCE_DEF    32'h00000000
-`define ETH_INT_MASK_DEF      32'h00000000
-`define ETH_IPGT_DEF          32'h00000012
-`define ETH_IPGR1_DEF         32'h0000000C
-`define ETH_IPGR2_DEF         32'h00000012
+`define ETH_INT_MASK_DEF      5'h0
+`define ETH_IPGT_DEF          7'h12
+`define ETH_IPGR1_DEF         7'h0C
+`define ETH_IPGR2_DEF         7'h12
 `define ETH_PACKETLEN_DEF     32'h003C0600
-`define ETH_COLLCONF_DEF      32'h000F003f
-`define ETH_CTRLMODER_DEF     32'h00000000
-`define ETH_MIIMODER_DEF      32'h00000064
-`define ETH_MIICOMMAND_DEF    32'h00000000
-`define ETH_MIIADDRESS_DEF    32'h00000000
-`define ETH_MIITX_DATA_DEF    32'h00000000
-`define ETH_MIIRX_DATA_DEF    32'h00000000
+`define ETH_COLLCONF0_DEF     6'h3f
+`define ETH_COLLCONF1_DEF     4'hF
+`define ETH_TX_BD_NUM_DEF     8'h80
+`define ETH_CTRLMODER_DEF     3'h0
+`define ETH_MIIMODER_DEF      11'h064
+`define ETH_MIIADDRESS0_DEF   5'h00
+`define ETH_MIIADDRESS1_DEF   5'h00
+`define ETH_MIITX_DATA_DEF    16'h0000
+`define ETH_MIIRX_DATA_DEF    16'h0000
 `define ETH_MIISTATUS_DEF     32'h00000000
 `define ETH_MAC_ADDR0_DEF     32'h00000000
-`define ETH_MAC_ADDR1_DEF     32'h00000000
+`define ETH_MAC_ADDR1_DEF     16'h0000
 `define ETH_HASH0_DEF         32'h00000000
 `define ETH_HASH1_DEF         32'h00000000
-
-`define ETH_TX_BD_NUM_DEF     8'h80
 
 
 // Outputs are registered (uncomment when needed)

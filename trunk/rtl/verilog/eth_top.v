@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.18  2002/02/16 13:06:33  mohor
+// EXTERNAL_DMA used instead of WISHBONE_DMA.
+//
 // Revision 1.17  2002/02/16 07:15:27  mohor
 // Testbench fixed, code simplified, unused signals removed.
 //
@@ -264,7 +267,6 @@ eth_miim miim1
 
 wire        RegCs;          // Connected to registers
 wire [31:0] RegDataOut;     // Multiplexed to wb_dat_o
-wire        r_DmaEn;        // DMA enable
 wire        r_RecSmall;     // Receive small frames
 wire        r_Rst;          // Reset
 wire        r_LoopBck;      // Loopback
@@ -331,7 +333,7 @@ eth_registers ethreg1
 (
   .DataIn(wb_dat_i),                      .Address(wb_adr_i[9:2]),                    .Rw(wb_we_i), 
   .Cs(RegCs),                             .Clk(wb_clk_i),                             .Reset(wb_rst_i), 
-  .DataOut(RegDataOut),                   .r_DmaEn(r_DmaEn),                          .r_RecSmall(r_RecSmall), 
+  .DataOut(RegDataOut),                   .r_RecSmall(r_RecSmall), 
   .r_Pad(r_Pad),                          .r_HugEn(r_HugEn),                          .r_CrcEn(r_CrcEn), 
   .r_DlyCrcEn(r_DlyCrcEn),                .r_Rst(r_Rst),                              .r_FullD(r_FullD), 
   .r_ExDfrEn(r_ExDfrEn),                  .r_NoBckof(r_NoBckof),                      .r_LoopBck(r_LoopBck), 
@@ -607,7 +609,7 @@ eth_wishbone wishbone
 
   // Register
   .r_TxEn(r_TxEn),                    .r_RxEn(r_RxEn),                          .r_TxBDNum(r_TxBDNum), 
-  .r_DmaEn(r_DmaEn),                  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),              .r_RecSmall(r_RecSmall), 
+  .r_DmaEn(1'b1),                     .TX_BD_NUM_Wr(TX_BD_NUM_Wr),              .r_RecSmall(r_RecSmall), 
 
   //RX
   .MRxClk(mrx_clk_pad_i),             .RxData(RxData),                          .RxValid(RxValid), 

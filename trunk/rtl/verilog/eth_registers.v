@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2002/02/15 11:08:25  mohor
+// File format fixed a bit.
+//
 // Revision 1.9  2002/02/14 20:19:41  billditt
 // Modified for Address Checking,
 // addition of eth_addrcheck.v
@@ -98,7 +101,7 @@
 `include "timescale.v"
 
 
-module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut, r_DmaEn, 
+module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut, 
                       r_RecSmall, r_Pad, r_HugEn, r_CrcEn, r_DlyCrcEn, 
                       r_Rst, r_FullD, r_ExDfrEn, r_NoBckof, r_LoopBck, r_IFG, 
                       r_Pro, r_Iam, r_Bro, r_NoPre, r_TxEn, r_RxEn, 
@@ -131,7 +134,6 @@ input [15:0] Prsd;
 output [31:0] DataOut;
 reg    [31:0] DataOut;
 
-output r_DmaEn;
 output r_RecSmall;
 output r_Pad;
 output r_HugEn;
@@ -253,44 +255,60 @@ wire [31:0] HASH1Out;
 
 
 
-eth_register #(32) MODER       (.DataIn(DataIn), .DataOut(MODEROut),      .Write(MODER_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_MODER_DEF));
-eth_register #(32) INT_MASK    (.DataIn(DataIn), .DataOut(INT_MASKOut),   .Write(INT_MASK_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_INT_MASK_DEF));
-eth_register #(32) IPGT        (.DataIn(DataIn), .DataOut(IPGTOut),       .Write(IPGT_Wr),       .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGT_DEF));
-eth_register #(32) IPGR1       (.DataIn(DataIn), .DataOut(IPGR1Out),      .Write(IPGR1_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGR1_DEF));
-eth_register #(32) IPGR2       (.DataIn(DataIn), .DataOut(IPGR2Out),      .Write(IPGR2_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGR2_DEF));
-eth_register #(32) PACKETLEN   (.DataIn(DataIn), .DataOut(PACKETLENOut),  .Write(PACKETLEN_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_PACKETLEN_DEF));
-eth_register #(32) COLLCONF    (.DataIn(DataIn), .DataOut(COLLCONFOut),   .Write(COLLCONF_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_COLLCONF_DEF));
-eth_register #(32) RXHASH0     (.DataIn(DataIn), .DataOut(HASH0Out),      .Write(HASH0_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH0_DEF));
-eth_register #(32) RXHASH1     (.DataIn(DataIn), .DataOut(HASH1Out),      .Write(HASH1_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH1_DEF));
+eth_register #(17) MODER       (.DataIn(DataIn[16:0]), .DataOut(MODEROut[16:0]),     .Write(MODER_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_MODER_DEF));
+assign MODEROut[31:17] = 0;
 
+eth_register #(5) INT_MASK     (.DataIn(DataIn[4:0]),  .DataOut(INT_MASKOut[4:0]),   .Write(INT_MASK_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_INT_MASK_DEF));
+assign INT_MASKOut[31:5] = 0;
 
+eth_register #(7)  IPGT        (.DataIn(DataIn[6:0]),  .DataOut(IPGTOut[6:0]),       .Write(IPGT_Wr),       .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGT_DEF));
+assign IPGTOut[31:7] = 0;
 
-// CTRLMODER registers
-wire [31:0] DefaultCtrlModer = `ETH_CTRLMODER_DEF;
-assign CTRLMODEROut[31:3] = 29'h0;
-eth_register #(3)  CTRLMODER2  (.DataIn(DataIn[2:0]),   .DataOut(CTRLMODEROut[2:0]),   .Write(CTRLMODER_Wr),  .Clk(Clk), .Reset(Reset), .Default(DefaultCtrlModer[2:0]));
-// End: CTRLMODER registers
+eth_register #(7)  IPGR1       (.DataIn(DataIn[6:0]),  .DataOut(IPGR1Out[6:0]),      .Write(IPGR1_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGR1_DEF));
+assign IPGR1Out[31:7] = 0;
 
+eth_register #(7)  IPGR2       (.DataIn(DataIn[6:0]),  .DataOut(IPGR2Out[6:0]),      .Write(IPGR2_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGR2_DEF));
+assign IPGR2Out[31:7] = 0;
 
+eth_register #(32) PACKETLEN   (.DataIn(DataIn),       .DataOut(PACKETLENOut),       .Write(PACKETLEN_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_PACKETLEN_DEF));
 
+eth_register #(6) COLLCONF0    (.DataIn(DataIn[5:0]),  .DataOut(COLLCONFOut[5:0]),   .Write(COLLCONF_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_COLLCONF0_DEF));
+eth_register #(4) COLLCONF1    (.DataIn(DataIn[19:16]),.DataOut(COLLCONFOut[19:16]), .Write(COLLCONF_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_COLLCONF1_DEF));
+assign COLLCONFOut[15:6] = 0;
+assign COLLCONFOut[31:20] = 0;
 
-
-eth_register #(32) MIIMODER    (.DataIn(DataIn), .DataOut(MIIMODEROut),   .Write(MIIMODER_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIMODER_DEF));
-
-assign MIICOMMANDOut[31:3] = 29'h0;
-eth_register #(1) MIICOMMAND2  (.DataIn(DataIn[2]), .DataOut(MIICOMMANDOut[2]), .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset | WCtrlDataStart), .Default(1'b0));
-eth_register #(1) MIICOMMAND1  (.DataIn(DataIn[1]), .DataOut(MIICOMMANDOut[1]), .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset | RStatStart), .Default(1'b0));
-eth_register #(1) MIICOMMAND0  (.DataIn(DataIn[0]), .DataOut(MIICOMMANDOut[0]), .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset), .Default(1'b0));
-
-eth_register #(32) MIIADDRESS  (.DataIn(DataIn), .DataOut(MIIADDRESSOut), .Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIADDRESS_DEF));
-eth_register #(32) MIITX_DATA  (.DataIn(DataIn), .DataOut(MIITX_DATAOut), .Write(MIITX_DATA_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIITX_DATA_DEF));
-eth_register #(32) MIIRX_DATA  (.DataIn({16'h0, Prsd}),   .DataOut(MIIRX_DATAOut), .Write(MIIRX_DATA_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIRX_DATA_DEF));
-//eth_register #(32) MIISTATUS   (.DataIn(DataIn), .DataOut(MIISTATUSOut),  .Write(MIISTATUS_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_MIISTATUS_DEF));
-eth_register #(32) MAC_ADDR0   (.DataIn(DataIn), .DataOut(MAC_ADDR0Out),  .Write(MAC_ADDR0_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_MAC_ADDR0_DEF));
-eth_register #(32) MAC_ADDR1   (.DataIn(DataIn), .DataOut(MAC_ADDR1Out),  .Write(MAC_ADDR1_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_MAC_ADDR1_DEF));
-
+eth_register #(8) TX_BD_NUM    (.DataIn(DataIn[7:0]),  .DataOut(TX_BD_NUMOut[7:0]), .Write(TX_BD_NUM_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_TX_BD_NUM_DEF));
 assign TX_BD_NUMOut[31:8] = 24'h0;
-eth_register #(8) TX_BD_NUM   (.DataIn(DataIn[7:0]), .DataOut(TX_BD_NUMOut[7:0]), .Write(TX_BD_NUM_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_TX_BD_NUM_DEF));
+
+eth_register #(3)  CTRLMODER2  (.DataIn(DataIn[2:0]),  .DataOut(CTRLMODEROut[2:0]),  .Write(CTRLMODER_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_CTRLMODER_DEF));
+assign CTRLMODEROut[31:3] = 29'h0;
+
+eth_register #(11) MIIMODER    (.DataIn(DataIn[10:0]), .DataOut(MIIMODEROut[10:0]),  .Write(MIIMODER_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIMODER_DEF));
+assign MIIMODEROut[31:11] = 0;
+
+eth_register #(1)  MIICOMMAND2 (.DataIn(DataIn[2]),    .DataOut(MIICOMMANDOut[2]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset | WCtrlDataStart), .Default(1'b0));
+eth_register #(1)  MIICOMMAND1 (.DataIn(DataIn[1]),    .DataOut(MIICOMMANDOut[1]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset | RStatStart),     .Default(1'b0));
+eth_register #(1)  MIICOMMAND0 (.DataIn(DataIn[0]),    .DataOut(MIICOMMANDOut[0]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset),                  .Default(1'b0));
+assign MIICOMMANDOut[31:3] = 29'h0;
+
+eth_register #(5)  MIIADDRESS0 (.DataIn(DataIn[4:0]),  .DataOut(MIIADDRESSOut[4:0]), .Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIADDRESS_DEF0));
+eth_register #(5)  MIIADDRESS1 (.DataIn(DataIn[12:8]), .DataOut(MIIADDRESSOut[12:8]),.Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIADDRESS_DEF1));
+assign MIIADDRESSOut[7:5] = 0;
+assign MIIADDRESSOut[31:13] = 0;
+
+eth_register #(16) MIITX_DATA  (.DataIn(DataIn[15:0]), .DataOut(MIITX_DATAOut[15:0]),.Write(MIITX_DATA_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIITX_DATA_DEF));
+assign MIITX_DATAOut[31:16] = 0;
+
+eth_register #(16) MIIRX_DATA  (.DataIn(Prsd[15:0]),   .DataOut(MIIRX_DATAOut[15:0]),.Write(MIIRX_DATA_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIRX_DATA_DEF));
+assign MIIRX_DATAOut[31:16] = 0;
+
+eth_register #(32) MAC_ADDR0   (.DataIn(DataIn),       .DataOut(MAC_ADDR0Out),       .Write(MAC_ADDR0_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_MAC_ADDR0_DEF));
+eth_register #(16) MAC_ADDR1   (.DataIn(DataIn[15:0]), .DataOut(MAC_ADDR1Out[15:0]), .Write(MAC_ADDR1_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_MAC_ADDR1_DEF));
+assign MAC_ADDR1Out[31:16] = 0;
+
+
+eth_register #(32) RXHASH0     (.DataIn(DataIn),       .DataOut(HASH0Out),           .Write(HASH0_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH0_DEF));
+eth_register #(32) RXHASH1     (.DataIn(DataIn),       .DataOut(HASH1Out),           .Write(HASH1_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH1_DEF));
 
 
 reg LinkFailRegister;
@@ -355,7 +373,6 @@ begin
 end
 
 
-assign r_DmaEn            = MODEROut[17];
 assign r_RecSmall         = MODEROut[16];
 assign r_Pad              = MODEROut[15];
 assign r_HugEn            = MODEROut[14];
@@ -406,9 +423,7 @@ assign r_CtrlData[15:0]   = MIITX_DATAOut[15:0];
 assign MIISTATUSOut[31:10] = 22'h0           ; 
 assign MIISTATUSOut[9]  = NValid_stat        ; 
 assign MIISTATUSOut[8]  = Busy_stat          ; 
-assign MIISTATUSOut[7:3]= 5'h0               ; 
-assign MIISTATUSOut[2]  = 1'b0;
-assign MIISTATUSOut[1]  = 1'b0;
+assign MIISTATUSOut[7:1]= 7'h0               ; 
 assign MIISTATUSOut[0]  = LinkFailRegister   ; 
 
 assign r_MAC[31:0]        = MAC_ADDR0Out[31:0];
