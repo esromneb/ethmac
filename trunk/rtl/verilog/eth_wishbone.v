@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.47  2002/11/22 13:26:21  mohor
+// Registers RxStatusWrite_rck and RxStatusWriteLatched were not used
+// anywhere. Removed.
+//
 // Revision 1.46  2002/11/22 01:57:06  mohor
 // Rx Flow control fixed. CF flag added to the RX buffer descriptor. RxAbort
 // synchronized.
@@ -943,7 +947,7 @@ begin
   if(Reset)
     BlockReadTxDataFromMemory <=#Tp 1'b0;
   else
-  if((TxBufferAlmostFull | TxLength <= 4)& MasterWbTX & (!(TxAbortPacket | TxRetryPacket)))
+  if((TxBufferAlmostFull | TxLength <= 4)& MasterWbTX & (~cyc_cleared) & (!(TxAbortPacket | TxRetryPacket)))
     BlockReadTxDataFromMemory <=#Tp 1'b1;
   else
   if(ReadTxDataFromFifo_wb | TxDonePacket | TxAbortPacket | TxRetryPacket)
