@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.6  2001/12/05 15:00:16  mohor
 // RX_BD_NUM changed to TX_BD_NUM (holds number of TX descriptors
 // instead of the number of RX descriptors).
@@ -111,7 +114,7 @@
 
 
 
-`define ETH_MODER_DEF         32'h0000A000
+`define ETH_MODER_DEF         32'h0000A800
 `define ETH_INT_SOURCE_DEF    32'h00000000
 `define ETH_INT_MASK_DEF      32'h00000000
 `define ETH_IPGT_DEF          32'h00000012
@@ -130,3 +133,16 @@
 `define ETH_MAC_ADDR1_DEF     32'h00000000
 
 `define ETH_TX_BD_NUM_DEF     8'h80
+
+
+// Outputs are registered (uncomment when needed)
+// `define ETH_REGISTERED_OUTPUTS
+
+`define TX_FIFO_CNT_WIDTH      4
+`define TX_FIFO_DEPTH          8
+`define TX_FIFO_DATA_WIDTH    32
+
+`define RX_FIFO_CNT_WIDTH      4
+`define RX_FIFO_DEPTH          8
+`define RX_FIFO_DATA_WIDTH    32
+
