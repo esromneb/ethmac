@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.32  2002/09/20 17:12:58  mohor
+// CsMiss added. When address between 0x800 and 0xfff is accessed within
+// Ethernet Core, error acknowledge is generated.
+//
 // Revision 1.31  2002/09/12 14:50:17  mohor
 // CarrierSenseLost bug fixed when operating in full duplex mode.
 //
@@ -193,6 +197,10 @@ module eth_top
 
   int_o
 
+  // Bist
+`ifdef ETH_BIST
+  , trst, SO, SI, shift_DR, capture_DR, extest, tck
+`endif
 
 );
 
@@ -250,6 +258,14 @@ output          md_pad_o;      // MII data output (to I/O cell)
 output          md_padoe_o;    // MII data output enable (to I/O cell)
 
 output          int_o;         // Interrupt output
+
+// Bist
+`ifdef ETH_BIST
+input           trst;
+input           shift_DR, capture_DR, tck, extest;
+input           SI;
+output          SO;
+`endif
 
 wire     [7:0]  r_ClkDiv;
 wire            r_MiiNoPre;
@@ -720,6 +736,12 @@ eth_wishbone wishbone
   .RetryLimit(RetryLimit),            .LateCollLatched(LateCollLatched),        .DeferLatched(DeferLatched),   
   .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood)
   
+`ifdef ETH_BIST
+  , 
+  .trst(trst),                        .SO(SO),                                  .SI(SI), 
+  .shift_DR(.shift_DR),               .capture_DR(capture_DR),                  .extest(extest), 
+  .tck(tck)
+`endif
 );
 
 

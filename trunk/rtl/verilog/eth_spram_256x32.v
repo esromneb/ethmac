@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/09/23 18:24:31  mohor
+// ETH_VIRTUAL_SILICON_RAM supported (for ASIC implementation).
+//
 // Revision 1.1  2002/07/23 16:36:09  mohor
 // ethernet spram added. So far a generic ram and xilinx RAMB4 are used.
 //
@@ -53,6 +56,13 @@
 module eth_spram_256x32(
 	// Generic synchronous single-port RAM interface
 	clk, rst, ce, we, oe, addr, di, do
+
+`ifdef ETH_BIST
+  ,trst, SO, SI, shift_DR, capture_DR, extest, tck
+`endif
+
+
+
 );
 
 	//
@@ -67,6 +77,13 @@ module eth_spram_256x32(
 	input  [31:0]   di;   // input data bus
 	output [31:0]   do;   // output data bus
 
+
+`ifdef ETH_BIST
+  input           trst;
+  input           shift_DR, capture_DR, tck, extest;
+  input           SI;
+  output          SO;
+`endif
 
 `ifdef ETH_XILINX_RAMB4
 
@@ -94,16 +111,34 @@ module eth_spram_256x32(
 
 `else   // !ETH_XILINX_RAMB4
 `ifdef  ETH_VIRTUAL_SILICON_RAM
-  vs_hdsp_256x32 ram0
-  (
-        .CK       (clk),
-        .CEN      (!ce),
-        .WEN      (!we),
-        .OEN      (!oe),
-        .ADR      (addr),
-        .DI       (di),
-        .DOUT     (do)
-  );
+  `ifdef ETH_BIST
+      vs_hdsp_256x32_bist ram0_bist
+  `else
+      vs_hdsp_256x32 ram0
+  `endif
+      (
+        .CK         (clk),
+        .CEN        (!ce),
+        .WEN        (!we),
+        .OEN        (!oe),
+        .ADR        (addr),
+        .DI         (di),
+        .DOUT       (do)
+
+      `ifdef ETH_BIST
+        ,
+        // reset
+        .trst      (trst),
+
+        // debug chain signals
+        .SO        (SO),
+        .SI        (SI),
+        .shift_DR  (shift_DR),
+        .capture_DR(capture_DR),
+        .extest    (extest),
+        .tck       (tck)
+      `endif
+      );
 
 `else   // !ETH_VIRTUAL_SILICON_RAM
 

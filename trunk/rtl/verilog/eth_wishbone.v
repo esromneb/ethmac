@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.37  2002/09/11 14:18:46  mohor
+// Sometimes both RxB_IRQ and RxE_IRQ were activated. Bug fixed.
+//
 // Revision 1.36  2002/09/10 13:48:46  mohor
 // Reception is possible after RxPointer is read and not after BD is read. For
 // that reason RxBDReady is changed to RxReady.
@@ -212,6 +215,13 @@ module eth_wishbone
     // Tx Status
     RetryCntLatched, RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost
 
+    // Bist
+`ifdef ETH_BIST
+   , trst, SO, SI, shift_DR, capture_DR, extest, tck
+`endif
+    
+
+
 		);
 
 
@@ -294,6 +304,14 @@ output RxB_IRQ;
 output RxE_IRQ;
 output Busy_IRQ;
 
+
+// Bist
+`ifdef ETH_BIST
+input           trst;
+input           shift_DR, capture_DR, tck, extest;
+input           SI;
+output          SO;
+`endif
 
 reg TxB_IRQ;
 reg TxE_IRQ;
@@ -439,7 +457,10 @@ assign WB_DAT_O = ram_do;
 
 // Generic synchronous single-port RAM interface
 eth_spram_256x32 bd_ram (
-	.clk(WB_CLK_I), .rst(Reset), .ce(ram_ce), .we(ram_we), .oe(ram_oe), .addr(ram_addr), .di(ram_di), .do(ram_do)
+  .clk(WB_CLK_I), .rst(Reset), .ce(ram_ce), .we(ram_we), .oe(ram_oe), .addr(ram_addr), .di(ram_di), .do(ram_do)
+`ifdef ETH_BIST
+  , .trst(trst), .SO(SO), .SI(SI), .shift_DR(.shift_DR), .capture_DR(capture_DR), .extest(extest), .tck(tck)
+`endif
 );
 
 assign ram_ce = 1'b1;
