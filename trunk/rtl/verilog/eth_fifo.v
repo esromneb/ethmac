@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/04/22 13:45:52  mohor
+// Generic ram or Xilinx ram can be used in fifo (selectable by setting
+// ETH_FIFO_XILINX in eth_defines.v).
+//
 // Revision 1.2  2002/03/25 13:33:04  mohor
 // When clear and read/write are active at the same time, cnt and pointers are
 // set to 1.
@@ -79,7 +83,11 @@ output  [CNT_WIDTH-1:0]   cnt;
 
 `ifdef ETH_FIFO_XILINX
 `else
-  reg     [DATA_WIDTH-1:0]  fifo  [0:DEPTH-1];
+  `ifdef ETH_ALTERA_ALTSYNCRAM
+  `else
+    reg     [DATA_WIDTH-1:0]  fifo  [0:DEPTH-1];
+    reg     [DATA_WIDTH-1:0]  data_out;
+  `endif
 `endif
 
 reg     [CNT_WIDTH-1:0]   cnt;
@@ -142,7 +150,18 @@ assign almost_full  = &cnt[CNT_WIDTH-2:0];
     .write_address(clear ? {CNT_WIDTH-1{1'b0}} : write_pointer),
     .wclk(clk)
   );
-`else
+`else   // !ETH_FIFO_XILINX
+`ifdef ETH_ALTERA_ALTSYNCRAM
+  altera_dpram_16x32	altera_dpram_16x32_inst
+  (
+  	.data             (data_in),
+  	.wren             (write & ~full),
+  	.wraddress        (clear ? {CNT_WIDTH-1{1'b0}} : write_pointer),
+  	.rdaddress        (clear ? {CNT_WIDTH-1{1'b0}} : read_pointer ),
+  	.clock            (clk),
+  	.q                (data_out)
+  );  //exemplar attribute altera_dpram_16x32_inst NOOPT TRUE
+`else   // !ETH_ALTERA_ALTSYNCRAM
   always @ (posedge clk)
   begin
     if(write & clear)
@@ -152,8 +171,16 @@ assign almost_full  = &cnt[CNT_WIDTH-2:0];
       fifo[write_pointer] <=#Tp data_in;
   end
   
-  assign data_out = clear ? fifo[0] : fifo[read_pointer];
-`endif
+
+  always @ (posedge clk)
+  begin
+    if(clear)
+      data_out <=#Tp fifo[0];
+    else
+      data_out <=#Tp fifo[read_pointer];
+  end
+`endif  // !ETH_ALTERA_ALTSYNCRAM
+`endif  // !ETH_FIFO_XILINX
 
 
 endmodule

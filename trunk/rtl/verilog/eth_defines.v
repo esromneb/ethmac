@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.33  2003/11/12 18:24:58  tadejm
+// WISHBONE slave changed and tested from only 32-bit accesss to byte access.
+//
 // Revision 1.32  2003/10/17 07:46:13  markom
 // mbist signals updated according to newest convention
 //
@@ -176,15 +179,23 @@
 
 `define ETH_MBIST_CTRL_WIDTH 3        // width of MBIST control bus
 
-// Ethernet implemented in Xilinx Chips
+// Ethernet implemented in Xilinx Chips (uncomment following lines)
 // `define ETH_FIFO_XILINX             // Use Xilinx distributed ram for tx and rx fifo
 // `define ETH_XILINX_RAMB4            // Selection of the used memory for Buffer descriptors
                                       // Core is going to be implemented in Virtex FPGA and contains Virtex 
                                       // specific elements. 
 
+// Ethernet implemented in Altera Chips (uncomment following lines)
+//`define ETH_ALTERA_ALTSYNCRAM
+
 // Ethernet implemented in ASIC with Virtual Silicon RAMs
 // `define ETH_VIRTUAL_SILICON_RAM     // Virtual Silicon RAMS used storing buffer decriptors (ASIC implementation)
+
+// Ethernet implemented in ASIC with Artisan RAMs
 // `define ETH_ARTISAN_RAM             // Artisan RAMS used storing buffer decriptors (ASIC implementation)
+
+// Uncomment when Avalon bus is used
+//`define ETH_AVALON_BUS
 
 `define ETH_MODER_ADR         8'h0    // 0x0 
 `define ETH_INT_SOURCE_ADR    8'h1    // 0x4 

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2003/12/05 12:43:06  tadejm
+// Corrected address mismatch for xilinx RAMB4_S8 model which has wider address than RAMB4_S16.
+//
 // Revision 1.8  2003/12/04 14:59:13  simons
 // Lapsus fixed (!we -> ~we).
 //
@@ -225,11 +228,25 @@ module eth_spram_256x32(
         // debug chain signals
         .mbist_si_i       (mbist_si_i),
         .mbist_so_o       (mbist_so_o),
-        .mbist_ctrl_i       (mbist_ctrl_i)
+        .mbist_ctrl_i     (mbist_ctrl_i)
       `endif
       );
 
 `else   // !ETH_ARTISAN_RAM
+`ifdef ETH_ALTERA_ALTSYNCRAM
+
+    altera_spram_256x32	altera_spram_256x32_inst
+    (
+  	  .address        (addr),
+  	  .wren           (ce & we),
+  	  .clock          (clk),
+  	  .data           (di),
+  	  .q              (do)
+  	);  //exemplar attribute altera_spram_256x32_inst NOOPT TRUE
+
+`else   // !ETH_ALTERA_ALTSYNCRAM
+
+
 	//
 	// Generic single-port synchronous RAM model
 	//
@@ -284,6 +301,7 @@ module eth_spram_256x32(
   	end
 	endtask
 
+`endif  // !ETH_ALTERA_ALTSYNCRAM
 `endif  // !ETH_ARTISAN_RAM
 `endif  // !ETH_VIRTUAL_SILICON_RAM
 `endif  // !ETH_XILINX_RAMB4

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.2  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -86,7 +89,7 @@ wire  [7:0] TempDivider;
 
 
 assign TempDivider[7:0]   = (Divider[7:0]<2)? 8'h02 : Divider[7:0]; // If smaller than 2
-assign CounterPreset[7:0] = (TempDivider[7:0]>>1) -1;               // We are counting half of period
+assign CounterPreset[7:0] = (TempDivider[7:0]>>1) - 1'b1;           // We are counting half of period
 
 
 // Counter counts half period

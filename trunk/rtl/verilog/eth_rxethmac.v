@@ -43,6 +43,14 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2004/04/26 15:26:23  igorm
+// - Bug connected to the TX_BD_NUM_Wr signal fixed (bug came in with the
+//   previous update of the core.
+// - TxBDAddress is set to 0 after the TX is enabled in the MODER register.
+// - RxBDAddress is set to r_TxBDNum<<1 after the RX is enabled in the MODER
+//   register. (thanks to Mathias and Torbjorn)
+// - Multicast reception was fixed. Thanks to Ulrich Gries
+//
 // Revision 1.11  2004/03/17 09:32:15  igorm
 // Multicast detection fixed. Only the LSB of the first byte is checked.
 //
@@ -152,7 +160,6 @@ reg           Multicast;
 reg     [5:0] CrcHash;
 reg           CrcHashGood;
 reg           DelayData;
-reg     [3:0] LatchedNibble;
 reg     [7:0] LatchedByte;
 reg     [7:0] RxData_d;
 reg           RxValid_d;
@@ -179,7 +186,7 @@ wire          GenerateRxStartFrm;
 wire          GenerateRxEndFrm;
 wire          DribbleRxEndFrm;
 wire    [3:0] DlyCrcCnt;
-
+wire          IFGCounterEq24;
 
 assign MRxDEqD = MRxD == 4'hd;
 assign MRxDEq5 = MRxD == 4'h5;
@@ -204,7 +211,7 @@ eth_rxcounters rxcounters1 (.MRxClk(MRxClk), .Reset(Reset), .MRxDV(MRxDV), .Stat
                             .ByteCntEq4(ByteCntEq4), .ByteCntEq5(ByteCntEq5), .ByteCntEq6(ByteCntEq6), 
                             .ByteCntEq7(ByteCntEq7), .ByteCntGreat2(ByteCntGreat2), 
                             .ByteCntSmall7(ByteCntSmall7), .ByteCntMaxFrame(ByteCntMaxFrame), 
-                            .ByteCnt(ByteCnt)
+                            .ByteCntOut(ByteCnt)
                            );
 
 // Rx Address Check
@@ -262,14 +269,12 @@ begin
     begin
       RxData_d[7:0]      <= #Tp 8'h0;
       DelayData          <= #Tp 1'b0;
-      LatchedNibble[3:0] <= #Tp 4'h0;
       LatchedByte[7:0]   <= #Tp 8'h0;
       RxData[7:0]        <= #Tp 8'h0;
     end
   else
     begin
-      LatchedNibble[3:0] <= #Tp MRxD[3:0];                        // Latched nibble
-      LatchedByte[7:0]   <= #Tp {MRxD[3:0], LatchedNibble[3:0]};  // Latched byte
+      LatchedByte[7:0]   <= #Tp {MRxD[3:0], LatchedByte[7:4]};  // Latched byte
       DelayData          <= #Tp StateData[0];
 
       if(GenerateRxValid)
