@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/10/09 13:16:51  tadejm
+// Just back-up; not completed testbench and some testcases are not
+// wotking properly yet.
+//
 // Revision 1.5  2002/09/18 17:55:08  tadej
 // Bug repaired in eth_phy device
 //
@@ -950,6 +954,8 @@ reg            tx_sfd_ok;
 reg            tx_byte_aligned_ok;
 // complete length of TX packet (Bytes) received (without preamble and SFD)
 reg    [31:0]  tx_len;
+// complete length of TX packet (Bytes) received (without preamble and SFD) untill MTxErr signal was set first
+reg    [31:0]  tx_len_err;
 
 // TX control
 always@(posedge mtx_clk_o)
@@ -961,6 +967,7 @@ begin
     tx_preamble_ok <= 0;
     tx_sfd_ok <= 0;
     tx_len <= 0;
+    tx_len_err <= 0;
   end
   else
   begin
@@ -985,6 +992,7 @@ begin
         tx_sfd_ok <= 0;
         tx_byte_aligned_ok <= 0;
         tx_len <= 0;
+        tx_len_err <= 0;
 //        tx_mem_addr_in <= 0;
       end
 
@@ -1039,6 +1047,9 @@ begin
           tx_byte_aligned_ok <= 1; // if transfer will stop after this, then transfer is byte alligned
           tx_mem_addr_in <= tx_mem_addr_in + 1'b1;
         end
+
+        if (mtxerr_i)
+          tx_len_err <= tx_len;
       end
     end
   end

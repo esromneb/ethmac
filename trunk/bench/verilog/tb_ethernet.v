@@ -42,6 +42,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2002/10/09 13:16:51  tadejm
+// Just back-up; not completed testbench and some testcases are not
+// wotking properly yet.
+//
 // Revision 1.15  2002/09/20 14:29:12  tadej
 // Full duplex tests modified and testbench bug repaired.
 //
@@ -414,8 +418,8 @@ begin
 //    test_mii(0, 17);                        // 0 - 17
   test_note("PHY generates ideal Carrier sense and Collision signals for following tests");
   eth_phy.carrier_sense_real_delay(0);
-    test_mac_full_duplex_transmit(0, 21);    // 0 - (21)
-    test_mac_full_duplex_receive(0, 5);
+    test_mac_full_duplex_transmit(20, 20);    // 0 - (21)
+//    test_mac_full_duplex_receive(0, 5);
 //    test_mac_full_duplex_flow(0, 0);
 
   test_note("PHY generates 'real' Carrier sense and Collision signals for following tests");
@@ -9733,7 +9737,7 @@ else if (num_of_bd == 2)
     #Tp eth_phy.control_bit8_0   = 9'h1_00;  // bit 6 reset  - (10/100), bit 8 set - FD
     speed = 10;
   
-    num_of_frames = 0; // (0..3) => start under-run on first word
+    num_of_frames = 40; // (0..3) => start under-run on first word
     num_of_bd = 0;
     i_data = 3; // (3) => one BYTE read in first word - FIRST byte
     i_length = (min_tmp + 4);
@@ -9756,7 +9760,7 @@ else if (num_of_bd == 2)
         set_tx_bd_wrap(1);
         // set wb slave response: ACK (response), wbs_waits[2:0] (waits before response), 
         //                       wbs_retries[7:0] (RTYs before ACK if RTY response selected)
-        #1 wb_slave.cycle_response(`ACK_RESPONSE, 3'h2, 8'h0);
+        #1 wb_slave.cycle_response(`ACK_RESPONSE, 3'h0, 8'h0);
         set_tx_bd_ready(1, 1);
         set_tx_bd_ready(0, 0);
       end
@@ -9772,7 +9776,7 @@ else if (num_of_bd == 2)
           @(negedge eth_ma_wb_ack_i); // wait for last ACK to finish
           // set wb slave response: ACK (response), wbs_waits[2:0] (waits before response), 
           //                       wbs_retries[7:0] (RTYs before ACK if RTY response selected)
-          #1 wb_slave.cycle_response(`NO_RESPONSE, 3'h7, 8'hFF);
+          #1 wb_slave.cycle_response(`NO_RESPONSE, 3'h0, 8'hFF);
           // wait for synchronization and some additional clocks
           wait_for_frame = 1;
           // wait for frame
@@ -9789,7 +9793,7 @@ else if (num_of_bd == 2)
           repeat (2) @(posedge wb_clk);
           // set wb slave response: ACK (response), wbs_waits[2:0] (waits before response), 
           //                       wbs_retries[7:0] (RTYs before ACK if RTY response selected)
-          wb_slave.cycle_response(`ACK_RESPONSE, 3'h2, 8'h0);
+          wb_slave.cycle_response(`ACK_RESPONSE, 3'h0, 8'h0);
         end
         begin: wait_fr
           wait (wait_for_frame == 1)
@@ -9806,11 +9810,11 @@ else if (num_of_bd == 2)
           // wait for frame to start
           @(posedge MTxEn);
           frame_started = 1;
-$display("  Under-run (on %0d. byte) frame started", (num_of_frames + 1));
+`TIME; $display("  Under-run (on %0d. byte) frame started", (num_of_frames + 1));
           // wait for frame to end due to under-run
           @(negedge MTxEn);
           frame_ended = 1;
-$display("  Under-run frame ended");
+`TIME; $display("  Under-run frame ended");
         end
       join
       // wait for first transmit to end, if under-run didn't happen
@@ -9837,21 +9841,24 @@ $display("  Under-run frame ended");
         #1;
         if (tmp_len != (i_length + 4))
         begin
-          test_fail("Wrong length of second packet out from MAC");
+          `TIME; $display("*E Wrong length of first packet out from MAC");
+          test_fail("Wrong length of first packet out from MAC");
           fail = fail + 1;
         end
         // checking first packet
         check_tx_packet((`MEMORY_BASE + i_data[1:0]), 0, (i_length), tmp);
         if (tmp > 0)
         begin
-          test_fail("Wrong data of second transmitted packet");
+          `TIME; $display("*E Wrong data of first transmitted packet");
+          test_fail("Wrong data of first transmitted packet");
           fail = fail + 1;
         end
         // check first transmited TX packet CRC
         check_tx_crc(0, (i_length), 1'b0, tmp); // length without CRC
         if (tmp > 0)
         begin
-          test_fail("Wrong CRC of second transmitted packet");
+          `TIME; $display("*E Wrong CRC of first transmitted packet");
+          test_fail("Wrong CRC of first transmitted packet");
           fail = fail + 1;
         end
         // check WB INT signal
@@ -9893,10 +9900,69 @@ $display("  Under-run frame ended");
           fail = fail + 1;
         end
       end
+      else
+      begin
+        // CHECK FIRST FRAME
+        // check length of a first PACKET
+        tmp_len = eth_phy.tx_len_err;
+        #1;
+        if (tmp_len != (num_of_frames + (4 - i_data)))
+        begin
+          `TIME; $display("*E Wrong length of first packet out from MAC");
+          test_fail("Wrong length of first packet out from MAC");
+          fail = fail + 1;
+        end
+        // checking first packet
+        check_tx_packet((`MEMORY_BASE + i_data[1:0]), 0, (num_of_frames), tmp);
+        if (tmp > 0)
+        begin
+          `TIME; $display("*E Wrong data of first transmitted packet");
+          test_fail("Wrong data of first transmitted packet");
+          fail = fail + 1;
+        end
+        // check WB INT signal
+        if (wb_int !== 1'b1)
+        begin
+          `TIME; $display("*E WB INT signal should be set");
+          test_fail("WB INT signal should be set");
+          fail = fail + 1;
+        end
+        // check TX buffer descriptor of a packet
+        check_tx_bd(num_of_bd, data);
+        if ( ((data[15:0] !== 16'h7900) && (num_of_bd == 1)) || // under-run, wrap bit
+             ((data[15:0] !== 16'h5900) && (num_of_bd < 1)) )   // under-run, without wrap bit
+        begin
+          `TIME; $display("*E TX buffer descriptor status is not correct: %0h", data[15:0]);
+          test_fail("TX buffer descriptor status is not correct");
+          fail = fail + 1;
+        end
+        // check interrupts
+        wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        if ((data & `ETH_INT_TXE) !== 2'b10)
+        begin
+          `TIME; $display("*E Interrupt Transmit Error was not set, interrupt reg: %0h", data);
+          test_fail("Interrupt Transmit Buffer was not set");
+          fail = fail + 1;
+        end
+        if ((data & (~`ETH_INT_TXE)) !== 0)
+        begin
+          `TIME; $display("*E Other interrupts (except Transmit Error) were set, interrupt reg: %0h", data);
+          test_fail("Other interrupts (except Transmit Buffer) were set");
+          fail = fail + 1;
+        end
+        // clear interrupts
+        wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        // check WB INT signal
+        if (wb_int !== 1'b0)
+        begin
+          test_fail("WB INT signal should not be set");
+          fail = fail + 1;
+        end
+      end
       num_of_bd = num_of_bd + 1;
       // destination address on ethernet PHY
       eth_phy.set_tx_mem_addr(0);
-      // WAIT FOR FIRST TRANSMIT
+      // WAIT FOR SECOND TRANSMIT
       check_tx_bd(num_of_bd, data);
       wait (MTxEn === 1'b1); // start first transmit
       if (data[15] !== 1)
@@ -9913,10 +9979,15 @@ $display("  Under-run frame ended");
       repeat (1) @(posedge wb_clk);
       // CHECK SECOND FRAME
       // check length of a second PACKET
+if (frame_ended == 1'b1)
+begin
+`TIME; $display("  Second frame after under-run ended");
+end
       tmp_len = eth_phy.tx_len;
       #1;
       if (tmp_len != (i_length + 4))
       begin
+        `TIME; $display("*E Wrong length of second packet out from MAC");
         test_fail("Wrong length of second packet out from MAC");
         fail = fail + 1;
       end
@@ -9924,6 +9995,7 @@ $display("  Under-run frame ended");
       check_tx_packet(`MEMORY_BASE, 0, (i_length), tmp);
       if (tmp > 0)
       begin
+        `TIME; $display("*E Wrong data of second transmitted packet");
         test_fail("Wrong data of second transmitted packet");
         fail = fail + 1;
       end
@@ -9931,6 +10003,7 @@ $display("  Under-run frame ended");
       check_tx_crc(0, (i_length), 1'b0, tmp); // length without CRC
       if (tmp > 0)
       begin
+        `TIME; $display("*E Wrong CRC of second transmitted packet");
         test_fail("Wrong CRC of second transmitted packet");
         fail = fail + 1;
       end
@@ -9978,7 +10051,7 @@ $display("  Under-run frame ended");
       num_of_frames = num_of_frames + 1;
       num_of_bd = 0;
       // set length (LOOP variable)
-      if (num_of_frames == i_length + 4) // 64 => this vas last Byte (1st .. 64th) when i_length = min_tmp - 4
+      if (num_of_frames == i_length + 4) // 64 => this was last Byte (1st .. 64th) when i_length = min_tmp - 4
         i_length = (max_tmp - 4);
       @(posedge wb_clk);
     end
@@ -10475,7 +10548,7 @@ begin
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // set all buffer descriptors to TX - must be set before RX enable
     wbm_write(`ETH_TX_BD_NUM, 32'h80, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-    // enable RX, set full-duplex mode, padding and CRC appending
+    // enable RX, set full-duplex mode, receive small, NO correct IFG
     wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -10560,7 +10633,7 @@ begin
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // set all buffer descriptors to TX - must be set before RX enable
     wbm_write(`ETH_TX_BD_NUM, 32'h80, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-    // enable RX, set full-duplex mode, padding and CRC appending
+    // enable RX, set full-duplex mode, receive small, NO correct IFG
     wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
