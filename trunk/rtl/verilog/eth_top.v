@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.48  2003/10/17 07:46:16  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.47  2003/10/06 15:43:45  knguyen
 // Update RxEnSync only when mrxdv_pad_i is inactive (LOW).
 //
@@ -379,7 +382,7 @@ eth_miim miim1
 
 
 
-wire        RegCs;          // Connected to registers
+wire  [3:0] RegCs;          // Connected to registers
 wire [31:0] RegDataOut;     // Multiplexed to wb_dat_o
 wire        r_RecSmall;     // Receive small frames
 wire        r_LoopBck;      // Loopback
@@ -423,10 +426,12 @@ wire        RxB_IRQ;        // Interrupt Rx Buffer
 wire        RxE_IRQ;        // Interrupt Rx Error
 wire        Busy_IRQ;       // Interrupt Busy (lack of buffers)
 
-wire        DWord;
+//wire        DWord;
+wire        ByteSelected;
+wire  [3:0] ByteSel;
 wire        BDAck;
 wire [31:0] BD_WB_DAT_O;    // wb_dat_o that comes from the Wishbone module (for buffer descriptors read/write)
-wire        BDCs;           // Buffer descriptor CS
+wire  [3:0] BDCs;           // Buffer descriptor CS
 wire        CsMiss;         // When access to the address between 0x800 and 0xfff occurs, acknowledge is set
                             // but data is not valid.
 
@@ -440,13 +445,20 @@ wire        temp_wb_err_o;
   reg         temp_wb_err_o_reg;
 `endif
 
-assign DWord = &wb_sel_i;
-assign RegCs = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] & ~wb_adr_i[10];   // 0x0   - 0x3FF
-assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] &  wb_adr_i[10];   // 0x400 - 0x7FF
-assign CsMiss = wb_stb_i & wb_cyc_i & DWord & wb_adr_i[11];                   // 0x800 - 0xfFF
-assign temp_wb_ack_o = RegCs | BDAck;
-assign temp_wb_dat_o = (RegCs & ~wb_we_i)? RegDataOut : BD_WB_DAT_O;
-assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~DWord | CsMiss);
+//assign DWord = &wb_sel_i;
+assign ByteSelected = |wb_sel_i;
+assign RegCs[3] = wb_stb_i & wb_cyc_i & ByteSelected & ~wb_adr_i[11] & ~wb_adr_i[10] & wb_sel_i[3];   // 0x0   - 0x3FF
+assign RegCs[2] = wb_stb_i & wb_cyc_i & ByteSelected & ~wb_adr_i[11] & ~wb_adr_i[10] & wb_sel_i[2];   // 0x0   - 0x3FF
+assign RegCs[1] = wb_stb_i & wb_cyc_i & ByteSelected & ~wb_adr_i[11] & ~wb_adr_i[10] & wb_sel_i[1];   // 0x0   - 0x3FF
+assign RegCs[0] = wb_stb_i & wb_cyc_i & ByteSelected & ~wb_adr_i[11] & ~wb_adr_i[10] & wb_sel_i[0];   // 0x0   - 0x3FF
+assign BDCs[3]  = wb_stb_i & wb_cyc_i & ByteSelected & ~wb_adr_i[11] &  wb_adr_i[10] & wb_sel_i[3];   // 0x400 - 0x7FF
+assign BDCs[2]  = wb_stb_i & wb_cyc_i & ByteSelected & ~wb_adr_i[11] &  wb_adr_i[10] & wb_sel_i[2];   // 0x400 - 0x7FF
+assign BDCs[1]  = wb_stb_i & wb_cyc_i & ByteSelected & ~wb_adr_i[11] &  wb_adr_i[10] & wb_sel_i[1];   // 0x400 - 0x7FF
+assign BDCs[0]  = wb_stb_i & wb_cyc_i & ByteSelected & ~wb_adr_i[11] &  wb_adr_i[10] & wb_sel_i[0];   // 0x400 - 0x7FF
+assign CsMiss = wb_stb_i & wb_cyc_i & ByteSelected & wb_adr_i[11];                   // 0x800 - 0xfFF
+assign temp_wb_ack_o = (|RegCs) | BDAck;
+assign temp_wb_dat_o = ((|RegCs) & ~wb_we_i)? RegDataOut : BD_WB_DAT_O;
+assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~ByteSelected | CsMiss);
 
 `ifdef ETH_REGISTERED_OUTPUTS
   assign wb_ack_o = temp_wb_ack_o_reg;

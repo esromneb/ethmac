@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2003/10/17 07:46:15  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.5  2003/08/14 16:42:58  simons
 // Artisan ram instance added.
 //
@@ -84,7 +87,7 @@ module eth_spram_256x32(
 	input           clk;  // Clock, rising edge
 	input           rst;  // Reset, active high
 	input           ce;   // Chip enable input, active high
-	input           we;   // Write enable input, active high
+	input  [3:0]    we;   // Write enable input, active high
 	input           oe;   // Output enable input, active high
 	input  [7:0]    addr; // address bus inputs
 	input  [31:0]   di;   // input data bus
@@ -99,7 +102,7 @@ module eth_spram_256x32(
 
 `ifdef ETH_XILINX_RAMB4
 
-    RAMB4_S16 ram0
+    /*RAMB4_S16 ram0
     (
         .DO      (do[15:0]),
         .ADDR    (addr),
@@ -119,14 +122,60 @@ module eth_spram_256x32(
         .CLK     (clk),
         .WE      (we),
         .RST     (rst)
+    );*/
+
+    RAMB4_S8 ram0
+    (
+        .DO      (do[7:0]),
+        .ADDR    (addr),
+        .DI      (di[7:0]),
+        .EN      (ce),
+        .CLK     (clk),
+        .WE      (we[0]),
+        .RST     (rst)
+    );
+
+    RAMB4_S8 ram1
+    (
+        .DO      (do[15:8]),
+        .ADDR    (addr),
+        .DI      (di[15:8]),
+        .EN      (ce),
+        .CLK     (clk),
+        .WE      (we[1]),
+        .RST     (rst)
+    );
+
+    RAMB4_S8 ram2
+    (
+        .DO      (do[23:16]),
+        .ADDR    (addr),
+        .DI      (di[23:16]),
+        .EN      (ce),
+        .CLK     (clk),
+        .WE      (we[2]),
+        .RST     (rst)
+    );
+
+    RAMB4_S8 ram3
+    (
+        .DO      (do[31:24]),
+        .ADDR    (addr),
+        .DI      (di[31:24]),
+        .EN      (ce),
+        .CLK     (clk),
+        .WE      (we[3]),
+        .RST     (rst)
     );
 
 `else   // !ETH_XILINX_RAMB4
 `ifdef  ETH_VIRTUAL_SILICON_RAM
   `ifdef ETH_BIST
-      vs_hdsp_256x32_bist ram0_bist
+      //vs_hdsp_256x32_bist ram0_bist
+      vs_hdsp_256x32_bw_bist ram0_bist
   `else
-      vs_hdsp_256x32 ram0
+      //vs_hdsp_256x32 ram0
+      vs_hdsp_256x32_bw ram0
   `endif
       (
         .CK         (clk),
@@ -150,9 +199,11 @@ module eth_spram_256x32(
 
 `ifdef  ETH_ARTISAN_RAM
   `ifdef ETH_BIST
-      art_hssp_256x32_bist ram0_bist
+      //art_hssp_256x32_bist ram0_bist
+      art_hssp_256x32_bw_bist ram0_bist
   `else
-      art_hssp_256x32 ram0
+      //art_hssp_256x32 ram0
+      art_hssp_256x32_bw ram0
   `endif
       (
         .CLK        (clk),
@@ -180,9 +231,12 @@ module eth_spram_256x32(
 	//
 	// Generic RAM's registers and wires
 	//
-	reg  [31:0] mem [255:0];	// RAM content
-	wire [31:0] q;          // RAM output
-	reg  [7:0]  raddr;      // RAM read address
+	reg  [ 7: 0] mem0 [255:0]; // RAM content
+	reg  [15: 8] mem1 [255:0]; // RAM content
+	reg  [23:16] mem2 [255:0]; // RAM content
+	reg  [31:24] mem3 [255:0]; // RAM content
+	wire [31:0]  q;            // RAM output
+	reg  [7:0]   raddr;        // RAM read address
 	//
 	// Data output drivers
 	//
@@ -194,15 +248,23 @@ module eth_spram_256x32(
 
 	// read operation
 	always@(posedge clk)
-	if (ce) // && !we)
+	  if (ce) // && !we)
 		raddr <= #1 addr;    // read address needs to be registered to read clock
 
-	assign #1 q = rst ? {32{1'b0}} : mem[raddr];
+	assign #1 q = rst ? {32{1'b0}} : {mem3[raddr], mem2[raddr], mem1[raddr], mem0[raddr]};
 
 	// write operation
 	always@(posedge clk)
-		if (ce && we)
-			mem[addr] <= #1 di;
+        begin
+		if (ce && we[3])
+			mem3[addr] <= #1 di[31:24];
+		if (ce && we[2])
+			mem2[addr] <= #1 di[23:16];
+		if (ce && we[1])
+			mem1[addr] <= #1 di[15: 8];
+		if (ce && we[0])
+			mem0[addr] <= #1 di[ 7: 0];
+        end
 
 	// Task prints range of memory
 	// *** Remember that tasks are non reentrant, don't call this task in parallel for multiple instantiations. 
@@ -212,7 +274,7 @@ module eth_spram_256x32(
 	integer rnum;
   	begin
     		for (rnum=start;rnum<=finish;rnum=rnum+1)
-      			$display("Addr %h = %h",rnum,mem[rnum]);
+      			$display("Addr %h = %0h %0h %0h %0h",rnum,mem3[rnum],mem2[rnum],mem1[rnum],mem0[rnum]);
   	end
 	endtask
 

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.53  2003/10/17 07:46:17  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.52  2003/01/30 14:51:31  mohor
 // Reset has priority in some flipflops.
 //
@@ -299,7 +302,7 @@ output [31:0]   WB_DAT_O;       // WISHBONE data output
 // WISHBONE slave
 input   [9:2]   WB_ADR_I;       // WISHBONE address input
 input           WB_WE_I;        // WISHBONE write enable input
-input           BDCs;           // Buffer descriptors are selected
+input   [3:0]   BDCs;           // Buffer descriptors are selected
 output          WB_ACK_O;       // WISHBONE acknowledge output
 
 // WISHBONE master
@@ -466,7 +469,7 @@ reg             RxAbortLatched;
 reg             ShiftEnded;
 reg             RxOverrun;
 
-reg             BDWrite;                    // BD Write Enable for access from WISHBONE side
+reg     [3:0]   BDWrite;                    // BD Write Enable for access from WISHBONE side
 reg             BDRead;                     // BD Read access from WISHBONE side
 wire   [31:0]   RxBDDataIn;                 // Rx BD data in
 wire   [31:0]   TxBDDataIn;                 // Tx BD data in
@@ -504,7 +507,7 @@ reg RxEn, RxEn_q;
 reg TxEn, TxEn_q;
 
 wire ram_ce;
-wire ram_we;
+wire [3:0]  ram_we;
 wire ram_oe;
 reg [7:0]   ram_addr;
 reg [31:0]  ram_di;
@@ -525,7 +528,7 @@ assign m_wb_bte_o = 2'b00;    // Linear burst
 
 always @ (posedge WB_CLK_I)
 begin
-  WB_ACK_O <=#Tp BDWrite & WbEn & WbEn_q | BDRead & WbEn & ~WbEn_q;
+  WB_ACK_O <=#Tp (|BDWrite) & WbEn & WbEn_q | BDRead & WbEn & ~WbEn_q;
 end
 
 assign WB_DAT_O = ram_do;
@@ -542,7 +545,7 @@ eth_spram_256x32 bd_ram (
 );
 
 assign ram_ce = 1'b1;
-assign ram_we = BDWrite & WbEn & WbEn_q | TxStatusWrite | RxStatusWrite;
+assign ram_we = (BDWrite & {4{(WbEn & WbEn_q)}}) | {4{(TxStatusWrite | RxStatusWrite)}};
 assign ram_oe = BDRead & WbEn & WbEn_q | TxEn & TxEn_q & (TxBDRead | TxPointerRead) | RxEn & RxEn_q & (RxBDRead | RxPointerRead);
 
 
@@ -598,8 +601,8 @@ begin
             TxEn <=#Tp 1'b0;
             ram_addr <=#Tp WB_ADR_I[9:2];
             ram_di <=#Tp WB_DAT_I;
-            BDWrite <=#Tp BDCs & WB_WE_I;
-            BDRead <=#Tp BDCs & ~WB_WE_I;
+            BDWrite <=#Tp BDCs[3:0] & {4{WB_WE_I}};
+            BDRead <=#Tp (|BDCs) & ~WB_WE_I;
           end
         5'b010_01, 5'b010_11 :
           begin
@@ -616,8 +619,8 @@ begin
             TxEn <=#Tp 1'b0;
             ram_addr <=#Tp WB_ADR_I[9:2];
             ram_di <=#Tp WB_DAT_I;
-            BDWrite <=#Tp BDCs & WB_WE_I;
-            BDRead <=#Tp BDCs & ~WB_WE_I;
+            BDWrite <=#Tp BDCs[3:0] & {4{WB_WE_I}};
+            BDRead <=#Tp (|BDCs) & ~WB_WE_I;
           end
         5'b100_00 :
           begin
@@ -630,8 +633,8 @@ begin
             TxEn <=#Tp 1'b0;
             ram_addr <=#Tp WB_ADR_I[9:2];
             ram_di <=#Tp WB_DAT_I;
-            BDWrite <=#Tp BDCs & WB_WE_I;
-            BDRead <=#Tp BDCs & ~WB_WE_I;
+            BDWrite <=#Tp BDCs[3:0] & {4{WB_WE_I}};
+            BDRead <=#Tp (|BDCs) & ~WB_WE_I;
           end
       endcase
     end
@@ -1347,10 +1350,10 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    RxBDAddress <=#Tp `ETH_TX_BD_NUM_DEF<<1;
+    RxBDAddress <=#Tp `ETH_TX_BD_NUM_DEF_0 << 1;
   else
   if(TX_BD_NUM_Wr)                        // When r_TxBDNum is updated, RxBDAddress is also
-    RxBDAddress <=#Tp WB_DAT_I[7:0]<<1;
+    RxBDAddress <=#Tp WB_DAT_I[7:0] << 1;
   else
   if(RxStatusWrite)
     RxBDAddress <=#Tp TempRxBDAddress;

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.32  2003/10/17 07:46:13  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.31  2003/08/14 16:42:58  simons
 // Artisan ram instance added.
 //
@@ -207,48 +210,93 @@
 `define ETH_RX_CTRL_ADR       8'h15   // 0x54
 
 
-`define ETH_MODER_DEF         17'h0A000
-`define ETH_INT_MASK_DEF      7'h0
-`define ETH_IPGT_DEF          7'h12
-`define ETH_IPGR1_DEF         7'h0C
-`define ETH_IPGR2_DEF         7'h12
-`define ETH_PACKETLEN_DEF     32'h00400600
-`define ETH_COLLCONF0_DEF     6'h3f
-`define ETH_COLLCONF1_DEF     4'hF
-`define ETH_TX_BD_NUM_DEF     8'h40
-`define ETH_CTRLMODER_DEF     3'h0
-`define ETH_MIIMODER_DEF      10'h064
-`define ETH_MIIADDRESS0_DEF   5'h00
-`define ETH_MIIADDRESS1_DEF   5'h00
-`define ETH_MIITX_DATA_DEF    16'h0000
-`define ETH_MIIRX_DATA_DEF    16'h0000
-`define ETH_MIISTATUS_DEF     32'h00000000
-`define ETH_MAC_ADDR0_DEF     32'h00000000
-`define ETH_MAC_ADDR1_DEF     16'h0000
-`define ETH_HASH0_DEF         32'h00000000
-`define ETH_HASH1_DEF         32'h00000000
-`define ETH_RX_CTRL_DEF       16'h0
+`define ETH_MODER_DEF_0         8'h00
+`define ETH_MODER_DEF_1         8'hA0
+`define ETH_MODER_DEF_2         1'h0
+`define ETH_INT_MASK_DEF_0      7'h0
+`define ETH_IPGT_DEF_0          7'h12
+`define ETH_IPGR1_DEF_0         7'h0C
+`define ETH_IPGR2_DEF_0         7'h12
+`define ETH_PACKETLEN_DEF_0     8'h00
+`define ETH_PACKETLEN_DEF_1     8'h06
+`define ETH_PACKETLEN_DEF_2     8'h40
+`define ETH_PACKETLEN_DEF_3     8'h00
+`define ETH_COLLCONF_DEF_0      6'h3f
+`define ETH_COLLCONF_DEF_2      4'hF
+`define ETH_TX_BD_NUM_DEF_0     8'h40
+`define ETH_CTRLMODER_DEF_0     3'h0
+`define ETH_MIIMODER_DEF_0      8'h64
+`define ETH_MIIMODER_DEF_1      1'h0
+`define ETH_MIIADDRESS_DEF_0    5'h00
+`define ETH_MIIADDRESS_DEF_1    5'h00
+`define ETH_MIITX_DATA_DEF_0    8'h00
+`define ETH_MIITX_DATA_DEF_1    8'h00
+`define ETH_MIIRX_DATA_DEF     16'h0000 // not written from WB
+`define ETH_MAC_ADDR0_DEF_0     8'h00
+`define ETH_MAC_ADDR0_DEF_1     8'h00
+`define ETH_MAC_ADDR0_DEF_2     8'h00
+`define ETH_MAC_ADDR0_DEF_3     8'h00
+`define ETH_MAC_ADDR1_DEF_0     8'h00
+`define ETH_MAC_ADDR1_DEF_1     8'h00
+`define ETH_HASH0_DEF_0         8'h00
+`define ETH_HASH0_DEF_1         8'h00
+`define ETH_HASH0_DEF_2         8'h00
+`define ETH_HASH0_DEF_3         8'h00
+`define ETH_HASH1_DEF_0         8'h00
+`define ETH_HASH1_DEF_1         8'h00
+`define ETH_HASH1_DEF_2         8'h00
+`define ETH_HASH1_DEF_3         8'h00
+`define ETH_TX_CTRL_DEF_0       8'h00 //
+`define ETH_TX_CTRL_DEF_1       8'h00 //
+`define ETH_TX_CTRL_DEF_2       1'h0  //
+`define ETH_RX_CTRL_DEF_0       8'h00
+`define ETH_RX_CTRL_DEF_1       8'h00
 
 
-`define ETH_MODER_WIDTH       17
-`define ETH_INT_SOURCE_WIDTH  7
-`define ETH_INT_MASK_WIDTH    7
-`define ETH_IPGT_WIDTH        7
-`define ETH_IPGR1_WIDTH       7
-`define ETH_IPGR2_WIDTH       7
-`define ETH_PACKETLEN_WIDTH   32
-`define ETH_TX_BD_NUM_WIDTH   8
-`define ETH_CTRLMODER_WIDTH   3
-`define ETH_MIIMODER_WIDTH    9
-`define ETH_MIITX_DATA_WIDTH  16
-`define ETH_MIIRX_DATA_WIDTH  16
-`define ETH_MIISTATUS_WIDTH   3
-`define ETH_MAC_ADDR0_WIDTH   32
-`define ETH_MAC_ADDR1_WIDTH   16
-`define ETH_HASH0_WIDTH       32
-`define ETH_HASH1_WIDTH       32
-`define ETH_TX_CTRL_WIDTH     17
-`define ETH_RX_CTRL_WIDTH     16
+`define ETH_MODER_WIDTH_0       8
+`define ETH_MODER_WIDTH_1       8
+`define ETH_MODER_WIDTH_2       1
+`define ETH_INT_SOURCE_WIDTH_0  7
+`define ETH_INT_MASK_WIDTH_0    7
+`define ETH_IPGT_WIDTH_0        7
+`define ETH_IPGR1_WIDTH_0       7
+`define ETH_IPGR2_WIDTH_0       7
+`define ETH_PACKETLEN_WIDTH_0   8
+`define ETH_PACKETLEN_WIDTH_1   8
+`define ETH_PACKETLEN_WIDTH_2   8
+`define ETH_PACKETLEN_WIDTH_3   8
+`define ETH_COLLCONF_WIDTH_0    6
+`define ETH_COLLCONF_WIDTH_2    4
+`define ETH_TX_BD_NUM_WIDTH_0   8
+`define ETH_CTRLMODER_WIDTH_0   3
+`define ETH_MIIMODER_WIDTH_0    8
+`define ETH_MIIMODER_WIDTH_1    1
+`define ETH_MIICOMMAND_WIDTH_0  3
+`define ETH_MIIADDRESS_WIDTH_0  5
+`define ETH_MIIADDRESS_WIDTH_1  5
+`define ETH_MIITX_DATA_WIDTH_0  8
+`define ETH_MIITX_DATA_WIDTH_1  8
+`define ETH_MIIRX_DATA_WIDTH    16 // not written from WB
+`define ETH_MIISTATUS_WIDTH     3 // not written from WB
+`define ETH_MAC_ADDR0_WIDTH_0   8
+`define ETH_MAC_ADDR0_WIDTH_1   8
+`define ETH_MAC_ADDR0_WIDTH_2   8
+`define ETH_MAC_ADDR0_WIDTH_3   8
+`define ETH_MAC_ADDR1_WIDTH_0   8
+`define ETH_MAC_ADDR1_WIDTH_1   8
+`define ETH_HASH0_WIDTH_0       8
+`define ETH_HASH0_WIDTH_1       8
+`define ETH_HASH0_WIDTH_2       8
+`define ETH_HASH0_WIDTH_3       8
+`define ETH_HASH1_WIDTH_0       8
+`define ETH_HASH1_WIDTH_1       8
+`define ETH_HASH1_WIDTH_2       8
+`define ETH_HASH1_WIDTH_3       8
+`define ETH_TX_CTRL_WIDTH_0     8
+`define ETH_TX_CTRL_WIDTH_1     8
+`define ETH_TX_CTRL_WIDTH_2     1
+`define ETH_RX_CTRL_WIDTH_0     8
+`define ETH_RX_CTRL_WIDTH_1     8
 
 
 // Outputs are registered (uncomment when needed)
