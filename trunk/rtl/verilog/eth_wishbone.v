@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/02/06 14:10:21  mohor
+// non-DMA host interface added. Select the right configutation in eth_defines.
+//
 // Revision 1.3  2002/02/05 16:44:39  mohor
 // Both rx and tx part are finished. Tested with wb_clk_i between 10 and 200
 // MHz. Statuses, overrun, control frame transmission and reception still  need
@@ -96,12 +99,15 @@ module eth_wishbone
     MRxClk, RxData, RxValid, RxStartFrm, RxEndFrm, RxAbort, 
     
     // Register
-    r_TxEn, r_RxEn, r_TxBDNum, r_DmaEn, TX_BD_NUM_Wr, 
+    r_TxEn, r_RxEn, r_TxBDNum, r_DmaEn, TX_BD_NUM_Wr, r_RecSmall, 
 
     WillSendControlFrame, TxCtrlEndFrm, // igor !!! WillSendControlFrame gre najbrz ven
     
     // Interrupts
-    TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ
+    TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ,
+    
+    InvalidSymbol, LatchedCrcError, RxLateCollision, ShortFrame, DribbleNibble,
+    ReceivedPacketTooBig, RxLength, LoadRxStatus
 
 		);
 
@@ -133,13 +139,15 @@ input           m_wb_err_i;     //
 
 input           Reset;       // Reset signal
 
-
-
-// DMA
-// input   [1:0]   WB_ACK_I;       // DMA acknowledge input
-// output  [1:0]   WB_REQ_O;       // DMA request output
-// output  [1:0]   WB_ND_O;        // DMA force new descriptor output
-// output          WB_RD_O;        // DMA restart descriptor output
+// Status signals
+input           InvalidSymbol;    // Invalid symbol was received during reception in 100 Mbps mode
+input           LatchedCrcError;  // CRC error
+input           RxLateCollision;  // Late collision occured while receiving frame
+input           ShortFrame;       // Frame shorter then the minimum size (r_MinFL) was received while small packets are enabled (r_RecSmall)
+input           DribbleNibble;    // Extra nibble received
+input           ReceivedPacketTooBig;// Received packet is bigger than r_MaxFL
+input    [15:0] RxLength;         // Length of the incoming frame
+input           LoadRxStatus;     // Rx status was loaded
 
 // Tx
 input           MTxClk;         // Transmit clock (from PHY)
@@ -173,6 +181,7 @@ input           r_RxEn;         // Receive enable
 input   [7:0]   r_TxBDNum;      // Receive buffer descriptor number
 input           r_DmaEn;        // DMA enable
 input           TX_BD_NUM_Wr;   // RxBDNumber written
+input           r_RecSmall;     // Receive small frames igor !!! tega uporabi
 
 // Interrupts
 output TxB_IRQ;
@@ -195,7 +204,7 @@ reg     [1:0]   TxValidBytesLatched;
 reg    [15:0]   TxLength;
 reg    [15:0]   TxStatus;
 
-reg    [15:0]   RxStatus;
+reg   [14:13]   RxStatusOld;
 
 reg             TxStartFrm_wb;
 reg             TxRetry_wb;
@@ -240,6 +249,7 @@ reg             LastByteIn;
 reg             ShiftWillEnd;
 
 reg             WriteRxDataToFifo;
+reg    [15:0]   LatchedRxLength;
 
 reg             ShiftEnded;
 
@@ -269,13 +279,13 @@ wire    [1:0]   TxValidBytes;
 wire    [7:0]   TempTxBDAddress;
 wire    [7:0]   TempRxBDAddress;
 
-reg    [15:0]   RxLength;
-wire   [15:0]   NewRxStatus;
-
 wire            SetGotData;
 wire            GotDataEvaluate;
 
 reg             temp_ack;
+
+wire    [5:0]   RxStatusIn;
+reg     [5:0]   RxStatusInLatched;
 
 `ifdef ETH_REGISTERED_OUTPUTS
 reg             temp_ack2;
@@ -356,8 +366,6 @@ begin
 end
 
 
-reg [3:0] debug;
-
 // Enabling access to the RAM for three devices.
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
@@ -368,7 +376,6 @@ begin
       TxEn <=#Tp 1'b0;
       ram_addr <=#Tp 8'h0;
       ram_di <=#Tp 32'h0;
- debug <=#Tp 4'h0;
     end
   else
     begin
@@ -381,7 +388,6 @@ begin
             TxEn <=#Tp 1'b0;
             ram_addr <=#Tp RxBDAddress + RxPointerRead;
             ram_di <=#Tp RxBDDataIn;
- debug <=#Tp 4'h1;
           end
         5'b100_01 :
           begin
@@ -390,7 +396,6 @@ begin
             TxEn <=#Tp 1'b1;  // wb access stage, r_RxEn is disabled but r_TxEn is enabled
             ram_addr <=#Tp TxBDAddress + TxPointerRead;
             ram_di <=#Tp TxBDDataIn;
- debug <=#Tp 4'h2;
           end
         5'b010_x0 :
           begin
@@ -401,7 +406,6 @@ begin
             ram_di <=#Tp WB_DAT_I;
             BDWrite <=#Tp BDCs & WB_WE_I;
             BDRead <=#Tp BDCs & ~WB_WE_I;
- debug <=#Tp 4'h3;
           end
         5'b010_x1 :
           begin
@@ -410,7 +414,6 @@ begin
             TxEn <=#Tp 1'b1;  // RxEn access stage and r_TxEn is enabled
             ram_addr <=#Tp TxBDAddress + TxPointerRead;
             ram_di <=#Tp TxBDDataIn;
- debug <=#Tp 4'h4;
           end
         5'b001_xx :
           begin
@@ -421,12 +424,10 @@ begin
             ram_di <=#Tp WB_DAT_I;
             BDWrite <=#Tp BDCs & WB_WE_I;
             BDRead <=#Tp BDCs & ~WB_WE_I;
- debug <=#Tp 4'h5;
           end
         5'b100_00 :
           begin
             WbEn <=#Tp 1'b0;  // WbEn access stage and there is no need for other stages. WbEn needs to be switched off for a bit
- debug <=#Tp 4'h6;
           end
         5'b000_00 :
           begin
@@ -437,7 +438,6 @@ begin
             ram_di <=#Tp WB_DAT_I;
             BDWrite <=#Tp BDCs & WB_WE_I;
             BDRead <=#Tp BDCs & ~WB_WE_I;
- debug <=#Tp 4'h7;
           end
         default :
           begin
@@ -448,7 +448,6 @@ begin
             ram_di <=#Tp WB_DAT_I;
             BDWrite <=#Tp BDCs & WB_WE_I;
             BDRead <=#Tp BDCs & ~WB_WE_I;
- debug <=#Tp 4'h8;
           end
       endcase
     end
@@ -962,7 +961,7 @@ assign PerPacketCrcEn   = TxStatus[11] & TxStatus[10];      // When last is also
 // bit 4  od rx je carrier sense lost
 // bit [3:0] od rx je retry count
 
-assign WrapRxStatusBit = RxStatus[13];
+assign WrapRxStatusBit = RxStatusOld[13];
 
 
 // Temporary Tx and Rx buffer descriptor address 
@@ -995,10 +994,7 @@ begin
     RxBDAddress <=#Tp TempRxBDAddress;
 end
 
-assign NewRxStatus[15:0] = 16'hdead;
-
-
-assign RxBDDataIn = {RxLength, NewRxStatus};  // tu dopolni, da se bo vpisoval status
+assign RxBDDataIn = {LatchedRxLength, 1'b0, RxStatusOld, 7'h0, RxStatusInLatched};  // tu dopolni, da se bo vpisoval status
 assign TxBDDataIn = {32'h004380ef};   // tu dopolni, da se bo vpisoval status
 
 
@@ -1313,10 +1309,10 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    RxStatus <=#Tp 16'h0;
+    RxStatusOld <=#Tp 2'h0;
   else
   if(RxEn & RxEn_q & RxBDRead)
-    RxStatus <=#Tp ram_do[15:0];
+    RxStatusOld <=#Tp ram_do[14:13];
 end
 
 
@@ -1383,6 +1379,31 @@ end
 
 // Reception status is written back to the buffer descriptor after the end of frame is detected.
 assign RxStatusWrite = ShiftEnded & RxEn & RxEn_q;
+
+reg RxStatusWriteLatched;
+reg RxStatusWrite_rck;
+
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    RxStatusWriteLatched <=#Tp 1'b0;
+  else
+  if(RxStatusWrite)
+    RxStatusWriteLatched <=#Tp 1'b1;
+  else
+  if(RxStatusWrite_rck)
+    RxStatusWriteLatched <=#Tp 1'b0;
+end
+
+
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    RxStatusWrite_rck <=#Tp 1'b0;
+  else
+    RxStatusWrite_rck <=#Tp RxStatusWriteLatched;
+end
+
 
 reg RxEnableWindow;
 
@@ -1482,19 +1503,6 @@ begin
       2 : RxDataLatched2 <=#Tp { 16'h0, RxDataLatched1[15:0]};
       3 : RxDataLatched2 <=#Tp {  8'h0, RxDataLatched1[23:0]};
     endcase
-end
-
-// Assembling data that will be written to the rx_fifo
-always @ (posedge MRxClk or posedge Reset)
-begin
-  if(Reset)
-    RxLength <=#Tp 16'h0;
-  else
-  if(RxStartFrm)
-    RxLength <=#Tp 16'h1;
-  else
-  if(RxValid & (RxStartFrm | RxEnableWindow))
-    RxLength <=#Tp RxLength + 1'b1;
 end
 
 
@@ -1662,6 +1670,45 @@ assign TxE_IRQ = 1'b0;
 assign RxB_IRQ = 1'b0;
 assign RxF_IRQ = 1'b0;
 assign Busy_IRQ = 1'b0;
+
+
+
+reg LoadStatusBlocked;
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    LoadStatusBlocked <=#Tp 1'b0;
+  else
+  if(LoadRxStatus)
+    LoadStatusBlocked <=#Tp 1'b1;
+  else
+  if(RxStatusWrite_rck)
+    LoadStatusBlocked <=#Tp 1'b0;
+end
+
+// LatchedRxLength[15:0]
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    LatchedRxLength[15:0] <=#Tp 16'h0;
+  else
+  if(LoadRxStatus & ~LoadStatusBlocked)
+    LatchedRxLength[15:0] <=#Tp RxLength[15:0];
+end
+
+
+
+assign RxStatusIn = {InvalidSymbol, DribbleNibble, ReceivedPacketTooBig, ShortFrame, LatchedCrcError, RxLateCollision};
+
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    RxStatusInLatched <=#Tp 'h0;
+  else
+  if(LoadRxStatus & ~LoadStatusBlocked)
+    RxStatusInLatched <=#Tp RxStatusIn;
+end
+
 
 
 endmodule

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2002/02/06 14:10:21  mohor
+// non-DMA host interface added. Select the right configutation in eth_defines.
+//
 // Revision 1.10  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -116,12 +119,16 @@ module eth_wishbonedma
     MRxClk, RxData, RxValid, RxStartFrm, RxEndFrm, 
     
     // Register
-    r_TxEn, r_RxEn, r_TxBDNum, r_DmaEn, TX_BD_NUM_Wr, 
+    r_TxEn, r_RxEn, r_TxBDNum, r_DmaEn, TX_BD_NUM_Wr, r_RecSmall, 
 
     WillSendControlFrame, TxCtrlEndFrm, 
     
     // Interrupts
-    TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ
+    TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ, 
+    
+    InvalidSymbol, LatchedCrcError, RxLateCollision, ShortFrame, DribbleNibble,
+    ReceivedPacketTooBig, RxLength, LoadRxStatus
+
 
 		);
 
@@ -146,6 +153,16 @@ input   [1:0]   WB_ACK_I;       // DMA acknowledge input
 output  [1:0]   WB_REQ_O;       // DMA request output
 output  [1:0]   WB_ND_O;        // DMA force new descriptor output
 output          WB_RD_O;        // DMA restart descriptor output
+
+// Status
+input           InvalidSymbol;
+input           LatchedCrcError;
+input           RxLateCollision;
+input           ShortFrame;
+input           DribbleNibble;
+input           ReceivedPacketTooBig;
+input   [15:0]  RxLength;
+input           LoadRxStatus;
 
 // Tx
 input           MTxClk;         // Transmit clock (from PHY)
@@ -178,6 +195,7 @@ input           r_RxEn;         // Receive enable
 input   [7:0]   r_TxBDNum;      // Receive buffer descriptor number
 input           r_DmaEn;        // DMA enable
 input           TX_BD_NUM_Wr;   // RxBDNumber written
+input           r_RecSmall;     // Receive small frames
 
 // Interrupts
 output TxB_IRQ;
@@ -364,7 +382,6 @@ wire    [1:0]   TxValidBytes;
 wire    [7:0]   TempTxBDAddress;
 wire    [7:0]   TempRxBDAddress;
 
-wire   [15:0]   RxLength;
 wire   [15:0]   NewRxStatus;
 
 wire            SetGotData;
@@ -835,13 +852,11 @@ begin
 end
 
 
-assign RxLength[15:0]  = 16'h1399;
 assign NewRxStatus[15:0] = {1'b0, WbWriteError, RxStatus[13:0]};
 
 
-//assign BDDataIn  = TxStatusWrite ? {TxLength[15:0], StatusIzTxEthMACModula} : {RxLength, NewRxStatus};
 assign BDDataIn  = TxStatusWrite ? {TxStatus[31:9], 9'h0} 
-                                 : {RxLength, NewRxStatus};
+                                 : {16'h1399, NewRxStatus};
 
 assign BDStatusWrite = TxStatusWrite | RxStatusWrite;
 

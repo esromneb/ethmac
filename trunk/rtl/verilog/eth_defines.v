@@ -41,6 +41,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2002/02/05 16:44:38  mohor
+// Both rx and tx part are finished. Tested with wb_clk_i between 10 and 200
+// MHz. Statuses, overrun, control frame transmission and reception still  need
+// to be fixed.
+//
 // Revision 1.7  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -121,7 +126,7 @@
 `define ETH_IPGR1_DEF         32'h0000000C
 `define ETH_IPGR2_DEF         32'h00000012
 `define ETH_PACKETLEN_DEF     32'h003C0600
-`define ETH_COLLCONF_DEF      32'h000F0040
+`define ETH_COLLCONF_DEF      32'h000F003f
 `define ETH_CTRLMODER_DEF     32'h00000000
 `define ETH_MIIMODER_DEF      32'h00000064
 `define ETH_MIICOMMAND_DEF    32'h00000000

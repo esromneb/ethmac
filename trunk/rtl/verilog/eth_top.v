@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2002/02/06 14:10:21  mohor
+// non-DMA host interface added. Select the right configutation in eth_defines.
+//
 // Revision 1.9  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -219,6 +222,7 @@ wire            TxRetry;
 wire            TxAbort;
 wire            TxUnderRun;
 wire            TxDone;
+wire     [5:0]  CollValid;
 
 
 
@@ -241,6 +245,7 @@ eth_miim miim1
 wire        RegCs;          // Connected to registers
 wire [31:0] RegDataOut;     // Multiplexed to wb_dat_o
 wire        r_DmaEn;        // DMA enable
+wire        r_RecSmall;     // Receive small frames
 wire        r_Rst;          // Reset
 wire        r_LoopBck;      // Loopback
 wire        r_TxEn;         // Tx Enable
@@ -255,7 +260,11 @@ wire        r_DlyCrcEn;     // Delayed CRC enabled
 wire [15:0] r_MaxFL;        // Maximum frame length
 
 wire [15:0] r_MinFL;        // Minimum frame length
+wire        ShortFrame;
+wire        DribbleNibble;  // Extra nibble received
+wire        ReceivedPacketTooBig; // Received packet is too big
 wire [47:0] r_MAC;          // MAC address
+wire        LoadRxStatus;   // Rx status was loaded
 
 wire  [7:0] r_TxBDNum;      // Receive buffer descriptor number
 wire  [6:0] r_IPGT;         // 
@@ -301,7 +310,7 @@ eth_registers ethreg1
 (
   .DataIn(wb_dat_i),                      .Address(wb_adr_i[7:2]),                    .Rw(wb_we_i), 
   .Cs(RegCs),                             .Clk(wb_clk_i),                             .Reset(wb_rst_i), 
-  .DataOut(RegDataOut),                   .r_DmaEn(r_DmaEn),                          .r_RecSmall(), 
+  .DataOut(RegDataOut),                   .r_DmaEn(r_DmaEn),                          .r_RecSmall(r_RecSmall), 
   .r_Pad(r_Pad),                          .r_HugEn(r_HugEn),                          .r_CrcEn(r_CrcEn), 
   .r_DlyCrcEn(r_DlyCrcEn),                .r_Rst(r_Rst),                              .r_FullD(r_FullD), 
   .r_ExDfrEn(r_ExDfrEn),                  .r_NoBckof(r_NoBckof),                      .r_LoopBck(r_LoopBck), 
@@ -339,6 +348,9 @@ wire        ReceivedPauseFrm;
 wire        ReceiveEnd;
 wire        ReceivedPacketGood;
 wire        ReceivedLengthOK;
+wire        InvalidSymbol;
+wire        LatchedCrcError;
+wire        RxLateCollision;
 
 // Connecting MACControl
 eth_maccontrol maccontrol1
@@ -562,19 +574,22 @@ eth_wishbone wishbone
 
   // Register
   .r_TxEn(r_TxEn),                    .r_RxEn(r_RxEn),                          .r_TxBDNum(r_TxBDNum), 
-  .r_DmaEn(r_DmaEn),                  .TX_BD_NUM_Wr(TX_BD_NUM_Wr), 
+  .r_DmaEn(r_DmaEn),                  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),              .r_RecSmall(r_RecSmall), 
 
   //RX
   .MRxClk(mrx_clk_pad_i),             .RxData(RxData),                          .RxValid(RxValid), 
   .RxStartFrm(RxStartFrm),            .RxEndFrm(RxEndFrm),                      
   .Busy_IRQ(Busy_IRQ),                .RxF_IRQ(RxF_IRQ),                        .RxB_IRQ(RxB_IRQ), 
-  .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ)
+  .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ),
 
 `ifdef WISHBONE_DMA
 `else
-  ,
-  .RxAbort(RxAbort)
+  .RxAbort(RxAbort), 
 `endif
+
+  .InvalidSymbol(InvalidSymbol),      .LatchedCrcError(LatchedCrcError),        .RxLength(RxByteCnt),
+  .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
+  .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus)
 
 );
 
@@ -583,13 +598,18 @@ eth_wishbone wishbone
 // Connecting MacStatus module
 eth_macstatus macstatus1 
 (
-  .MRxClk(mrx_clk_pad_i),             .Reset(r_Rst),                            .TransmitEnd(), 
-  .ReceiveEnd(ReceiveEnd),            .ReceivedPacketGood(ReceivedPacketGood),  .ReceivedLengthOK(ReceivedLengthOK), 
-  .RxCrcError(RxCrcError),            .MRxErr(MRxErr_Lb),                       .MRxDV(MRxDV_Lb), 
-  .RxStateSFD(RxStateSFD),            .RxStateData(RxStateData),                .RxStatePreamble(RxStatePreamble), 
-  .RxStateIdle(RxStateIdle),          .Transmitting(Transmitting),              .RxByteCnt(RxByteCnt), 
-  .RxByteCntEq0(RxByteCntEq0),        .RxByteCntGreat2(RxByteCntGreat2),        .RxByteCntMaxFrame(RxByteCntMaxFrame), 
-  .ReceivedPauseFrm(ReceivedPauseFrm)
+  .MRxClk(mrx_clk_pad_i),             .Reset(r_Rst),
+  .ReceiveEnd(ReceiveEnd),            .ReceivedPacketGood(ReceivedPacketGood),     .ReceivedLengthOK(ReceivedLengthOK), 
+  .RxCrcError(RxCrcError),            .MRxErr(MRxErr_Lb),                          .MRxDV(MRxDV_Lb), 
+  .RxStateSFD(RxStateSFD),            .RxStateData(RxStateData),                   .RxStatePreamble(RxStatePreamble), 
+  .RxStateIdle(RxStateIdle),          .Transmitting(Transmitting),                 .RxByteCnt(RxByteCnt), 
+  .RxByteCntEq0(RxByteCntEq0),        .RxByteCntGreat2(RxByteCntGreat2),           .RxByteCntMaxFrame(RxByteCntMaxFrame), 
+  .ReceivedPauseFrm(ReceivedPauseFrm),.InvalidSymbol(InvalidSymbol),
+  .MRxD(MRxD_Lb),                     .LatchedCrcError(LatchedCrcError),           .Collision(mcoll_pad_i),
+  .CollValid(r_CollValid),            .RxLateCollision(RxLateCollision),           .r_RecSmall(r_RecSmall),
+  .r_MinFL(r_MinFL),                  .r_MaxFL(r_MaxFL),                           .ShortFrame(ShortFrame),
+  .DribbleNibble(DribbleNibble),      .ReceivedPacketTooBig(ReceivedPacketTooBig), .r_HugEn(r_HugEn),
+  .LoadRxStatus(LoadRxStatus)
 );
 
 

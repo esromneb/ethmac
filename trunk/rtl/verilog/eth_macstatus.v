@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.3  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -70,9 +73,12 @@
 
 
 module eth_macstatus(
-                      MRxClk, Reset, ReceivedLengthOK, ReceiveEnd, TransmitEnd, ReceivedPacketGood, RxCrcError, 
+                      MRxClk, Reset, ReceivedLengthOK, ReceiveEnd, ReceivedPacketGood, RxCrcError, 
                       MRxErr, MRxDV, RxStateSFD, RxStateData, RxStatePreamble, RxStateIdle, Transmitting, 
-                      RxByteCnt, RxByteCntEq0, RxByteCntGreat2, RxByteCntMaxFrame, ReceivedPauseFrm
+                      RxByteCnt, RxByteCntEq0, RxByteCntGreat2, RxByteCntMaxFrame, ReceivedPauseFrm,
+                      InvalidSymbol, MRxD, LatchedCrcError, Collision, CollValid, RxLateCollision,
+                      r_RecSmall, r_MinFL, r_MaxFL, ShortFrame, DribbleNibble, ReceivedPacketTooBig, r_HugEn,
+                      LoadRxStatus
                     );
 
 
@@ -96,21 +102,34 @@ input         RxByteCntEq0;
 input         RxByteCntGreat2;
 input         RxByteCntMaxFrame;
 input         ReceivedPauseFrm;
+input   [3:0] MRxD;
+input         Collision;
+input   [5:0] CollValid;
+input         r_RecSmall;
+input  [15:0] r_MinFL;
+input  [15:0] r_MaxFL;
+input         r_HugEn;
 
 output        ReceivedLengthOK;
 output        ReceiveEnd;
 output        ReceivedPacketGood;
-output        TransmitEnd;
+output        InvalidSymbol;
+output        LatchedCrcError;
+output        RxLateCollision;
+output        ShortFrame;
+output        DribbleNibble;
+output        ReceivedPacketTooBig;
+output        LoadRxStatus;
 
 reg           ReceiveEnd;
 
 reg           LatchedCrcError;
 reg           LatchedMRxErr;
-reg           PreloadRxStatus;
-reg    [15:0] LatchedRxByteCnt;
+reg           LoadRxStatus;
+reg           InvalidSymbol;
 
 wire          TakeSample;
-
+wire          SetInvalidSymbol; // Invalid symbol was received during reception in 100Mbps 
 
 // Crc error
 always @ (posedge MRxClk or posedge Reset)
@@ -118,13 +137,11 @@ begin
   if(Reset)
     LatchedCrcError <=#Tp 1'b0;
   else
-    begin 
-      if(RxStateSFD)
-        LatchedCrcError <=#Tp 1'b0;
-      else
-      if(RxStateData[0])
-        LatchedCrcError <=#Tp RxCrcError & ~RxByteCntEq0;
-    end
+  if(RxStateSFD)
+    LatchedCrcError <=#Tp 1'b0;
+  else
+  if(RxStateData[0])
+    LatchedCrcError <=#Tp RxCrcError & ~RxByteCntEq0;
 end
 
 
@@ -147,24 +164,9 @@ assign ReceivedPacketGood = ~LatchedCrcError & ~LatchedMRxErr;
 
 
 // ReceivedLengthOK
-assign ReceivedLengthOK = LatchedRxByteCnt[15:0] > 63 & LatchedRxByteCnt[15:0] < 1519;
+assign ReceivedLengthOK = RxByteCnt[15:0] > 63 & RxByteCnt[15:0] < 1519;
 
 
-
-// LatchedRxByteCnt[15:0]
-always @ (posedge MRxClk or posedge Reset)
-begin
-  if(Reset)
-    LatchedRxByteCnt[15:0] <=#Tp 16'h0;
-  else
-    begin 
-      if(RxStateSFD)
-        LatchedRxByteCnt[15:0] <=#Tp RxByteCnt[15:0];
-      else
-      if(RxStateData[0])
-        LatchedRxByteCnt[15:0] <=#Tp RxByteCnt[15:0];
-    end
-end
 
 
 
@@ -173,13 +175,13 @@ assign TakeSample = |RxStateData     & ~MRxDV & RxByteCntGreat2  |
                      RxStateData[0]  &  MRxDV & RxByteCntMaxFrame;
 
 
-// PreloadRxStatus
+// LoadRxStatus
 always @ (posedge MRxClk or posedge Reset)
 begin
   if(Reset)
-    PreloadRxStatus <=#Tp 1'b0;
+    LoadRxStatus <=#Tp 1'b0;
   else
-    PreloadRxStatus <=#Tp TakeSample;
+    LoadRxStatus <=#Tp TakeSample;
 end
 
 
@@ -190,8 +192,101 @@ begin
   if(Reset)
     ReceiveEnd  <=#Tp 1'b0;
   else
-    ReceiveEnd  <=#Tp PreloadRxStatus;                     
+    ReceiveEnd  <=#Tp LoadRxStatus;                     
 end
 
+
+// Invalid Symbol received during 100Mbps mode
+assign SetInvalidSymbol = MRxDV & MRxErr & ~LatchedMRxErr & MRxD[3:0] == 4'he;
+
+
+// InvalidSymbol
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    InvalidSymbol <=#Tp 1'b0;
+  else
+  if(LoadRxStatus & ~SetInvalidSymbol)
+    InvalidSymbol <=#Tp 1'b0;
+  else
+  if(SetInvalidSymbol)
+    InvalidSymbol <=#Tp 1'b1;
+end
+
+
+// Late Collision
+
+reg RxLateCollision;
+reg RxColWindow;
+// Collision Window
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    RxLateCollision <=#Tp 1'b0;
+  else
+  if(LoadRxStatus)
+    RxLateCollision <=#Tp 1'b0;
+  else
+  if(Collision & (~RxColWindow | r_RecSmall))
+    RxLateCollision <=#Tp 1'b1;
+end
+
+// Collision Window
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    RxColWindow <=#Tp 1'b1;
+  else
+  if(~Collision & RxByteCnt[5:0] == CollValid[5:0] & RxStateData[1])
+    RxColWindow <=#Tp 1'b0;
+  else
+  if(RxStateIdle)
+    RxColWindow <=#Tp 1'b1;
+end
+
+
+// ShortFrame
+reg ShortFrame;
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    ShortFrame <=#Tp 1'b0;
+  else
+  if(LoadRxStatus)
+    ShortFrame <=#Tp 1'b0;
+  else
+  if(TakeSample)
+    ShortFrame <=#Tp r_RecSmall & RxByteCnt[15:0] < r_MinFL[15:0];
+end
+
+
+// DribbleNibble
+reg DribbleNibble;
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    DribbleNibble <=#Tp 1'b0;
+  else
+  if(RxStateSFD)
+    DribbleNibble <=#Tp 1'b0;
+  else
+  if(~MRxDV & RxStateData[1])
+    DribbleNibble <=#Tp 1'b1;
+end
+
+
+reg ReceivedPacketTooBig;
+assign ReceivedLengthOK = RxByteCnt[15:0] > 63 & RxByteCnt[15:0] < 1519;
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    ReceivedPacketTooBig <=#Tp 1'b0;
+  else
+  if(LoadRxStatus)
+    ReceivedPacketTooBig <=#Tp 1'b0;
+  else
+  if(TakeSample)
+    ReceivedPacketTooBig <=#Tp ~r_HugEn & RxByteCnt[15:0] > r_MaxFL[15:0];
+end
 
 endmodule
