@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2003/01/30 13:28:19  tadejm
+// Defer indication changed.
+//
 // Revision 1.14  2002/11/22 01:57:06  mohor
 // Rx Flow control fixed. CF flag added to the RX buffer descriptor. RxAbort
 // synchronized.
@@ -113,7 +116,7 @@ module eth_macstatus(
                       InvalidSymbol, MRxD, LatchedCrcError, Collision, CollValid, RxLateCollision,
                       r_RecSmall, r_MinFL, r_MaxFL, ShortFrame, DribbleNibble, ReceivedPacketTooBig, r_HugEn,
                       LoadRxStatus, StartTxDone, StartTxAbort, RetryCnt, RetryCntLatched, MTxClk, MaxCollisionOccured, 
-                      RetryLimit, LateCollision, LateCollLatched, DeferIndication, DeferLatched, TxStartFrm,
+                      RetryLimit, LateCollision, LateCollLatched, DeferIndication, DeferLatched, RstDeferLatched, TxStartFrm,
                       StatePreamble, StateData, CarrierSense, CarrierSenseLost, TxUsedData, LatchedMRxErr, Loopback, 
                       r_FullD
                     );
@@ -175,6 +178,7 @@ output  [3:0] RetryCntLatched;
 output        RetryLimit;
 output        LateCollLatched;
 output        DeferLatched;
+input         RstDeferLatched;
 output        CarrierSenseLost;
 output        LatchedMRxErr;
 
@@ -393,10 +397,10 @@ begin
   if(Reset)
     DeferLatched <=#Tp 1'b0;
   else
-  if(DeferIndication & TxUsedData)
+  if(DeferIndication)
     DeferLatched <=#Tp 1'b1;
   else
-  if(TxStartFrm)
+  if(RstDeferLatched)
     DeferLatched <=#Tp 1'b0;
 end
 
