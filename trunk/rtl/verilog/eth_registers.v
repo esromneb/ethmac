@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2002/08/14 18:26:37  mohor
+// LinkFailRegister is reflecting the status of the PHY's link fail status bit.
+//
 // Revision 1.14  2002/04/22 14:03:44  mohor
 // Interrupts are visible in the ETH_INT_SOURCE regardless if they are enabled
 // or not.
@@ -240,7 +243,6 @@ wire MIICOMMAND_Wr  = (Address == `ETH_MIICOMMAND_ADR  )  & Write;
 wire MIIADDRESS_Wr  = (Address == `ETH_MIIADDRESS_ADR  )  & Write;
 wire MIITX_DATA_Wr  = (Address == `ETH_MIITX_DATA_ADR  )  & Write;
 wire MIIRX_DATA_Wr  = UpdateMIIRX_DATAReg;     
-wire MIISTATUS_Wr   = (Address == `ETH_MIISTATUS_ADR   )  & Write;
 wire MAC_ADDR0_Wr   = (Address == `ETH_MAC_ADDR0_ADR   )  & Write;
 wire MAC_ADDR1_Wr   = (Address == `ETH_MAC_ADDR1_ADR   )  & Write;
 wire HASH0_Wr       = (Address == `ETH_HASH0_ADR   )  & Write;
@@ -271,81 +273,269 @@ wire [31:0] HASH0Out;
 wire [31:0] HASH1Out;
 
 
-eth_register #(17, `ETH_MODER_DEF)      MODER        (.DataIn(DataIn[16:0]), .DataOut(MODEROut[16:0]),     .Write(MODER_Wr),      .Clk(Clk), .Reset(Reset));
-assign MODEROut[31:17] = 0;
+// MODER Register
+eth_register #(`ETH_MODER_WIDTH, `ETH_MODER_DEF)        MODER
+  (
+   .DataIn    (DataIn[`ETH_MODER_WIDTH-1:0]),
+   .DataOut   (MODEROut[`ETH_MODER_WIDTH-1:0]),
+   .Write     (MODER_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+assign MODEROut[31:`ETH_MODER_WIDTH] = 0;
 
-eth_register #(7, `ETH_INT_MASK_DEF)     INT_MASK    (.DataIn(DataIn[6:0]),  .DataOut(INT_MASKOut[6:0]),   .Write(INT_MASK_Wr),   .Clk(Clk), .Reset(Reset));
-assign INT_MASKOut[31:7] = 0;
+// INT_MASK Register
+eth_register #(`ETH_INT_MASK_WIDTH, `ETH_INT_MASK_DEF)  INT_MASK
+  (
+   .DataIn    (DataIn[`ETH_INT_MASK_WIDTH-1:0]),  
+   .DataOut   (INT_MASKOut[`ETH_INT_MASK_WIDTH-1:0]),
+   .Write     (INT_MASK_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+assign INT_MASKOut[31:ETH_INT_MASK_WIDTH] = 0;
 
-eth_register #(7, `ETH_IPGT_DEF)         IPGT        (.DataIn(DataIn[6:0]),  .DataOut(IPGTOut[6:0]),       .Write(IPGT_Wr),       .Clk(Clk), .Reset(Reset));
-assign IPGTOut[31:7] = 0;
+// IPGT Register
+eth_register #(`ETH_IPGT_WIDTH, `ETH_IPGT_DEF)          IPGT
+  (
+   .DataIn    (DataIn[`ETH_IPGT_WIDTH-1:0]),
+   .DataOut   (IPGTOut[`ETH_IPGT_WIDTH-1:0]),
+   .Write     (IPGT_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+assign IPGTOut[31:`ETH_IPGT_WIDTH] = 0;
 
-eth_register #(7, `ETH_IPGR1_DEF)        IPGR1       (.DataIn(DataIn[6:0]),  .DataOut(IPGR1Out[6:0]),      .Write(IPGR1_Wr),      .Clk(Clk), .Reset(Reset));
-assign IPGR1Out[31:7] = 0;
+// IPGR1 Register
+eth_register #(`ETH_IPGR1_WIDTH, `ETH_IPGR1_DEF)        IPGR1
+  (
+   .DataIn    (DataIn[`ETH_IPGR1_WIDTH-1:0]),
+   .DataOut   (IPGR1Out[`ETH_IPGR1_WIDTH-1:0]),
+   .Write     (IPGR1_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+assign IPGR1Out[31:`ETH_IPGR1_WIDTH] = 0;
 
-eth_register #(7, `ETH_IPGR2_DEF)        IPGR2       (.DataIn(DataIn[6:0]),  .DataOut(IPGR2Out[6:0]),      .Write(IPGR2_Wr),      .Clk(Clk), .Reset(Reset));
-assign IPGR2Out[31:7] = 0;
+// IPGR2 Register
+eth_register #(`ETH_IPGR2_WIDTH, `ETH_IPGR2_DEF)        IPGR2
+  (
+   .DataIn    (DataIn[`ETH_IPGR2_WIDTH-1:0]),
+   .DataOut   (IPGR2Out[`ETH_IPGR2_WIDTH-1:0]),
+   .Write     (IPGR2_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+assign IPGR2Out[31:`ETH_IPGR2_WIDTH] = 0;
 
-eth_register #(32, `ETH_PACKETLEN_DEF)   PACKETLEN   (.DataIn(DataIn),       .DataOut(PACKETLENOut),       .Write(PACKETLEN_Wr),  .Clk(Clk), .Reset(Reset));
+// PACKETLEN Register
+eth_register #(`ETH_PACKETLEN_WIDTH, `ETH_PACKETLEN_DEF) PACKETLEN
+  (
+   .DataIn    (DataIn),
+   .DataOut   (PACKETLENOut),
+   .Write     (PACKETLEN_Wr),
+   .Clk       (Clk), 
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
 
-eth_register #(6, `ETH_COLLCONF0_DEF)    COLLCONF0   (.DataIn(DataIn[5:0]),  .DataOut(COLLCONFOut[5:0]),   .Write(COLLCONF_Wr),   .Clk(Clk), .Reset(Reset));
-eth_register #(4, `ETH_COLLCONF1_DEF)    COLLCONF1   (.DataIn(DataIn[19:16]),.DataOut(COLLCONFOut[19:16]), .Write(COLLCONF_Wr),   .Clk(Clk), .Reset(Reset));
+// COLLCONF Register
+eth_register #(6, `ETH_COLLCONF0_DEF)                   COLLCONF0
+  (
+   .DataIn    (DataIn[5:0]),
+   .DataOut   (COLLCONFOut[5:0]),
+   .Write     (COLLCONF_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
 assign COLLCONFOut[15:6] = 0;
+
+eth_register #(4, `ETH_COLLCONF1_DEF)                   COLLCONF1
+  (
+   .DataIn    (DataIn[19:16]),
+   .DataOut   (COLLCONFOut[19:16]),
+   .Write     (COLLCONF_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
 assign COLLCONFOut[31:20] = 0;
 
-eth_register #(8, `ETH_TX_BD_NUM_DEF)    TX_BD_NUM   (.DataIn(DataIn[7:0]),  .DataOut(TX_BD_NUMOut[7:0]), .Write(TX_BD_NUM_Wr),  .Clk(Clk), .Reset(Reset));
-assign TX_BD_NUMOut[31:8] = 24'h0;
+// TX_BD_NUM Register
+eth_register #(`ETH_TX_BD_NUM_WIDTH, `ETH_TX_BD_NUM_DEF) TX_BD_NUM
+  (
+   .DataIn    (DataIn[`ETH_TX_BD_NUM_WIDTH-1:0]),
+   .DataOut   (TX_BD_NUMOut[`ETH_TX_BD_NUM_WIDTH-1:0]),
+   .Write     (TX_BD_NUM_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+assign TX_BD_NUMOut[31:`ETH_TX_BD_NUM_WIDTH] = 0;
 
-eth_register #(3, `ETH_CTRLMODER_DEF)    CTRLMODER2  (.DataIn(DataIn[2:0]),  .DataOut(CTRLMODEROut[2:0]),  .Write(CTRLMODER_Wr),  .Clk(Clk), .Reset(Reset));
-assign CTRLMODEROut[31:3] = 29'h0;
+// CTRLMODER Register
+eth_register #(`ETH_CTRLMODER_WIDTH, `ETH_CTRLMODER_DEF)  CTRLMODER2
+  (
+   .DataIn    (DataIn[`ETH_CTRLMODER_WIDTH-1:0]),
+   .DataOut   (CTRLMODEROut[`ETH_CTRLMODER_WIDTH-1:0]),
+   .Write     (CTRLMODER_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+assign CTRLMODEROut[31:`ETH_CTRLMODER_WIDTH] = 0;
 
-eth_register #(11, `ETH_MIIMODER_DEF)    MIIMODER    (.DataIn(DataIn[10:0]), .DataOut(MIIMODEROut[10:0]),  .Write(MIIMODER_Wr),   .Clk(Clk), .Reset(Reset));
-assign MIIMODEROut[31:11] = 0;
+// MIIMODER Register
+eth_register #(`ETH_MIIMODER_WIDTH, `ETH_MIIMODER_DEF)    MIIMODER
+  (
+   .DataIn    (DataIn[`ETH_MIIMODER_WIDTH-1:0]),
+   .DataOut   (MIIMODEROut[`ETH_MIIMODER_WIDTH-1:0]),
+   .Write     (MIIMODER_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+assign MIIMODEROut[31:`ETH_MIIMODER_WIDTH] = 0;
 
-eth_register #(1, 0)                     MIICOMMAND2 (.DataIn(DataIn[2]),    .DataOut(MIICOMMANDOut[2]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset | WCtrlDataStart));
-eth_register #(1, 0)                     MIICOMMAND1 (.DataIn(DataIn[1]),    .DataOut(MIICOMMANDOut[1]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset | RStatStart));
-eth_register #(1, 0)                     MIICOMMAND0 (.DataIn(DataIn[0]),    .DataOut(MIICOMMANDOut[0]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset));
+// MIICOMMAND Register
+eth_register #(1, 0)                                      MIICOMMAND0
+  (
+   .DataIn    (DataIn[0]),
+   .DataOut   (MIICOMMANDOut[0]),
+   .Write     (MIICOMMAND_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+
+eth_register #(1, 0)                                      MIICOMMAND1
+  (
+   .DataIn    (DataIn[1]),
+   .DataOut   (MIICOMMANDOut[1]),
+   .Write     (MIICOMMAND_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (RStatStart)
+  );
+
+eth_register #(1, 0)                                      MIICOMMAND2
+  (
+   .DataIn    (DataIn[2]),
+   .DataOut   (MIICOMMANDOut[2]),
+   .Write     (MIICOMMAND_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (WCtrlDataStart)
+  );
 assign MIICOMMANDOut[31:3] = 29'h0;
 
-eth_register #(5, `ETH_MIIADDRESS0_DEF)  MIIADDRESS0 (.DataIn(DataIn[4:0]),  .DataOut(MIIADDRESSOut[4:0]), .Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset));
-eth_register #(5, `ETH_MIIADDRESS1_DEF)  MIIADDRESS1 (.DataIn(DataIn[12:8]), .DataOut(MIIADDRESSOut[12:8]),.Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset));
+// MIIADDRESSRegister
+eth_register #(5, `ETH_MIIADDRESS0_DEF)                   MIIADDRESS0
+  (
+   .DataIn    (DataIn[4:0]),
+   .DataOut   (MIIADDRESSOut[4:0]),
+   .Write     (MIIADDRESS_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
 assign MIIADDRESSOut[7:5] = 0;
+
+eth_register #(5, `ETH_MIIADDRESS1_DEF)                   MIIADDRESS1
+  (
+   .DataIn    (DataIn[12:8]),
+   .DataOut   (MIIADDRESSOut[12:8]),
+   .Write     (MIIADDRESS_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
 assign MIIADDRESSOut[31:13] = 0;
 
-eth_register #(16, `ETH_MIITX_DATA_DEF)  MIITX_DATA  (.DataIn(DataIn[15:0]), .DataOut(MIITX_DATAOut[15:0]),.Write(MIITX_DATA_Wr), .Clk(Clk), .Reset(Reset));
-assign MIITX_DATAOut[31:16] = 0;
+// MIITX_DATA Register
+eth_register #(`ETH_MIITX_DATA_WIDTH, `ETH_MIITX_DATA_DEF) MIITX_DATA
+  (
+   .DataIn    (DataIn[`ETH_MIITX_DATA_WIDTH-1:0]),
+   .DataOut   (MIITX_DATAOut[`ETH_MIITX_DATA_WIDTH-1:0])
+   .Write     (MIITX_DATA_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+assign MIITX_DATAOut[31:`ETH_MIITX_DATA_WIDTH] = 0;
 
-eth_register #(16, `ETH_MIIRX_DATA_DEF)  MIIRX_DATA  (.DataIn(Prsd[15:0]),   .DataOut(MIIRX_DATAOut[15:0]),.Write(MIIRX_DATA_Wr), .Clk(Clk), .Reset(Reset));
-assign MIIRX_DATAOut[31:16] = 0;
+// MIIRX_DATA Register
+eth_register #(`ETH_MIIRX_DATA_WIDTH, `ETH_MIIRX_DATA_DEF) MIIRX_DATA
+  (
+   .DataIn    (Prsd[`ETH_MIIRX_DATA_WIDTH-1:0]),
+   .DataOut   (MIIRX_DATAOut[`ETH_MIIRX_DATA_WIDTH-1:0]),
+   .Write     (MIIRX_DATA_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+assign MIIRX_DATAOut[31:`ETH_MIIRX_DATA_WIDTH] = 0;
 
-eth_register #(32, `ETH_MAC_ADDR0_DEF)   MAC_ADDR0   (.DataIn(DataIn),       .DataOut(MAC_ADDR0Out),       .Write(MAC_ADDR0_Wr),  .Clk(Clk), .Reset(Reset));
-eth_register #(16, `ETH_MAC_ADDR1_DEF)   MAC_ADDR1   (.DataIn(DataIn[15:0]), .DataOut(MAC_ADDR1Out[15:0]), .Write(MAC_ADDR1_Wr),  .Clk(Clk), .Reset(Reset));
-assign MAC_ADDR1Out[31:16] = 0;
+// MAC_ADDR0 Register
+eth_register #(`ETH_MAC_ADDR0_WIDTH, `ETH_MAC_ADDR0_DEF)  MAC_ADDR0
+  (
+   .DataIn    (DataIn),
+   .DataOut   (MAC_ADDR0Out),
+   .Write     (MAC_ADDR0_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+
+// MAC_ADDR1 Register
+eth_register #(`ETH_MAC_ADDR1_WIDTH, `ETH_MAC_ADDR1_DEF)  MAC_ADDR1
+  (
+   .DataIn    (DataIn[`ETH_MAC_ADDR1_WIDTH-1:0]),
+   .DataOut   (MAC_ADDR1Out[`ETH_MAC_ADDR1_WIDTH-1:0]),
+   .Write     (MAC_ADDR1_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+assign MAC_ADDR1Out[31:`ETH_MAC_ADDR1_WIDTH] = 0;
+
+// RXHASH0 Register
+eth_register #(`ETH_HASH0_WIDTH, `ETH_HASH0_DEF)          RXHASH0
+  (
+   .DataIn    (DataIn),
+   .DataOut   (HASH0Out),
+   .Write     (HASH0_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
+
+// RXHASH1 Register
+eth_register #(`ETH_HASH1_WIDTH, `ETH_HASH1_DEF)          RXHASH1
+  (
+   .DataIn    (DataIn),
+   .DataOut   (HASH1Out),
+   .Write     (HASH1_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (0)
+  );
 
 
-eth_register #(32, `ETH_HASH0_DEF)       RXHASH0     (.DataIn(DataIn),       .DataOut(HASH0Out),           .Write(HASH0_Wr),      .Clk(Clk), .Reset(Reset));
-eth_register #(32, `ETH_HASH1_DEF)       RXHASH1     (.DataIn(DataIn),       .DataOut(HASH1Out),           .Write(HASH1_Wr),      .Clk(Clk), .Reset(Reset));
-
-
-reg LinkFailRegister;
-
-always @ (posedge Clk or posedge Reset)
-begin
-  if(Reset)
-    LinkFailRegister <= #Tp 0;
-  else
-  if(LinkFail)
-    LinkFailRegister <= #Tp 1;
-  else
-    LinkFailRegister <= #Tp 0;
-end
-
-
-always @ (Address or Read or MODEROut or INT_SOURCEOut or INT_MASKOut or IPGTOut or 
-          IPGR1Out or IPGR2Out or PACKETLENOut or COLLCONFOut or CTRLMODEROut or 
-          MIIMODEROut or MIICOMMANDOut or MIIADDRESSOut or MIITX_DATAOut or 
-          MIIRX_DATAOut or MIISTATUSOut or MAC_ADDR0Out or MAC_ADDR1Out or 
-          TX_BD_NUMOut or HASH0Out or HASH1Out)
+// Reading data from registers
+always @ (Address       or Read           or MODEROut       or INT_SOURCEOut  or
+          INT_MASKOut   or IPGTOut        or IPGR1Out       or IPGR2Out       or
+          PACKETLENOut  or COLLCONFOut    or CTRLMODEROut   or MIIMODEROut    or
+          MIICOMMANDOut or MIIADDRESSOut  or MIITX_DATAOut  or MIIRX_DATAOut  or 
+          MIISTATUSOut  or MAC_ADDR0Out   or MAC_ADDR1Out   or TX_BD_NUMOut   or
+          HASH0Out      or HASH1Out
+         )
 begin
   if(Read)  // read
     begin
@@ -412,7 +602,7 @@ assign r_TxFlow           = CTRLMODEROut[2];
 assign r_RxFlow           = CTRLMODEROut[1];
 assign r_PassAll          = CTRLMODEROut[0];
 
-assign r_MiiMRst          = MIIMODEROut[10];
+assign r_MiiMRst          = MIIMODEROut[9];
 assign r_MiiNoPre         = MIIMODEROut[8];
 assign r_ClkDiv[7:0]      = MIIMODEROut[7:0];
 
@@ -425,11 +615,10 @@ assign r_FIAD[4:0]        = MIIADDRESSOut[4:0];
 
 assign r_CtrlData[15:0]   = MIITX_DATAOut[15:0];
 
-assign MIISTATUSOut[31:10] = 22'h0           ; 
-assign MIISTATUSOut[9]  = NValid_stat        ; 
-assign MIISTATUSOut[8]  = Busy_stat          ; 
-assign MIISTATUSOut[7:1]= 7'h0               ; 
-assign MIISTATUSOut[0]  = LinkFailRegister   ; 
+assign MIISTATUSOut[31:`ETH_MIISTATUS_WIDTH] = 0; 
+assign MIISTATUSOut[2]    = NValid_stat         ; 
+assign MIISTATUSOut[1]    = Busy_stat           ; 
+assign MIISTATUSOut[0]    = LinkFail            ; 
 
 assign r_MAC[31:0]        = MAC_ADDR0Out[31:0];
 assign r_MAC[47:32]       = MAC_ADDR1Out[15:0];
@@ -440,7 +629,6 @@ assign r_TxBDNum[7:0] = TX_BD_NUMOut[7:0];
 
 
 // Interrupt generation
-
 always @ (posedge Clk or posedge Reset)
 begin
   if(Reset)
@@ -535,7 +723,7 @@ assign int_o = irq_txb  & INT_MASKOut[0] |
                irq_rxc  & INT_MASKOut[6] ;
 
 // For reading interrupt status
-assign INT_SOURCEOut = {26'h0, irq_rxc, irq_txc, irq_busy, irq_rxe, irq_rxb, irq_txe, irq_txb};
+assign INT_SOURCEOut = {{(32-`ETH_INT_SOURCE_WIDTH){1'b0}}, irq_rxc, irq_txc, irq_busy, irq_rxe, irq_rxb, irq_txe, irq_txb};
 
 
 
