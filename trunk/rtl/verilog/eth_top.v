@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2002/03/25 13:33:53  mohor
+// md_padoen_o changed to md_padoe_o. Signal was always active high, just
+// name was incorrect.
+//
 // Revision 1.22  2002/02/26 16:59:54  mohor
 // Small fixes for external/internal DMA missmatches.
 //
@@ -326,19 +330,56 @@ wire        RxC_IRQ;        // Interrupt Rx Control Frame
 
 wire        DWord;
 wire        BDAck;
-wire [31:0] DMA_WB_DAT_O;   // wb_dat_o that comes from the WishboneDMA module
+wire [31:0] BD_WB_DAT_O;    // wb_dat_o that comes from the Wishbone module (for buffer descriptors read/write)
 wire        BDCs;           // Buffer descriptor CS
 
+wire        temp_wb_ack_o;
+wire [31:0] temp_wb_dat_o;
+wire        temp_wb_err_o;
+
+`ifdef ETH_REGISTERED_OUTPUTS
+  reg         temp_wb_ack_o_reg;
+  reg [31:0]  temp_wb_dat_o_reg;
+  reg         temp_wb_err_o_reg;
+`endif
 
 assign DWord = &wb_sel_i;
-assign RegCs = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] & ~wb_adr_i[10];
-assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] &  wb_adr_i[10];
-assign wb_ack_o = RegCs | BDAck;
-assign wb_err_o = wb_stb_i & wb_cyc_i & ~DWord;
+assign RegCs = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] & ~wb_adr_i[10];   // 0x0   - 0x3FF
+assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] &  wb_adr_i[10];   // 0x400 - 0x5FF
+assign temp_wb_ack_o = RegCs | BDAck;
+assign temp_wb_dat_o = (RegCs & ~wb_we_i)? RegDataOut : BD_WB_DAT_O;
+assign temp_wb_err_o = wb_stb_i & wb_cyc_i & ~DWord;
+
+`ifdef ETH_REGISTERED_OUTPUTS
+  assign wb_ack_o = temp_wb_ack_o_reg;
+  assign wb_dat_o[31:0] = temp_wb_dat_o_reg;
+  assign wb_err_o = temp_wb_err_o_reg;
+`else
+  assign wb_ack_o = temp_wb_ack_o;
+  assign wb_dat_o[31:0] = temp_wb_dat_o;
+  assign wb_err_o = temp_wb_err_o;
+`endif
 
 
-// Selecting the WISHBONE output data
-assign wb_dat_o[31:0] = (RegCs & ~wb_we_i)? RegDataOut : DMA_WB_DAT_O;
+
+`ifdef ETH_REGISTERED_OUTPUTS
+  always @ (posedge wb_clk_i or posedge wb_rst_i)
+  begin
+    if(wb_rst_i)
+      begin
+        temp_wb_ack_o_reg <=#Tp 1'b0;
+        temp_wb_dat_o_reg <=#Tp 32'h0;
+        temp_wb_err_o_reg <=#Tp 1'b0;
+      end
+    else
+      begin
+        temp_wb_ack_o_reg <=#Tp temp_wb_ack_o;
+        temp_wb_dat_o_reg <=#Tp temp_wb_dat_o;
+        temp_wb_err_o_reg <=#Tp temp_wb_err_o;
+      end
+  end
+`endif
+
 
 
 // Connecting Ethernet registers
@@ -592,7 +633,7 @@ eth_wishbone wishbone
 `endif
 (
   .WB_CLK_I(wb_clk_i),                .WB_DAT_I(wb_dat_i), 
-  .WB_DAT_O(DMA_WB_DAT_O), 
+  .WB_DAT_O(BD_WB_DAT_O), 
 
   // WISHBONE slave
   .WB_ADR_I(wb_adr_i[9:2]),           .WB_WE_I(wb_we_i), 
@@ -631,7 +672,7 @@ eth_wishbone wishbone
   .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ),                        .TxC_IRQ(TxC_IRQ), 
   .RxC_IRQ(RxC_IRQ), 
 
-  .RxAbort(RxAbort), 
+  .RxAbort(RxAbort | (ShortFrame & ~r_RecSmall)), 
 
   .InvalidSymbol(InvalidSymbol),      .LatchedCrcError(LatchedCrcError),        .RxLength(RxByteCnt),
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
