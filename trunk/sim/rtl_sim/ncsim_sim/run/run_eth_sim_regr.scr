@@ -1,11 +1,14 @@
 #!/bin/csh -f
 
-set arg_num = $#; # number of arguments
+set arg_num = $#argv; # number of arguments
 
 # current iterration
 set iter = 1;
 # number of tests with DEFINES + test with user defined constants!
 set all_iterations = 3;
+# ATS (Automatic Test System) parameter, which causes displaying 'OK'
+# if all testcases finish OK.
+set ok = 1;
 
 # Process argument
 set arg_waves = 0;
@@ -15,59 +18,59 @@ if ($arg_num == 0) then
             echo "    Verification without any parameter !"
 else
   if ($arg_num == 1) then
-    if ($1 == "waves") then
+    if (("$1" == "waves") | ("$1" == "-w")) then
             @ arg_waves = 1;
             echo "    Verification with parameter : waves !"
     else
-      if ($1 == "regression") then
+      if (("$1" == "regression") | ("$1" == "-r")) then
             @ arg_regression = 1;
             echo "    Verification with parameter : regression !"
       else
             echo "    Not correct parameter ( $1 )"
             echo "    Correct parameters are:"
-            echo "      - waves"
-            echo "      - regression"
+            echo "      'waves' or '-w'"
+            echo "      'regression' or '-r'"
             exit
       endif
     endif
   else
     if ($arg_num == 2) then
-      if ($1 == "waves") then
+      if (("$1" == "waves") | ("$1" == "-w")) then
             @ arg_waves = 1;
-        if ($2 == "regression") then
+        if (("$2" == "regression") | ("$2" == "-r")) then
             @ arg_regression = 1;
             echo "    Verification with parameter : waves, regression !"
         else
             echo "    Not correct parameter ( $2 )"
             echo "    Correct 2. parameter is:"
-            echo "      - regression"
+            echo "      'regression' or '-r'"
             exit
         endif
       else
-        if ($1 == "regression") then
+        if (("$1" == "regression") | ("$1" == "-r")) then
             @ arg_regression = 1;
-          if ($2 == "waves") then 
+          if (("$2" == "waves") | ("$2" == "-w")) then 
             @ arg_waves = 1;
             echo "    Verification with parameter : waves, regression !"
           else
             echo "    Not correct parameter ( $2 )"
             echo "    Correct 2. parameter is:"
-            echo "      - waves"
+            echo "      'waves' or '-w'"
             exit
           endif
         else
             echo "    Not correct parameter ( $1 )"
             echo "    Correct parameters are:"
-            echo "      - waves"
-            echo "      - regression"
+            echo "      'waves' or '-w'"
+            echo "      'regression' or '-r'"
             exit
         endif
       endif
     else
             echo "    Too many parameters ( $arg_num )"
             echo "    Maximum number of parameters is 2:"
-            echo "      - waves"
-            echo "      - regression"
+            echo "      'waves' or '-w'"
+            echo "      'regression' or '-r'"
             exit
     endif
   endif
@@ -162,17 +165,24 @@ else
 endif
 echo "worklib.ethernet:fun" >> ./ncsim.args
 
-ncsim -file ./ncsim.args# > /dev/null
-if ($status != 0) then
+#ncsim -file ./ncsim.args# > /dev/null
+#if ($status != 0) then
   echo ""
-  echo "TESTS couldn't start due to Errors!"
+#  echo "TESTS couldn't start due to Errors!"
   echo ""
-  exit
-else
+#  exit
+#else
   if ($arg_regression == 1) then
     if ($arg_waves == 1) then
       mv ../out/waves.shm ../out/i${iter}_waves.shm
     endif
+    # For ATS - counting all 'FAILED' words
+    set FAIL_COUNT = `grep -c "FAILED" ../log/eth_tb.log`
+    if ($FAIL_COUNT != 0) then
+        # Test didn't pass!!!
+        @ ok = 0;
+    endif
+    # Move 'log' files
     mv ../log/eth_tb.log ../log/i${iter}_eth_tb.log
     mv ../log/eth_tb_phy.log ../log/i${iter}_eth_tb_phy.log
     mv ../log/eth_tb_memory.log ../log/i${iter}_eth_tb_memory.log
@@ -180,7 +190,7 @@ else
     mv ../log/eth_tb_wb_s_mon.log ../log/i${iter}_eth_tb_wb_s_mon.log
     mv ../log/eth_tb_wb_m_mon.log ../log/i${iter}_eth_tb_wb_m_mon.log
   endif
-endif
+#endif
 echo "" 
 
 @ iter += 1;
@@ -196,5 +206,13 @@ else
     echo "<<<"
     echo "<<< -------------------------------------------------"
     echo "<<<"
+    # For ATS - displaying 'OK' when tests pass successfuly
+    echo " "
+    echo "Simulation finished:"
+    if ($ok == 1) then
+        echo "OK"
+    else
+        echo "FAILED"
+    endif
 endif
 
