@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/08/15 14:04:30  mohor
+// Signal names changed on the top level for easier pad insertion (ASIC).
+//
 // Revision 1.1  2001/08/06 14:41:09  mohor
 // A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
 // Include files fixed to contain no path.
@@ -129,14 +132,14 @@ eth_top ethtop
  	.wb_ack_i(WB_ACK_I), .wb_nd_o(WB_ND_O),   .wb_rd_o(WB_RD_O), 
 
   //TX
-  .mtxclk_pad_i(MTxClk), .mtxd_pad_o(MTxD), .mtxen_pad_o(MTxEn), .mtxerr_pad_o(MTxErr),
+  .mtx_clk_pad_i(MTxClk), .mtxd_pad_o(MTxD), .mtxen_pad_o(MTxEn), .mtxerr_pad_o(MTxErr),
 
   //RX
-  .mrxclk_pad_i(MRxClk), .mrxd_pad_i(MRxD), .mrxdv_pad_i(MRxDV), .mrxerr_pad_i(MRxErr), 
+  .mrx_clk_pad_i(MRxClk), .mrxd_pad_i(MRxD), .mrxdv_pad_i(MRxDV), .mrxerr_pad_i(MRxErr), 
   .mcoll_pad_i(MColl), .mcrs_pad_i(MCrs), 
   
   // MIIM
-  .mdc_pad_o(Mdc_O), .md_pad_i(Mdi_I), .md_pad_o(Mdo_O), .md_pad_oe(Mdo_OE)
+  .mdc_pad_o(Mdc_O), .md_pad_i(Mdi_I), .md_pad_o(Mdo_O), .md_padoen_o(Mdo_OE)
 );
 
 
@@ -148,10 +151,10 @@ eth_top ethtop
 initial
 begin
   WB_CLK_I  =  1'b0;
-  WB_DAT_I  = 32'hx;
-  WB_ADR_I  = 32'hx;
-  WB_SEL_I  =  4'hx;
-  WB_WE_I   =  1'bx;
+  WB_DAT_I  = 32'h0;
+  WB_ADR_I  = 32'h0;
+  WB_SEL_I  =  4'h0;
+  WB_WE_I   =  1'b0;
   WB_CYC_I  =  1'b0;
   WB_STB_I  =  1'b0;
   WB_ACK_I  =  2'h0;
@@ -173,8 +176,8 @@ end
 // Reset pulse
 initial
 begin
-  GSR           =  1'b0;
-  WB_RST_I      =  1'b0;
+  GSR           =  1'b1;
+  WB_RST_I      =  1'b1;
   #100 WB_RST_I =  1'b1;
   GSR           =  1'b1;
   #100 WB_RST_I =  1'b0;
@@ -190,6 +193,7 @@ assign glbl.GSR = GSR;
 // Generating WB_CLK_I clock
 always
 begin
+//  forever #5 WB_CLK_I = ~WB_CLK_I;  // 2*5 ns -> 100.0 MHz    
 //  forever #10 WB_CLK_I = ~WB_CLK_I;  // 2*10 ns -> 50.0 MHz    
   forever #15 WB_CLK_I = ~WB_CLK_I;  // 2*10 ns -> 33.3 MHz    
 //  forever #18 WB_CLK_I = ~WB_CLK_I;  // 2*18 ns -> 27.7 MHz    
@@ -216,11 +220,11 @@ initial
 begin
   wait(StartTB);  // Start of testbench
   
-  WishboneWrite(32'h00000800, {`ETHERNET_SPACE, `REG_SPACE, 6'h0, `MODER_ADR<<2});    // r_Rst = 1
-  WishboneWrite(32'h00000000, {`ETHERNET_SPACE, `REG_SPACE, 6'h0, `MODER_ADR<<2});    // r_Rst = 0
-  WishboneWrite(32'h00000080, {`ETHERNET_SPACE, `REG_SPACE, 6'h0, `RX_BD_ADR_ADR<<2});// r_RxBDAddress = 0x80
-  WishboneWrite(32'h0002A443, {`ETHERNET_SPACE, `REG_SPACE, 6'h0, `MODER_ADR<<2});    // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
-  WishboneWrite(32'h00000004, {`ETHERNET_SPACE, `REG_SPACE, 6'h0, `CTRLMODER_ADR<<2});//r_TxFlow = 1
+  WishboneWrite(32'h00000800, {`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_MODER_ADR<<2});    // r_Rst = 1
+  WishboneWrite(32'h00000000, {`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_MODER_ADR<<2});    // r_Rst = 0
+  WishboneWrite(32'h00000080, {`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_RX_BD_ADR_ADR<<2});// r_RxBDAddress = 0x80
+  WishboneWrite(32'h0002A443, {`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_MODER_ADR<<2});    // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
+  WishboneWrite(32'h00000004, {`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_CTRLMODER_ADR<<2});//r_TxFlow = 1
 
 
 
@@ -239,19 +243,19 @@ begin
   ReceivePacket(16'h0018, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
 
 
-  WishboneRead({`ETHERNET_SPACE, `REG_SPACE, 6'h0, `MODER_ADR<<2});   // Read from MODER register
+  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_REG_SPACE, 6'h0, `ETH_MODER_ADR<<2});   // Read from MODER register
 
-  WishboneRead({`ETHERNET_SPACE, `BD_SPACE, 2'h0, (10'h0<<2)});       // Read from TxBD register
-  WishboneRead({`ETHERNET_SPACE, `BD_SPACE, 2'h0, (10'h1<<2)});       // Read from TxBD register
-  WishboneRead({`ETHERNET_SPACE, `BD_SPACE, 2'h0, (10'h2<<2)});       // Read from TxBD register
-  WishboneRead({`ETHERNET_SPACE, `BD_SPACE, 2'h0, (10'h3<<2)});       // Read from TxBD register
-  WishboneRead({`ETHERNET_SPACE, `BD_SPACE, 2'h0, (10'h4<<2)});       // Read from TxBD register
+  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h0<<2)});       // Read from TxBD register
+  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h1<<2)});       // Read from TxBD register
+  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h2<<2)});       // Read from TxBD register
+  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h3<<2)});       // Read from TxBD register
+  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h4<<2)});       // Read from TxBD register
     
-  WishboneRead({`ETHERNET_SPACE, `BD_SPACE, 2'h0, (10'h80<<2)});       // Read from RxBD register
-  WishboneRead({`ETHERNET_SPACE, `BD_SPACE, 2'h0, (10'h81<<2)});       // Read from RxBD register
-  WishboneRead({`ETHERNET_SPACE, `BD_SPACE, 2'h0, (10'h82<<2)});       // Read from RxBD register
-  WishboneRead({`ETHERNET_SPACE, `BD_SPACE, 2'h0, (10'h83<<2)});       // Read from RxBD register
-  WishboneRead({`ETHERNET_SPACE, `BD_SPACE, 2'h0, (10'h84<<2)});       // Read from RxBD register
+  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h80<<2)});       // Read from RxBD register
+  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h81<<2)});       // Read from RxBD register
+  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h82<<2)});       // Read from RxBD register
+  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h83<<2)});       // Read from RxBD register
+  WishboneRead({`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (10'h84<<2)});       // Read from RxBD register
 
   #10000 $stop;
 end
@@ -279,24 +283,27 @@ task WishboneWrite;
     WB_STB_I = 1'b1;
     WB_SEL_I = 4'hf;
 
-    for(ii=0; (ii<20 & ~WB_ACK_O); ii=ii+1)   // Response on the WISHBONE is limited to 20 WB_CLK_I cycles
-    begin
-      @ (posedge WB_CLK_I);
-    end
+//    for(ii=0; (ii<20 & ~WB_ACK_O); ii=ii+1)   // Response on the WISHBONE is limited to 20 WB_CLK_I cycles
+//    begin
+//      @ (posedge WB_CLK_I);
+//    end
 
-    if(ii==20)
-      begin
-        $display("\nERROR: Task WishboneWrite(Data=0x%0h, Address=0x%0h): Too late or no appeariance of the WB_ACK_O signal, (Time=%0t)", 
-          Data, Address, $time);
-        #50 $stop;
-      end
+//    if(ii==20)
+//      begin
+//        $display("\nERROR: Task WishboneWrite(Data=0x%0h, Address=0x%0h): Too late or no appeariance of the WB_ACK_O signal, (Time=%0t)", 
+//          Data, Address, $time);
+//        #50 $stop;
+//      end
 
+    wait(WB_ACK_O);   // waiting for acknowledge response
+
+    // Writing information about the access to the screen
     @ (posedge WB_CLK_I);
-    if(Address[31:16] == `ETHERNET_SPACE)
-      if(Address[15:12] == `REG_SPACE)
+    if(Address[31:16] == `ETH_ETHERNET_SPACE)
+      if(Address[15:12] == `ETH_REG_SPACE)
         $write("\nWrite to register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address[9:2]);
       else
-      if(Address[15:12] == `BD_SPACE)
+      if(Address[15:12] == `ETH_BD_SPACE)
         if(Address[9:2] < tb_eth_top.ethtop.r_RxBDAddress)
           begin
             $write("\nWrite to TxBD (Data: 0x%x, TxBD Addr: 0x%0x)\n", Data, Address[9:2]);
@@ -351,11 +358,11 @@ task WishboneRead;
       end
 
     @ (posedge WB_CLK_I);
-    if(Address[31:16] == `ETHERNET_SPACE)
-      if(Address[15:12] == `REG_SPACE)
+    if(Address[31:16] == `ETH_ETHERNET_SPACE)
+      if(Address[15:12] == `ETH_REG_SPACE)
         $write("\nRead from register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address[9:2]);
       else
-      if(Address[15:12] == `BD_SPACE)
+      if(Address[15:12] == `ETH_BD_SPACE)
         if(Address[9:2] < tb_eth_top.ethtop.r_RxBDAddress)
           begin
             $write("\nRead from TxBD (Data: 0x%x, TxBD Addr: 0x%0x)", Data, Address[9:2]);
@@ -392,7 +399,7 @@ task SendPacket;
     else
       Wrap = 1'b0;
 
-    TempAddr = {`ETHERNET_SPACE, `BD_SPACE, 2'h0, (TxBDIndex<<2)};
+    TempAddr = {`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, (TxBDIndex<<2)};
     TempData = {Length[15:0], 1'b1, Wrap, ControlFrame, 5'h0, TxBDIndex[7:0]};  // Ready and Wrap = 1
 
     #1;
@@ -429,7 +436,7 @@ task ReceivePacket;    // Initializes RxBD and then generates traffic on the MRx
     else
       WrapRx = 1'b0;
 
-    TempRxAddr = {`ETHERNET_SPACE, `BD_SPACE, 2'h0, ((tb_eth_top.ethtop.r_RxBDAddress + RxBDIndex)<<2)};
+    TempRxAddr = {`ETH_ETHERNET_SPACE, `ETH_BD_SPACE, 2'h0, ((tb_eth_top.ethtop.r_RxBDAddress + RxBDIndex)<<2)};
 
     TempRxData = {LengthRx[15:0], 1'b1, WrapRx, 6'h0, RxBDIndex[7:0]};  // Ready and WrapRx = 1 or 0
 
@@ -482,7 +489,7 @@ task WaitingForTxDMARequest;
     WishboneBusy = 1;
     #1;
     WB_DAT_I = {a, b, c, d};
-    WB_ADR_I = {`ETHERNET_SPACE, `TX_DATA, pp[11:0]};
+    WB_ADR_I = {`ETH_ETHERNET_SPACE, `ETH_TX_DATA, pp[11:0]};
     $display("task WaitingForTxDMARequest: pp=%0d, WB_ADR_I=0x%0h, WB_DAT_I=0x%0h", pp, WB_ADR_I, WB_DAT_I);
 
     WB_WE_I  = 1'b1;
@@ -518,7 +525,7 @@ task WaitingForRxDMARequest;
     wait (~WishboneBusy);
     WishboneBusy = 1;
     #1;
-    WB_ADR_I = {`ETHERNET_SPACE, `RX_DATA, rr[11:0]};
+    WB_ADR_I = {`ETH_ETHERNET_SPACE, `ETH_RX_DATA, rr[11:0]};
     $display("task WaitingForRxDMARequest: rr=%0d, WB_ADR_I=0x%0h, WB_DAT_O=0x%0h", rr, WB_ADR_I, WB_DAT_O);
 
     WB_WE_I  = 1'b1;
