@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.25  2002/05/03 10:15:50  mohor
+// Outputs registered. Reset changed for eth_wishbone module.
+//
 // Revision 1.24  2002/04/22 14:15:42  mohor
 // Wishbone signals are registered when ETH_REGISTERED_OUTPUTS is
 // selected in eth_defines.v
@@ -153,14 +156,10 @@ module eth_top
   // WISHBONE slave
   wb_adr_i, wb_sel_i, wb_we_i, wb_cyc_i, wb_stb_i, wb_ack_o, wb_err_o, 
 
-`ifdef EXTERNAL_DMA
-  wb_ack_i, wb_req_o, wb_nd_o, wb_rd_o, 
-`else
   // WISHBONE master
   m_wb_adr_o, m_wb_sel_o, m_wb_we_o, 
   m_wb_dat_o, m_wb_dat_i, m_wb_cyc_o, 
   m_wb_stb_o, m_wb_ack_i, m_wb_err_i, 
-`endif
 
   //TX
   mtx_clk_pad_i, mtxd_pad_o, mtxen_pad_o, mtxerr_pad_o,
@@ -195,13 +194,6 @@ input           wb_cyc_i;     // WISHBONE cycle input
 input           wb_stb_i;     // WISHBONE strobe input
 output          wb_ack_o;     // WISHBONE acknowledge output
 
-`ifdef EXTERNAL_DMA
-// DMA
-input    [1:0]  wb_ack_i;     // DMA acknowledge input
-output   [1:0]  wb_req_o;     // DMA request output
-output   [1:0]  wb_nd_o;      // DMA force new descriptor output
-output          wb_rd_o;      // DMA restart descriptor output
-`else
 // WISHBONE master
 output  [31:0]  m_wb_adr_o;
 output   [3:0]  m_wb_sel_o;
@@ -212,7 +204,6 @@ output          m_wb_cyc_o;
 output          m_wb_stb_o;
 input           m_wb_ack_i;
 input           m_wb_err_i;
-`endif
 
 
 // Tx
@@ -349,7 +340,7 @@ wire        temp_wb_err_o;
 
 assign DWord = &wb_sel_i;
 assign RegCs = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] & ~wb_adr_i[10];   // 0x0   - 0x3FF
-assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] &  wb_adr_i[10];   // 0x400 - 0x5FF
+assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] &  wb_adr_i[10];   // 0x400 - 0x7FF
 assign temp_wb_ack_o = RegCs | BDAck;
 assign temp_wb_dat_o = (RegCs & ~wb_we_i)? RegDataOut : BD_WB_DAT_O;
 assign temp_wb_err_o = wb_stb_i & wb_cyc_i & ~DWord;
@@ -629,12 +620,8 @@ end
 
 
 
-// Connecting WishboneDMA module
-`ifdef EXTERNAL_DMA
-eth_wishbonedma wishbone
-`else
+// Connecting Wishbone module
 eth_wishbone wishbone
-`endif
 (
   .WB_CLK_I(wb_clk_i),                .WB_DAT_I(wb_dat_i), 
   .WB_DAT_O(BD_WB_DAT_O), 
@@ -645,17 +632,10 @@ eth_wishbone wishbone
 
   .Reset(r_Rst), 
 
-`ifdef EXTERNAL_DMA
-  .WB_REQ_O(wb_req_o),                .WB_ND_O(wb_nd_o),                        .WB_RD_O(wb_rd_o), 
-  .WB_ACK_I(wb_ack_i),                .r_DmaEn(1'b1),
-`else
   // WISHBONE master
   .m_wb_adr_o(m_wb_adr_o),            .m_wb_sel_o(m_wb_sel_o),                  .m_wb_we_o(m_wb_we_o), 
   .m_wb_dat_i(m_wb_dat_i),            .m_wb_dat_o(m_wb_dat_o),                  .m_wb_cyc_o(m_wb_cyc_o), 
   .m_wb_stb_o(m_wb_stb_o),            .m_wb_ack_i(m_wb_ack_i),                  .m_wb_err_i(m_wb_err_i), 
-`endif
-
-
 
     //TX
   .MTxClk(mtx_clk_pad_i),             .TxStartFrm(TxStartFrm),                  .TxEndFrm(TxEndFrm), 
