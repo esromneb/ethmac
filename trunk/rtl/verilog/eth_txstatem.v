@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.3  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -162,7 +165,7 @@ assign StartIPG = StateDefer & ~ExcessiveDefer & ~CarrierSense;
 
 assign StartIdle = StateIPG & (Rule1 & NibCnt[6:0] >= IPGT | ~Rule1 & NibCnt[6:0] >= IPGR2);
 
-assign StartPreamble = StateIdle & TxStartFrm;
+assign StartPreamble = StateIdle & TxStartFrm & ~CarrierSense;
 
 assign StartData[0] = ~Collision & (StatePreamble & NibCntEq15 | StateData[1] & ~TxEndFrm);
 
@@ -170,15 +173,15 @@ assign StartData[1] = ~Collision & StateData[0] & ~TxUnderRun & ~MaxFrame;
 
 assign StartPAD = ~Collision & StateData[1] & TxEndFrm & Pad & ~NibbleMinFl;
 
-assign StartFCS = ~Collision & StateData[1] & TxEndFrm & (~Pad & CrcEn | Pad & NibbleMinFl)
-                | ~Collision & StatePAD & NibbleMinFl;
+assign StartFCS = ~Collision & StateData[1] & TxEndFrm & (~Pad | Pad & NibbleMinFl) & CrcEn
+                | ~Collision & StatePAD & NibbleMinFl & CrcEn;
 
 assign StartJam = (Collision | UnderRun) & ((StatePreamble & NibCntEq15) | (|StateData[1:0]) | StatePAD | StateFCS);
 
 assign StartBackoff = StateJam & ~RandomEq0 & ColWindow & ~RetryMax & NibCntEq7 & ~NoBckof;
 
 assign StartDefer = StateIPG & ~Rule1 & CarrierSense & NibCnt[6:0] <= IPGR1 & NibCnt[6:0] != IPGR2
-                  | StateIdle & ~TxStartFrm & CarrierSense 
+                  | StateIdle & CarrierSense 
                   | StateJam & NibCntEq7 & (NoBckof | RandomEq0 | ~ColWindow | RetryMax)
                   | StateBackOff & (TxUnderRun | RandomEqByteCnt)
                   | StartTxDone | TooBig;
