@@ -41,6 +41,14 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.50  2004/04/26 15:26:23  igorm
+// - Bug connected to the TX_BD_NUM_Wr signal fixed (bug came in with the
+//   previous update of the core.
+// - TxBDAddress is set to 0 after the TX is enabled in the MODER register.
+// - RxBDAddress is set to r_TxBDNum<<1 after the RX is enabled in the MODER
+//   register. (thanks to Mathias and Torbjorn)
+// - Multicast reception was fixed. Thanks to Ulrich Gries
+//
 // Revision 1.49  2003/11/12 18:24:59  tadejm
 // WISHBONE slave changed and tested from only 32-bit accesss to byte access.
 //
@@ -296,6 +304,8 @@ output          m_wb_stb_o;
 input           m_wb_ack_i;
 input           m_wb_err_i;
 
+wire    [29:0]  m_wb_adr_tmp;
+
 `ifdef ETH_WISHBONE_B3
 output   [2:0]  m_wb_cti_o;   // Cycle Type Identifier
 output   [1:0]  m_wb_bte_o;   // Burst Type Extension
@@ -436,6 +446,35 @@ wire [31:0] BD_WB_DAT_O;    // wb_dat_o that comes from the Wishbone module (for
 wire  [3:0] BDCs;           // Buffer descriptor CS
 wire        CsMiss;         // When access to the address between 0x800 and 0xfff occurs, acknowledge is set
                             // but data is not valid.
+wire        r_Pad;
+wire        r_CrcEn;
+wire        r_FullD;
+wire        r_Pro;
+wire        r_Bro;
+wire        r_NoPre;
+wire        r_RxFlow;
+wire        r_PassAll;
+wire        TxCtrlEndFrm;
+wire        StartTxDone;
+wire        SetPauseTimer;
+wire        TxUsedDataIn;
+wire        TxDoneIn;
+wire        TxAbortIn;
+wire        PerPacketPad;
+wire        PadOut;
+wire        PerPacketCrcEn;
+wire        CrcEnOut;
+wire        TxStartFrmOut;
+wire        TxEndFrmOut;
+wire        ReceivedPauseFrm;
+wire        ControlFrmAddressOK;
+wire        RxStatusWriteLatched_sync2;
+wire        LateCollision;
+wire        DeferIndication;
+wire        LateCollLatched;
+wire        DeferLatched;
+wire        RstDeferLatched;
+wire        CarrierSenseLost;
 
 wire        temp_wb_ack_o;
 wire [31:0] temp_wb_dat_o;
@@ -458,7 +497,6 @@ assign BDCs[2]  = wb_stb_i & wb_cyc_i & ByteSelected & ~wb_adr_i[11] &  wb_adr_i
 assign BDCs[1]  = wb_stb_i & wb_cyc_i & ByteSelected & ~wb_adr_i[11] &  wb_adr_i[10] & wb_sel_i[1];   // 0x400 - 0x7FF
 assign BDCs[0]  = wb_stb_i & wb_cyc_i & ByteSelected & ~wb_adr_i[11] &  wb_adr_i[10] & wb_sel_i[0];   // 0x400 - 0x7FF
 assign CsMiss = wb_stb_i & wb_cyc_i & ByteSelected & wb_adr_i[11];                   // 0x800 - 0xfFF
-assign temp_wb_ack_o = (|RegCs) | BDAck;
 assign temp_wb_dat_o = ((|RegCs) & ~wb_we_i)? RegDataOut : BD_WB_DAT_O;
 assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~ByteSelected | CsMiss);
 
@@ -472,7 +510,16 @@ assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~ByteSelected | CsMiss);
   assign wb_err_o = temp_wb_err_o;
 `endif
 
-
+`ifdef ETH_AVALON_BUS
+  // As Avalon has no corresponding "error" signal, I (erroneously) will
+  // send an ack to Avalon, even when accessing undefined memory. This
+  // is a grey area in Avalon vs. Wishbone specs: My understanding
+  // is that Avalon expects all memory addressable by the addr bus feeding
+  // a slave to be, at the very minimum, readable.
+  assign temp_wb_ack_o = (|RegCs) | BDAck | CsMiss;
+`else // WISHBONE
+  assign temp_wb_ack_o = (|RegCs) | BDAck;
+`endif
 
 `ifdef ETH_REGISTERED_OUTPUTS
   always @ (posedge wb_clk_i or posedge wb_rst_i)
@@ -866,7 +913,7 @@ eth_wishbone wishbone
   .Reset(wb_rst_i), 
 
   // WISHBONE master
-  .m_wb_adr_o(m_wb_adr_o),            .m_wb_sel_o(m_wb_sel_o),                  .m_wb_we_o(m_wb_we_o), 
+  .m_wb_adr_o(m_wb_adr_tmp),          .m_wb_sel_o(m_wb_sel_o),                  .m_wb_we_o(m_wb_we_o), 
   .m_wb_dat_i(m_wb_dat_i),            .m_wb_dat_o(m_wb_dat_o),                  .m_wb_cyc_o(m_wb_cyc_o), 
   .m_wb_stb_o(m_wb_stb_o),            .m_wb_ack_i(m_wb_ack_i),                  .m_wb_err_i(m_wb_err_i), 
   
@@ -898,6 +945,7 @@ eth_wishbone wishbone
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
   .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus),     .RetryCntLatched(RetryCntLatched),
   .RetryLimit(RetryLimit),            .LateCollLatched(LateCollLatched),        .DeferLatched(DeferLatched),   
+  .RstDeferLatched(RstDeferLatched), 
   .CarrierSenseLost(CarrierSenseLost),.ReceivedPacketGood(ReceivedPacketGood),  .AddressMiss(AddressMiss),
   .ReceivedPauseFrm(ReceivedPauseFrm)
   
@@ -909,7 +957,7 @@ eth_wishbone wishbone
 `endif
 );
 
-
+assign m_wb_adr_o = {m_wb_adr_tmp, 2'h0};
 
 // Connecting MacStatus module
 eth_macstatus macstatus1 
@@ -929,6 +977,7 @@ eth_macstatus macstatus1
   .StartTxAbort(StartTxAbort),        .RetryCntLatched(RetryCntLatched),           .MTxClk(mtx_clk_pad_i),
   .MaxCollisionOccured(MaxCollisionOccured), .RetryLimit(RetryLimit),              .LateCollision(LateCollision),
   .LateCollLatched(LateCollLatched),  .DeferIndication(DeferIndication),           .DeferLatched(DeferLatched),
+  .RstDeferLatched(RstDeferLatched), 
   .TxStartFrm(TxStartFrmOut),         .StatePreamble(StatePreamble),               .StateData(StateData),
   .CarrierSense(CarrierSense_Tx2),    .CarrierSenseLost(CarrierSenseLost),         .TxUsedData(TxUsedDataIn),
   .LatchedMRxErr(LatchedMRxErr),      .Loopback(r_LoopBck),                        .r_FullD(r_FullD)
