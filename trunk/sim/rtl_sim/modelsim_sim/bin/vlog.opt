@@ -1,5 +1,2 @@
-+incdir+C:/brisi/ethernet/bench/verilog
-+incdir+C:/brisi/ethernet/rtl/verilog
-
-
-
++incdir+../../../../bench/verilog
++incdir+../../../../rtl/verilog
