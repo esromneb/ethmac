@@ -41,6 +41,9 @@
 #/ CVS Revision History
 #/
 #/ $Log: not supported by cvs2svn $
+#/ Revision 1.1  2002/09/17 19:10:17  mohor
+#/ Macro for testbench (DO file).
+#/
 #/
 #/
 #/
@@ -81,20 +84,18 @@ vlog -reportprogress 300 -work work {../../../../bench/verilog/wb_model_defines.
 vlog -reportprogress 300 -work work {../../../../bench/verilog/wb_slave_behavioral.v}
 
 
-
-
-
-
 # If you use define ETH_XILINX_RAMB4 switched on, then uncomment the following lines
 # vlog -reportprogress 300 -work work {C:/Xilinx/verilog/src/glbl.v}
 # vlog -reportprogress 300 -work work {C:/Xilinx/verilog/src/unisims/RAMB4_S16.v}
 
+# If you use define ETH_VIRTUAL_SILICON_RAM switched on, then uncomment the following lines
+vlog -reportprogress 300 -work work {../../../../../vs_rams/018/vs_hdsp_256x32.v}
 
 # If you use define ETH_XILINX_RAMB4 switched on, then uncomment the following lines
 # !ETH_XILINX_RAMB4
   vsim work.tb_ethernet
 #  ETH_XILINX_RAMB4
-  #vsim work.glbl work.tb_ethernet
+#  vsim work.glbl work.tb_ethernet
 
 
 run -all
