@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2003/01/30 13:33:24  mohor
+// When padding was enabled and crc disabled, frame was not ended correctly.
+//
 // Revision 1.7  2002/02/26 16:24:01  mohor
 // RetryCntLatched was unused and removed from design
 //
@@ -175,6 +178,7 @@ wire StateIdle;
 wire StatePAD;
 wire StateFCS;
 wire StateJam;
+wire StateJam_q;
 wire StateBackOff;
 wire StateSFD;
 wire StartTxRetry;
@@ -347,7 +351,7 @@ assign RetryMax = RetryCnt[3:0] == MaxRet[3:0];
 
 // Transmit nibble
 always @ (StatePreamble or StateData or StateData or StateFCS or StateJam or StateSFD or TxData or 
-          Crc or NibCnt or NibCntEq15)
+          Crc or NibCntEq15)
 begin
   if(StateData[0])
     MTxD_d[3:0] = TxData[3:0];                                  // Lower nibble

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/04/22 14:54:14  mohor
+// FCS should not be included in NibbleMinFl.
+//
 // Revision 1.4  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -138,7 +141,7 @@ reg  [2:0] DlyCrcCnt;
 
 
 
-assign IncrementNibCnt = StateIPG | StatePreamble | (|StateData) & ~|DlyCrcCnt[2:0] | StatePAD 
+assign IncrementNibCnt = StateIPG | StatePreamble | (|StateData) | StatePAD 
                        | StateFCS | StateJam | StateBackOff | StateDefer & ~ExcessiveDefer & TxStartFrm;
 
 
@@ -170,7 +173,7 @@ assign ExcessiveDeferCnt = NibCnt[13:0] == 16'h17b7;
 
 assign ExcessiveDefer  = NibCnt[13:0] == 16'h17b7 & ~ExDfrEn;   // 6071 nibbles
 
-assign IncrementByteCnt = StateData[1] & ~ByteCntMax & ~|DlyCrcCnt[2:0] 
+assign IncrementByteCnt = StateData[1] & ~ByteCntMax
                         | StateBackOff & (&NibCnt[6:0])
                         | (StatePAD | StateFCS) & NibCnt[0] & ~ByteCntMax;
 
