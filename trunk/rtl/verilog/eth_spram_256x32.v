@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2003/11/12 18:24:59  tadejm
+// WISHBONE slave changed and tested from only 32-bit accesss to byte access.
+//
 // Revision 1.6  2003/10/17 07:46:15  markom
 // mbist signals updated according to newest convention
 //
@@ -180,7 +183,7 @@ module eth_spram_256x32(
       (
         .CK         (clk),
         .CEN        (!ce),
-        .WEN        (!we),
+        .WEN        (~we),
         .OEN        (!oe),
         .ADR        (addr),
         .DI         (di),
@@ -208,7 +211,7 @@ module eth_spram_256x32(
       (
         .CLK        (clk),
         .CEN        (!ce),
-        .WEN        (!we),
+        .WEN        (~we),
         .OEN        (!oe),
         .A          (addr),
         .D          (di),
