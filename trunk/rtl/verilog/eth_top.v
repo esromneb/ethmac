@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.15  2002/02/15 11:38:26  mohor
+// Changes that were lost when updating from 1.11 to 1.14 fixed.
+//
 // Revision 1.14  2002/02/14 20:19:11  billditt
 // Modified for Address Checking,
 // addition of eth_addrcheck.v
@@ -136,7 +139,6 @@ module eth_top
 
   //RX
   mrx_clk_pad_i, mrxd_pad_i, mrxdv_pad_i, mrxerr_pad_i, mcoll_pad_i, mcrs_pad_i, 
-  RxAbort, 
   
   // MIIM
   mdc_pad_o, md_pad_i, md_pad_o, md_padoen_o,
@@ -200,8 +202,6 @@ input           mrxerr_pad_i;  // Receive data error (from PHY)
 // Common Tx and Rx
 input           mcoll_pad_i;   // Collision (from PHY)
 input           mcrs_pad_i;    // Carrier sense (from PHY)
-input           RxAbort;       // igor !!! Ta se mora preseliti da bo prisel iz enega izmed modulov. Tu je le zaradi
-                               // testiranja. Pove, kdaj adresa ni ustrezala in se paketi sklirajo, stevci pa resetirajo.
 
 // MII Management interface
 input           md_pad_i;      // MII data input (from I/O cell)
@@ -475,8 +475,8 @@ eth_rxethmac rxethmac1
   .ByteCntEq0(RxByteCntEq0),            .ByteCntGreat2(RxByteCntGreat2),      .ByteCntMaxFrame(RxByteCntMaxFrame), 
   .CrcError(RxCrcError),                .StateIdle(RxStateIdle),              .StatePreamble(RxStatePreamble), 
   .StateSFD(RxStateSFD),                .StateData(RxStateData),
-  .MAC(r_MAC),                          .r_Pro(r_Pro),                         .r_Bro(r_Bro),
-  .r_HASH0(r_HASH0),                    .r_HASH1(r_HASH1)
+  .MAC(r_MAC),                          .r_Pro(r_Pro),                        .r_Bro(r_Bro),
+  .r_HASH0(r_HASH0),                    .r_HASH1(r_HASH1),                    .RxAbort(RxAbort)
 );
 
 
@@ -617,8 +617,6 @@ eth_wishbone wishbone
 
   .InvalidSymbol(InvalidSymbol),      .LatchedCrcError(LatchedCrcError),        .RxLength(RxByteCnt),
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
-  .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus)
-
   .ReceivedPacketTooBig(ReceivedPacketTooBig), .LoadRxStatus(LoadRxStatus),     .RetryCntLatched(RetryCntLatched),
   .RetryLimit(RetryLimit),            .LateCollLatched(LateCollLatched),        .DeferLatched(DeferLatched),   
   .CarrierSenseLost(CarrierSenseLost)   
