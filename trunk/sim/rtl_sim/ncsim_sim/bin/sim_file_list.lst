@@ -6,3 +6,4 @@
 ../../../../bench/verilog/wb_slave_behavioral.v
 ../../../../bench/verilog/wb_master32.v
 ../../../../bench/verilog/wb_master_behavioral.v
+../../../../../vs_rams/018/vs_hdsp_256x32.v
