@@ -133,6 +133,7 @@ cat ../bin/rtl_file_list.lst >> ./ncvlog.args
 cat ../bin/sim_file_list.lst >> ./ncvlog.args                                                                                   
 # adding device dependent files to .args file
 cat ../bin/xilinx_file_list.lst >> ./ncvlog.args
+cat ../bin/artisan_file_list.lst >> ./ncvlog.args
 
 ncvlog -file ./ncvlog.args# > /dev/null;
 echo ""
