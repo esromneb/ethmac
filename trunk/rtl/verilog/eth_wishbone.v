@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2002/03/02 19:12:40  mohor
+// Byte ordering changed (Big Endian used). casex changed with case because
+// Xilinx Foundation had problems. Tested in HW. It WORKS.
+//
 // Revision 1.13  2002/02/26 16:59:55  mohor
 // Small fixes for external/internal DMA missmatches.
 //
@@ -1129,7 +1133,8 @@ begin
     TxData <=#Tp 8'h0;
   else
   if(TxStartFrm_sync2 & ~TxStartFrm)
-    TxData <=#Tp TxData_wb[7:0];
+//    TxData <=#Tp TxData_wb[7:0];
+    TxData <=#Tp TxData_wb[31:24];                  // Big Endian Byte Ordering
   else
   if(TxUsedData & Flop)
     begin
