@@ -41,6 +41,13 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/10/11 16:57:54  igorm
+// eth_defines.v tagged with rel_5 used.
+//
+// Revision 1.25  2002/10/10 16:47:44  mohor
+// Defines changed to have ETH_ prolog.
+// ETH_WISHBONE_B# define added.
+//
 // Revision 1.24  2002/10/10 16:33:11  mohor
 // Bist added.
 //
@@ -141,15 +148,23 @@
 //
 //
 
+`ifdef fpga
+  `define FPGA
+`else
+`endif
 
-//`define ETH_FIFO_XILINX               // Use Xilinx distributed ram for tx and rx fifo
 
-
-// Selection of the used memory for Buffer descriptors
-//`define ETH_XILINX_RAMB4            // Core is going to be implemented in Virtex FPGA and contains Virtex 
-                                      // specific elements. 
-//`define ETH_VIRTUAL_SILICON_RAM     // Virtual Silicon RAMS used storing buffer decriptors (ASIC implementation)
 //`define ETH_BIST                    // Bist for usage with Virtual Silicon RAMS
+
+
+`ifdef FPGA
+  `define ETH_FIFO_XILINX             // Use Xilinx distributed ram for tx and rx fifo
+  `define ETH_XILINX_RAMB4            // Selection of the used memory for Buffer descriptors
+                                      // Core is going to be implemented in Virtex FPGA and contains Virtex 
+                                      // specific elements. 
+`else
+  `define ETH_VIRTUAL_SILICON_RAM     // Virtual Silicon RAMS used storing buffer decriptors (ASIC implementation)
+`endif
 
 `define ETH_MODER_ADR         8'h0    // 0x0 
 `define ETH_INT_SOURCE_ADR    8'h1    // 0x4 
