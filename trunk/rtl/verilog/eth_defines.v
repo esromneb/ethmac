@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.23  2002/09/23 18:22:48  mohor
+// Virtual Silicon RAM might be used in the ASIC implementation of the ethernet
+// core.
+//
 // Revision 1.22  2002/09/04 18:36:49  mohor
 // Defines for control registers added (ETH_TXCTRL and ETH_RXCTRL).
 //
@@ -142,7 +146,7 @@
 //`define ETH_XILINX_RAMB4            // Core is going to be implemented in Virtex FPGA and contains Virtex 
                                       // specific elements. 
 //`define ETH_VIRTUAL_SILICON_RAM     // Virtual Silicon RAMS used storing buffer decriptors (ASIC implementation)
-
+//`define ETH_BIST                    // Bist for usage with Virtual Silicon RAMS
 
 `define ETH_MODER_ADR         8'h0    // 0x0 
 `define ETH_INT_SOURCE_ADR    8'h1    // 0x4 
