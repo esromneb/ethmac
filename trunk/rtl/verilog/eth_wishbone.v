@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.25  2002/07/09 23:53:24  mohor
+// Master state machine had a bug when switching from master write to
+// master read.
+//
 // Revision 1.24  2002/07/09 20:44:41  mohor
 // m_wb_cyc_o signal released after every single transfer.
 //
@@ -877,6 +881,8 @@ begin
             MasterWbTX <=#Tp 1'b0;  // master write and master write is needed (data write to rx buffer)
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp RxPointer;
+            m_wb_cyc_o <=#Tp 1'b1;
+            m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b1;
             m_wb_sel_o <=#Tp m_wb_sel_tmp_rx;
             cyc_cleared<=#Tp 1'b0;
@@ -886,6 +892,8 @@ begin
             MasterWbTX <=#Tp 1'b0;  // master read and master write is needed (data write to rx buffer)
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp RxPointer;
+            m_wb_cyc_o <=#Tp 1'b1;
+            m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b1;
             m_wb_sel_o <=#Tp m_wb_sel_tmp_rx;
             cyc_cleared<=#Tp 1'b0;
@@ -895,6 +903,8 @@ begin
             MasterWbTX <=#Tp 1'b1;  // master write and master read is needed (data read from tx buffer)
             MasterWbRX <=#Tp 1'b0;
             m_wb_adr_o <=#Tp TxPointer;
+            m_wb_cyc_o <=#Tp 1'b1;
+            m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
             m_wb_sel_o <=#Tp m_wb_sel_tmp_tx;
             cyc_cleared<=#Tp 1'b0;
