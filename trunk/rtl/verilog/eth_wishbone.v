@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.26  2002/07/10 13:12:38  mohor
+// Previous bug wasn't succesfully removed. Now fixed.
+//
 // Revision 1.25  2002/07/09 23:53:24  mohor
 // Master state machine had a bug when switching from master write to
 // master read.
@@ -1520,7 +1523,7 @@ begin
     RxPointerRead <=#Tp 1'b0;
 end
 
-reg BlockingIncrementRxPointer;
+
 //Latching Rx buffer pointer from buffer descriptor;
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
@@ -1530,7 +1533,7 @@ begin
   if(RxEn & RxEn_q & RxPointerRead)
     RxPointer <=#Tp {ram_do[31:2], 2'h0};
   else
-  if(MasterWbRX & ~BlockingIncrementRxPointer)
+  if(MasterWbRX & m_wb_ack_i)
       RxPointer <=#Tp RxPointer + 3'h4; // Word access  (always word access. m_wb_sel_o are used for selecting bytes)
 end
 
@@ -1559,19 +1562,6 @@ begin
   endcase
 end
 
-
-always @ (posedge WB_CLK_I or posedge Reset)
-begin
-  if(Reset)
-    BlockingIncrementRxPointer <=#Tp 0;
-  else
-  if(MasterAccessFinished)
-    BlockingIncrementRxPointer <=#Tp 0;
-  else
-  if(MasterWbRX)
-    BlockingIncrementRxPointer <=#Tp 1'b1;
-end
- 
 
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
