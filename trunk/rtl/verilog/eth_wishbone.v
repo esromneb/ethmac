@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.56  2004/04/30 10:30:00  igorm
+// Accidently deleted line put back.
+//
 // Revision 1.55  2004/04/26 15:26:23  igorm
 // - Bug connected to the TX_BD_NUM_Wr signal fixed (bug came in with the
 //   previous update of the core.
@@ -286,7 +289,7 @@ module eth_wishbone
     ReceivedPauseFrm, 
     
     // Tx Status
-    RetryCntLatched, RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost
+    RetryCntLatched, RetryLimit, LateCollLatched, DeferLatched, RstDeferLatched, CarrierSenseLost
 
     // Bist
 `ifdef ETH_BIST
@@ -317,7 +320,7 @@ input   [3:0]   BDCs;           // Buffer descriptors are selected
 output          WB_ACK_O;       // WISHBONE acknowledge output
 
 // WISHBONE master
-output  [31:0]  m_wb_adr_o;     // 
+output  [29:0]  m_wb_adr_o;     // 
 output   [3:0]  m_wb_sel_o;     // 
 output          m_wb_we_o;      // 
 output  [31:0]  m_wb_dat_o;     // 
@@ -355,6 +358,7 @@ input     [3:0] RetryCntLatched;  // Latched Retry Counter
 input           RetryLimit;       // Retry limit reached (Retry Max value + 1 attempts were made)
 input           LateCollLatched;  // Late collision occured
 input           DeferLatched;     // Defer indication (Frame was defered before sucessfully sent)
+output          RstDeferLatched;
 input           CarrierSenseLost; // Carrier Sense was lost during the frame transmission
 
 // Tx
@@ -452,8 +456,8 @@ reg             BlockingTxBDRead;
 
 reg             Flop;
 
-reg     [7:0]   TxBDAddress;
-reg     [7:0]   RxBDAddress;
+reg     [7:1]   TxBDAddress;
+reg     [7:1]   RxBDAddress;
 
 reg             TxRetrySync1;
 reg             TxAbortSync1;
@@ -502,10 +506,13 @@ wire            WrapRxStatusBit;
 
 wire    [1:0]   TxValidBytes;
 
-wire    [7:0]   TempTxBDAddress;
-wire    [7:0]   TempRxBDAddress;
+wire    [7:1]   TempTxBDAddress;
+wire    [7:1]   TempRxBDAddress;
 
 wire            RxStatusWrite;
+wire            RxBufferFull;
+wire            RxBufferAlmostEmpty;
+wire            RxBufferEmpty;
 
 reg             WB_ACK_O;
 
@@ -537,6 +544,7 @@ reg RxPointerRead;
 assign m_wb_bte_o = 2'b00;    // Linear burst
 `endif
 
+assign m_wb_stb_o = m_wb_cyc_o;
 
 always @ (posedge WB_CLK_I)
 begin
@@ -595,7 +603,7 @@ begin
             WbEn <=#Tp 1'b0;
             RxEn <=#Tp 1'b1;  // wb access stage and r_RxEn is enabled
             TxEn <=#Tp 1'b0;
-            ram_addr <=#Tp RxBDAddress + RxPointerRead;
+            ram_addr <=#Tp {RxBDAddress, RxPointerRead};
             ram_di <=#Tp RxBDDataIn;
           end
         5'b100_01 :
@@ -603,7 +611,7 @@ begin
             WbEn <=#Tp 1'b0;
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b1;  // wb access stage, r_RxEn is disabled but r_TxEn is enabled
-            ram_addr <=#Tp TxBDAddress + TxPointerRead;
+            ram_addr <=#Tp {TxBDAddress, TxPointerRead};
             ram_di <=#Tp TxBDDataIn;
           end
         5'b010_00, 5'b010_10 :
@@ -621,7 +629,7 @@ begin
             WbEn <=#Tp 1'b0;
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b1;  // RxEn access stage and r_TxEn is enabled
-            ram_addr <=#Tp TxBDAddress + TxPointerRead;
+            ram_addr <=#Tp {TxBDAddress, TxPointerRead};
             ram_di <=#Tp TxBDDataIn;
           end
         5'b001_00, 5'b001_01, 5'b001_10, 5'b001_11 :
@@ -758,6 +766,7 @@ end
 
 reg BlockingTxStatusWrite_sync1;
 reg BlockingTxStatusWrite_sync2;
+reg BlockingTxStatusWrite_sync3;
 
 // Synchronizing BlockingTxStatusWrite to MTxClk
 always @ (posedge MTxClk or posedge Reset)
@@ -777,6 +786,16 @@ begin
     BlockingTxStatusWrite_sync2 <=#Tp BlockingTxStatusWrite_sync1;
 end
 
+// Synchronizing BlockingTxStatusWrite to MTxClk
+always @ (posedge MTxClk or posedge Reset)
+begin
+  if(Reset)
+    BlockingTxStatusWrite_sync3 <=#Tp 1'b0;
+  else
+    BlockingTxStatusWrite_sync3 <=#Tp BlockingTxStatusWrite_sync2;
+end
+
+assign RstDeferLatched = BlockingTxStatusWrite_sync2 & ~BlockingTxStatusWrite_sync3;
 
 // TxBDRead state is activated only once. 
 always @ (posedge WB_CLK_I or posedge Reset)
@@ -809,9 +828,8 @@ wire WriteRxDataToMemory;
 reg MasterWbTX;
 reg MasterWbRX;
 
-reg [31:0] m_wb_adr_o;
+reg [29:0] m_wb_adr_o;
 reg        m_wb_cyc_o;
-reg        m_wb_stb_o;
 reg  [3:0] m_wb_sel_o;
 reg        m_wb_we_o;
 
@@ -1001,9 +1019,8 @@ begin
     begin
       MasterWbTX <=#Tp 1'b0;
       MasterWbRX <=#Tp 1'b0;
-      m_wb_adr_o <=#Tp 32'h0;
+      m_wb_adr_o <=#Tp 30'h0;
       m_wb_cyc_o <=#Tp 1'b0;
-      m_wb_stb_o <=#Tp 1'b0;
       m_wb_we_o  <=#Tp 1'b0;
       m_wb_sel_o <=#Tp 4'h0;
       cyc_cleared<=#Tp 1'b0;
@@ -1028,16 +1045,15 @@ begin
             MasterWbTX <=#Tp 1'b1;  // tx burst
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b1;
-            m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
             m_wb_sel_o <=#Tp 4'hf;
             cyc_cleared<=#Tp 1'b0;
             IncrTxPointer<=#Tp 1'b1;
-            tx_burst_cnt <=#Tp tx_burst_cnt+1;
+            tx_burst_cnt <=#Tp tx_burst_cnt+3'h1;
             if(tx_burst_cnt==0)
-              m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
+              m_wb_adr_o <=#Tp TxPointerMSB;
             else
-              m_wb_adr_o <=#Tp m_wb_adr_o+3'h4;
+              m_wb_adr_o <=#Tp m_wb_adr_o+1'b1;
 
             if(tx_burst_cnt==(`ETH_BURST_LENGTH-1))
               begin
@@ -1061,17 +1077,16 @@ begin
             MasterWbTX <=#Tp 1'b0;  // rx burst
             MasterWbRX <=#Tp 1'b1;
             m_wb_cyc_o <=#Tp 1'b1;
-            m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b1;
             m_wb_sel_o <=#Tp RxByteSel;
             IncrTxPointer<=#Tp 1'b0;
             cyc_cleared<=#Tp 1'b0;
-            rx_burst_cnt <=#Tp rx_burst_cnt+1;
+            rx_burst_cnt <=#Tp rx_burst_cnt+3'h1;
 
             if(rx_burst_cnt==0)
-              m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
+              m_wb_adr_o <=#Tp RxPointerMSB;
             else
-              m_wb_adr_o <=#Tp m_wb_adr_o+3'h4;
+              m_wb_adr_o <=#Tp m_wb_adr_o+1'b1;
 
             if(rx_burst_cnt==(`ETH_BURST_LENGTH-1))
               begin
@@ -1091,9 +1106,8 @@ begin
           begin
             MasterWbTX <=#Tp 1'b0;
             MasterWbRX <=#Tp 1'b1;
-            m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
+            m_wb_adr_o <=#Tp RxPointerMSB;
             m_wb_cyc_o <=#Tp 1'b1;
-            m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b1;
             m_wb_sel_o <=#Tp RxByteSel;
             IncrTxPointer<=#Tp 1'b0;
@@ -1102,9 +1116,8 @@ begin
           begin
             MasterWbTX <=#Tp 1'b1;
             MasterWbRX <=#Tp 1'b0;
-            m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
+            m_wb_adr_o <=#Tp TxPointerMSB;
             m_wb_cyc_o <=#Tp 1'b1;
-            m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
             m_wb_sel_o <=#Tp 4'hf;
             IncrTxPointer<=#Tp 1'b1;
@@ -1114,9 +1127,8 @@ begin
           begin
             MasterWbTX <=#Tp 1'b1;
             MasterWbRX <=#Tp 1'b0;
-            m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
+            m_wb_adr_o <=#Tp TxPointerMSB;
             m_wb_cyc_o <=#Tp 1'b1;
-            m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b0;
             m_wb_sel_o <=#Tp 4'hf;
             cyc_cleared<=#Tp 1'b0;
@@ -1127,9 +1139,8 @@ begin
           begin
             MasterWbTX <=#Tp 1'b0;
             MasterWbRX <=#Tp 1'b1;
-            m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
+            m_wb_adr_o <=#Tp RxPointerMSB;
             m_wb_cyc_o <=#Tp 1'b1;
-            m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b1;
             m_wb_sel_o <=#Tp RxByteSel;
             cyc_cleared<=#Tp 1'b0;
@@ -1141,7 +1152,6 @@ begin
         8'b10_x1_10_0x :            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
           begin
             m_wb_cyc_o <=#Tp 1'b0;  // whatever and master read or write is needed. We need to clear m_wb_cyc_o before next access is started
-            m_wb_stb_o <=#Tp 1'b0;
             cyc_cleared<=#Tp 1'b1;
             IncrTxPointer<=#Tp 1'b0;
             tx_burst_cnt<=#Tp 0;
@@ -1158,7 +1168,6 @@ begin
             MasterWbTX <=#Tp 1'b0;
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b0;
-            m_wb_stb_o <=#Tp 1'b0;
             cyc_cleared<=#Tp 1'b0;
             IncrTxPointer<=#Tp 1'b0;
             rx_burst_cnt<=#Tp 0;
@@ -1177,7 +1186,6 @@ begin
             MasterWbTX <=#Tp MasterWbTX;
             MasterWbRX <=#Tp MasterWbRX;
             m_wb_cyc_o <=#Tp m_wb_cyc_o;
-            m_wb_stb_o <=#Tp m_wb_stb_o;
             m_wb_sel_o <=#Tp m_wb_sel_o;
             IncrTxPointer<=#Tp IncrTxPointer;
           end
@@ -1346,18 +1354,18 @@ assign WrapRxStatusBit = RxStatus[13];
 
 
 // Temporary Tx and Rx buffer descriptor address 
-assign TempTxBDAddress[7:0] = {8{ TxStatusWrite     & ~WrapTxStatusBit}} & (TxBDAddress + 2'h2) ; // Tx BD increment or wrap (last BD)
-assign TempRxBDAddress[7:0] = {8{ WrapRxStatusBit}} & (r_TxBDNum<<1)     | // Using first Rx BD
-                              {8{~WrapRxStatusBit}} & (RxBDAddress + 2'h2) ; // Using next Rx BD (incremenrement address)
+assign TempTxBDAddress[7:1] = {7{ TxStatusWrite     & ~WrapTxStatusBit}}   & (TxBDAddress + 1'b1) ; // Tx BD increment or wrap (last BD)
+assign TempRxBDAddress[7:1] = {7{ WrapRxStatusBit}} & (r_TxBDNum[6:0])     | // Using first Rx BD
+                              {7{~WrapRxStatusBit}} & (RxBDAddress + 1'b1) ; // Using next Rx BD (incremenrement address)
 
 
 // Latching Tx buffer descriptor address
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    TxBDAddress <=#Tp 8'h0;
+    TxBDAddress <=#Tp 7'h0;
   else if (r_TxEn & (~r_TxEn_q))
-    TxBDAddress <=#Tp 8'h0;
+    TxBDAddress <=#Tp 7'h0;
   else if (TxStatusWrite)
     TxBDAddress <=#Tp TempTxBDAddress;
 end
@@ -1367,9 +1375,9 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    RxBDAddress <=#Tp 8'h0;
+    RxBDAddress <=#Tp 7'h0;
   else if(r_RxEn & (~r_RxEn_q))
-    RxBDAddress <=#Tp r_TxBDNum << 1;
+    RxBDAddress <=#Tp r_TxBDNum[6:0];
   else if(RxStatusWrite)
     RxBDAddress <=#Tp TempRxBDAddress;
 end
@@ -1907,7 +1915,7 @@ begin
     RxPointerMSB <=#Tp ram_do[31:2];
   else
   if(MasterWbRX & m_wb_ack_i)
-      RxPointerMSB <=#Tp RxPointerMSB + 1; // Word access  (always word access. m_wb_sel_o are used for selecting bytes)
+      RxPointerMSB <=#Tp RxPointerMSB + 1'b1; // Word access  (always word access. m_wb_sel_o are used for selecting bytes)
 end
 
 
@@ -2029,7 +2037,7 @@ begin
     endcase
   else
   if(RxValid & ~LastByteIn & ~RxStartFrm & RxEnableWindow)
-    RxValidBytes <=#Tp RxValidBytes + 1;
+    RxValidBytes <=#Tp RxValidBytes + 1'b1;
 end
 
 
