@@ -41,6 +41,12 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.36  2002/09/10 13:48:46  mohor
+// Reception is possible after RxPointer is read and not after BD is read. For
+// that reason RxBDReady is changed to RxReady.
+// Busy_IRQ interrupt connected. When there is no RxBD ready and frame
+// comes, interrupt is generated.
+//
 // Revision 1.35  2002/09/10 10:35:23  mohor
 // Ethernet debug registers removed.
 //
@@ -2149,7 +2155,7 @@ begin
     RxB_IRQ <=#Tp 1'b0;
   else
   if(RxStatusWrite & RxIRQEn)
-    RxB_IRQ <=#Tp ReceivedPacketGood;
+    RxB_IRQ <=#Tp ReceivedPacketGood & ~RxError;
   else
     RxB_IRQ <=#Tp 1'b0;
 end
