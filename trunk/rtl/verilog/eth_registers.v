@@ -41,6 +41,13 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2002/02/14 20:19:41  billditt
+// Modified for Address Checking,
+// addition of eth_addrcheck.v
+//
+// Revision 1.8  2002/02/12 17:01:19  mohor
+// HASH0 and HASH1 registers added. 
+
 // Revision 1.7  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -102,7 +109,7 @@ module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut, r_DmaEn,
                       r_RGAD, r_FIAD, r_CtrlData, NValid_stat, Busy_stat, 
                       LinkFail, r_MAC, WCtrlDataStart, RStatStart,
                       UpdateMIIRX_DATAReg, Prsd, r_TxBDNum, TX_BD_NUM_Wr, int_o,
-					  r_HASH0, r_HASH1
+                      r_HASH0, r_HASH1
                     );
 
 parameter Tp = 1;
@@ -253,8 +260,8 @@ eth_register #(32) IPGR1       (.DataIn(DataIn), .DataOut(IPGR1Out),      .Write
 eth_register #(32) IPGR2       (.DataIn(DataIn), .DataOut(IPGR2Out),      .Write(IPGR2_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGR2_DEF));
 eth_register #(32) PACKETLEN   (.DataIn(DataIn), .DataOut(PACKETLENOut),  .Write(PACKETLEN_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_PACKETLEN_DEF));
 eth_register #(32) COLLCONF    (.DataIn(DataIn), .DataOut(COLLCONFOut),   .Write(COLLCONF_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_COLLCONF_DEF));
-eth_register #(32) RXHASH0    (.DataIn(DataIn), .DataOut(HASH0Out),   .Write(HASH0_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH0_DEF));
-eth_register #(32) RXHASH1    (.DataIn(DataIn), .DataOut(HASH1Out),   .Write(HASH1_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH1_DEF));
+eth_register #(32) RXHASH0     (.DataIn(DataIn), .DataOut(HASH0Out),      .Write(HASH0_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH0_DEF));
+eth_register #(32) RXHASH1     (.DataIn(DataIn), .DataOut(HASH1Out),      .Write(HASH1_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH1_DEF));
 
 
 
@@ -338,8 +345,8 @@ begin
         `ETH_MAC_ADDR0_ADR    :  DataOut<=MAC_ADDR0Out;
         `ETH_MAC_ADDR1_ADR    :  DataOut<=MAC_ADDR1Out;
         `ETH_TX_BD_NUM_ADR    :  DataOut<=TX_BD_NUMOut;
-		`ETH_HASH0_ADR        :  DataOut<=HASH0Out;
-		`ETH_HASH1_ADR        :  DataOut<=HASH1Out;
+        `ETH_HASH0_ADR        :  DataOut<=HASH0Out;
+        `ETH_HASH1_ADR        :  DataOut<=HASH1Out;
         default:             DataOut<=32'h0;
       endcase
     end
@@ -376,8 +383,8 @@ assign r_IPGR2[6:0]       = IPGR2Out[6:0];
 assign r_MinFL[15:0]      = PACKETLENOut[31:16];
 assign r_MaxFL[15:0]      = PACKETLENOut[15:0];
 
-assign r_MaxRet[3:0]     = COLLCONFOut[19:16];
-assign r_CollValid[5:0]  = COLLCONFOut[5:0];
+assign r_MaxRet[3:0]      = COLLCONFOut[19:16];
+assign r_CollValid[5:0]   = COLLCONFOut[5:0];
 
 assign r_TxFlow           = CTRLMODEROut[2];
 assign r_RxFlow           = CTRLMODEROut[1];
