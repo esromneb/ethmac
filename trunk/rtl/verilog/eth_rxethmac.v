@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2004/03/17 09:32:15  igorm
+// Multicast detection fixed. Only the LSB of the first byte is checked.
+//
 // Revision 1.10  2002/11/22 01:57:06  mohor
 // Rx Flow control fixed. CF flag added to the RX buffer descriptor. RxAbort
 // synchronized.
@@ -146,7 +149,7 @@ reg           RxStartFrm;
 reg           RxEndFrm;
 reg           Broadcast;
 reg           Multicast;
-reg     [8:0] CrcHash;
+reg     [5:0] CrcHash;
 reg           CrcHashGood;
 reg           DelayData;
 reg     [3:0] LatchedNibble;
@@ -212,7 +215,7 @@ eth_rxaddrcheck rxaddrcheck1
                .ByteCntEq6(ByteCntEq6), .ByteCntEq7(ByteCntEq7),    .ByteCntEq2(ByteCntEq2), 
                .ByteCntEq3(ByteCntEq3), .ByteCntEq4(ByteCntEq4),    .ByteCntEq5(ByteCntEq5), 
                .HASH0(r_HASH0),         .HASH1(r_HASH1),           
-               .CrcHash(CrcHash[5:0]),  .CrcHashGood(CrcHashGood),  .StateData(StateData),
+               .CrcHash(CrcHash),       .CrcHashGood(CrcHashGood),  .StateData(StateData),
                .Multicast(Multicast),   .MAC(MAC),                  .RxAbort(RxAbort),
                .RxEndFrm(RxEndFrm),     .AddressMiss(AddressMiss),  .PassAll(PassAll),
                .ControlFrmAddressOK(ControlFrmAddressOK)
@@ -245,10 +248,10 @@ end
 always @ (posedge MRxClk)
 begin
   if(Reset | StateIdle)
-    CrcHash[8:0] <= #Tp 9'h0;
+    CrcHash[5:0] <= #Tp 6'h0;
   else
   if(StateData[0] & ByteCntEq6)
-    CrcHash[8:0] <= #Tp Crc[31:23];
+    CrcHash[5:0] <= #Tp Crc[31:26];
 end
 
 

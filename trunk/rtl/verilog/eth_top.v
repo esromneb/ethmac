@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.49  2003/11/12 18:24:59  tadejm
+// WISHBONE slave changed and tested from only 32-bit accesss to byte access.
+//
 // Revision 1.48  2003/10/17 07:46:16  markom
 // mbist signals updated according to newest convention
 //
@@ -416,7 +419,6 @@ wire        r_TxPauseRq;    // Transmit PAUSE request
 wire  [3:0] r_MaxRet;       //
 wire        r_NoBckof;      // 
 wire        r_ExDfrEn;      // 
-wire        TX_BD_NUM_Wr;   // Write enable that writes RX_BD_NUM to the registers.
 wire        r_TxFlow;       // Tx flow control enable
 wire        r_IFG;          // Minimum interframe gap for incoming packets
 
@@ -514,7 +516,7 @@ eth_registers ethreg1
   .NValid_stat(NValid_stat),              .Busy_stat(Busy_stat),                   
   .LinkFail(LinkFail),                    .r_MAC(r_MAC),                              .WCtrlDataStart(WCtrlDataStart),
   .RStatStart(RStatStart),                .UpdateMIIRX_DATAReg(UpdateMIIRX_DATAReg),  .Prsd(Prsd), 
-  .r_TxBDNum(r_TxBDNum),                  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),                .int_o(int_o),
+  .r_TxBDNum(r_TxBDNum),                  .int_o(int_o),
   .r_HASH0(r_HASH0),                      .r_HASH1(r_HASH1),                          .r_TxPauseRq(r_TxPauseRq), 
   .r_TxPauseTV(r_TxPauseTV),              .RstTxPauseRq(RstTxPauseRq),                .TxCtrlEndFrm(TxCtrlEndFrm), 
   .StartTxDone(StartTxDone),              .TxClk(mtx_clk_pad_i),                      .RxClk(mrx_clk_pad_i), 
@@ -882,7 +884,7 @@ eth_wishbone wishbone
 
   // Register
   .r_TxEn(r_TxEn),                    .r_RxEn(r_RxEn),                          .r_TxBDNum(r_TxBDNum), 
-  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),        .r_RxFlow(r_RxFlow),                      .r_PassAll(r_PassAll), 
+  .r_RxFlow(r_RxFlow),                      .r_PassAll(r_PassAll), 
 
   //RX
   .MRxClk(mrx_clk_pad_i),             .RxData(RxData),                          .RxValid(RxValid), 

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.54  2003/11/12 18:24:59  tadejm
+// WISHBONE slave changed and tested from only 32-bit accesss to byte access.
+//
 // Revision 1.53  2003/10/17 07:46:17  markom
 // mbist signals updated according to newest convention
 //
@@ -264,7 +267,7 @@ module eth_wishbone
     MRxClk, RxData, RxValid, RxStartFrm, RxEndFrm, RxAbort, RxStatusWriteLatched_sync2, 
     
     // Register
-    r_TxEn, r_RxEn, r_TxBDNum, TX_BD_NUM_Wr, r_RxFlow, r_PassAll, 
+    r_TxEn, r_RxEn, r_TxBDNum, r_RxFlow, r_PassAll, 
 
     // Interrupts
     TxB_IRQ, TxE_IRQ, RxB_IRQ, RxE_IRQ, Busy_IRQ, 
@@ -372,7 +375,6 @@ output          RxStatusWriteLatched_sync2;
 input           r_TxEn;         // Transmit enable
 input           r_RxEn;         // Receive enable
 input   [7:0]   r_TxBDNum;      // Receive buffer descriptor number
-input           TX_BD_NUM_Wr;   // RxBDNumber written
 
 // Interrupts
 output TxB_IRQ;
@@ -505,6 +507,8 @@ reg     [8:0]   RxStatusInLatched;
 reg WbEn, WbEn_q;
 reg RxEn, RxEn_q;
 reg TxEn, TxEn_q;
+reg r_TxEn_q;
+reg r_RxEn_q;
 
 wire ram_ce;
 wire [3:0]  ram_we;
@@ -649,12 +653,15 @@ begin
       WbEn_q <=#Tp 1'b0;
       RxEn_q <=#Tp 1'b0;
       TxEn_q <=#Tp 1'b0;
+      r_TxEn_q <=#Tp 1'b0;
+      r_RxEn_q <=#Tp 1'b0;
     end
   else
     begin
       WbEn_q <=#Tp WbEn;
       RxEn_q <=#Tp RxEn;
       TxEn_q <=#Tp TxEn;
+      r_RxEn_q <=#Tp r_RxEn;
     end
 end
 
@@ -1340,8 +1347,9 @@ always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
     TxBDAddress <=#Tp 8'h0;
-  else
-  if(TxStatusWrite)
+  else if (r_TxEn & (~r_TxEn_q))
+    TxBDAddress <=#Tp 8'h0;
+  else if (TxStatusWrite)
     TxBDAddress <=#Tp TempTxBDAddress;
 end
 
@@ -1350,12 +1358,10 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    RxBDAddress <=#Tp `ETH_TX_BD_NUM_DEF_0 << 1;
-  else
-  if(TX_BD_NUM_Wr)                        // When r_TxBDNum is updated, RxBDAddress is also
-    RxBDAddress <=#Tp WB_DAT_I[7:0] << 1;
-  else
-  if(RxStatusWrite)
+    RxBDAddress <=#Tp 8'h0;
+  else if(r_RxEn & (~r_RxEn_q))
+    RxBDAddress <=#Tp r_TxBDNum << 1;
+  else if(RxStatusWrite)
     RxBDAddress <=#Tp TempRxBDAddress;
 end
 

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2004/04/26 11:42:17  igorm
+// TX_BD_NUM_Wr error fixed. Error was entered with the last check-in.
+//
 // Revision 1.26  2003/11/12 18:24:59  tadejm
 // WISHBONE slave changed and tested from only 32-bit accesss to byte access.
 //
@@ -165,7 +168,7 @@ module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut,
                       r_MiiNoPre, r_ClkDiv, r_WCtrlData, r_RStat, r_ScanStat, 
                       r_RGAD, r_FIAD, r_CtrlData, NValid_stat, Busy_stat, 
                       LinkFail, r_MAC, WCtrlDataStart, RStatStart,
-                      UpdateMIIRX_DATAReg, Prsd, r_TxBDNum, TX_BD_NUM_Wr, int_o,
+                      UpdateMIIRX_DATAReg, Prsd, r_TxBDNum, int_o,
                       r_HASH0, r_HASH1, r_TxPauseTV, r_TxPauseRq, RstTxPauseRq, TxCtrlEndFrm, 
                       StartTxDone, TxClk, RxClk, SetPauseTimer
                     );
@@ -249,7 +252,6 @@ input LinkFail;
 
 output [47:0]r_MAC;
 output [7:0] r_TxBDNum;
-output       TX_BD_NUM_Wr;
 output       int_o;
 output [15:0]r_TxPauseTV;
 output       r_TxPauseRq;
@@ -326,6 +328,7 @@ wire [3:0] HASH0_Wr;
 wire [3:0] HASH1_Wr;
 wire [2:0] TXCTRL_Wr;
 wire [1:0] RXCTRL_Wr;
+wire [0:0] TX_BD_NUM_Wr;
 
 assign MODER_Wr[0]       = Write[0]  & MODER_Sel; 
 assign MODER_Wr[1]       = Write[1]  & MODER_Sel; 
@@ -371,7 +374,7 @@ assign TXCTRL_Wr[1]      = Write[1]  & TXCTRL_Sel;
 assign TXCTRL_Wr[2]      = Write[2]  & TXCTRL_Sel; 
 assign RXCTRL_Wr[0]      = Write[0]  & RXCTRL_Sel; 
 assign RXCTRL_Wr[1]      = Write[1]  & RXCTRL_Sel; 
-assign TX_BD_NUM_Wr      = Write[0]  & TX_BD_NUM_Sel & (DataIn<='h80); 
+assign TX_BD_NUM_Wr[0]   = Write[0]  & TX_BD_NUM_Sel & (DataIn<='h80); 
 
 
 
@@ -541,7 +544,7 @@ eth_register #(`ETH_TX_BD_NUM_WIDTH_0, `ETH_TX_BD_NUM_DEF_0) TX_BD_NUM_0
   (
    .DataIn    (DataIn[`ETH_TX_BD_NUM_WIDTH_0 - 1:0]),
    .DataOut   (TX_BD_NUMOut[`ETH_TX_BD_NUM_WIDTH_0 - 1:0]),
-   .Write     (TX_BD_NUM_Wr),
+   .Write     (TX_BD_NUM_Wr[0]),
    .Clk       (Clk),
    .Reset     (Reset),
    .SyncReset (1'b0)
