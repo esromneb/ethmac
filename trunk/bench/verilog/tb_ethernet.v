@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.28  2003/01/31 15:58:27  mohor
+// Tests test_mac_full_duplex_receive 4-7  fixed to proper BD.
+//
 // Revision 1.27  2003/01/30 13:38:15  mohor
 // Underrun test fixed. Many other tests fixed.
 //
@@ -208,7 +211,7 @@ eth_top eth_top
   // Bist
 `ifdef ETH_BIST
   ,
-  .scanb_rst      (1'b0),
+  .scanb_rst      (1'b1),
   .scanb_clk      (1'b0),
   .scanb_si       (1'b0),
   .scanb_so       (),

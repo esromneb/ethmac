@@ -6,5 +6,9 @@
 ../../../bench/verilog/wb_slave_behavioral.v
 ../../../bench/verilog/wb_master32.v
 ../../../bench/verilog/wb_master_behavioral.v
-../../../../../lib/vs_rams/018/vs_hdsp_256x32/vs_hdsp_256x32.v
+../../../../../lib/artisan/art_hssp_256x32_bist.v
+../../../../../lib/artisan/art_hssp_256x32/art_hssp_256x32.v
+../../../../../bist/rtl/verilog/bist.v
+../../../../../bist/rtl/verilog/bist_sp_top.v
+
 

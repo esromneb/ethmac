@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/10/18 17:03:34  tadejm
+// Changed BIST scan signals.
+//
 // Revision 1.2  2002/10/11 13:29:28  mohor
 // Bist signals added.
 //
@@ -191,7 +194,7 @@ eth_top ethtop
   // Bist
 `ifdef ETH_BIST
   ,
-  .scanb_rst      (1'b0),
+  .scanb_rst      (1'b1),
   .scanb_clk      (1'b0),
   .scanb_si       (1'b0),
   .scanb_so       (),
