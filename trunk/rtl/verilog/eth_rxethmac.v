@@ -43,6 +43,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2002/11/22 01:57:06  mohor
+// Rx Flow control fixed. CF flag added to the RX buffer descriptor. RxAbort
+// synchronized.
+//
 // Revision 1.9  2002/11/19 17:35:35  mohor
 // AddressMiss status is connecting to the Rx BD. AddressMiss is identifying
 // that a frame was received because of the promiscous mode.
@@ -301,12 +305,9 @@ begin
     Multicast <= #Tp 1'b0;
   else
     begin      
-      if(Reset)
-        Multicast <= #Tp 1'b0;
-      else
-      if(StateData[0] & ByteCntEq1 & LatchedByte == 8'h01)
+      if(StateData[0] & ByteCntEq1 & LatchedByte[0])
         Multicast <= #Tp 1'b1;
-    else if(RxAbort | RxEndFrm)
+      else if(RxAbort | RxEndFrm)
       Multicast <= #Tp 1'b0;
     end
 end
