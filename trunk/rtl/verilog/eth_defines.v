@@ -41,6 +41,13 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2002/02/14 20:19:41  billditt
+// Modified for Address Checking,
+// addition of eth_addrcheck.v
+//
+// Revision 1.10  2002/02/12 17:01:19  mohor
+// HASH0 and HASH1 registers added. 
+
 // Revision 1.9  2002/02/08 16:21:54  mohor
 // Rx status is written back to the BD.
 //
@@ -101,26 +108,26 @@
 //`define ARTISAN_SDP                 // Core is going to be implemented in ASIC (using Artisan RAM)
 
 
-`define ETH_MODER_ADR         6'h0    // 0x0 
-`define ETH_INT_SOURCE_ADR    6'h1    // 0x4 
-`define ETH_INT_MASK_ADR      6'h2    // 0x8 
-`define ETH_IPGT_ADR          6'h3    // 0xC 
-`define ETH_IPGR1_ADR         6'h4    // 0x10
-`define ETH_IPGR2_ADR         6'h5    // 0x14
-`define ETH_PACKETLEN_ADR     6'h6    // 0x18
-`define ETH_COLLCONF_ADR      6'h7    // 0x1C
-`define ETH_TX_BD_NUM_ADR     6'h8    // 0x20
-`define ETH_CTRLMODER_ADR     6'h9    // 0x24
-`define ETH_MIIMODER_ADR      6'hA    // 0x28
-`define ETH_MIICOMMAND_ADR    6'hB    // 0x2C
-`define ETH_MIIADDRESS_ADR    6'hC    // 0x30
-`define ETH_MIITX_DATA_ADR    6'hD    // 0x34
-`define ETH_MIIRX_DATA_ADR    6'hE    // 0x38
-`define ETH_MIISTATUS_ADR     6'hF    // 0x3C
-`define ETH_MAC_ADDR0_ADR     6'h10   // 0x40
-`define ETH_MAC_ADDR1_ADR     6'h11   // 0x44
-`define ETH_HASH0_ADR         6'h12   // 0x48
-`define ETH_HASH1_ADR         6'h13   // 0x4C
+`define ETH_MODER_ADR         8'h0    // 0x0 
+`define ETH_INT_SOURCE_ADR    8'h1    // 0x4 
+`define ETH_INT_MASK_ADR      8'h2    // 0x8 
+`define ETH_IPGT_ADR          8'h3    // 0xC 
+`define ETH_IPGR1_ADR         8'h4    // 0x10
+`define ETH_IPGR2_ADR         8'h5    // 0x14
+`define ETH_PACKETLEN_ADR     8'h6    // 0x18
+`define ETH_COLLCONF_ADR      8'h7    // 0x1C
+`define ETH_TX_BD_NUM_ADR     8'h8    // 0x20
+`define ETH_CTRLMODER_ADR     8'h9    // 0x24
+`define ETH_MIIMODER_ADR      8'hA    // 0x28
+`define ETH_MIICOMMAND_ADR    8'hB    // 0x2C
+`define ETH_MIIADDRESS_ADR    8'hC    // 0x30
+`define ETH_MIITX_DATA_ADR    8'hD    // 0x34
+`define ETH_MIIRX_DATA_ADR    8'hE    // 0x38
+`define ETH_MIISTATUS_ADR     8'hF    // 0x3C
+`define ETH_MAC_ADDR0_ADR     8'h10   // 0x40
+`define ETH_MAC_ADDR1_ADR     8'h11   // 0x44
+`define ETH_HASH0_ADR         8'h12   // 0x48
+`define ETH_HASH1_ADR         8'h13   // 0x4C
 
 
 `define ETH_MODER_DEF         32'h0000A800
@@ -157,6 +164,6 @@
 `define RX_FIFO_DEPTH          8
 `define RX_FIFO_DATA_WIDTH    32
 
-`define MULTICAST_XFR         0
-`define UNICAST_XFR			  1
-`define BROADCAST_XFR		  2
+`define MULTICAST_XFR          0
+`define UNICAST_XFR            1
+`define BROADCAST_XFR          2
