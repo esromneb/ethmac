@@ -8,7 +8,7 @@
 ////  Author(s):                                                  ////
 ////      - Igor Mohor (igorM@opencores.org)                      ////
 ////                                                              ////
-////  All additional information is avaliable in the Readme.txt   ////
+////  All additional information is available in the Readme.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
@@ -41,11 +41,14 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2002/07/23 16:36:09  mohor
+// ethernet spram added. So far a generic ram and xilinx RAMB4 are used.
+//
 //
 //
 
+`include "eth_defines.v"
 `include "timescale.v"
-
 
 module eth_spram_256x32(
 	// Generic synchronous single-port RAM interface
@@ -89,7 +92,20 @@ module eth_spram_256x32(
         .RST     (rst)
     );
 
-`else
+`else   // !ETH_XILINX_RAMB4
+`ifdef  ETH_VIRTUAL_SILICON_RAM
+  vs_hdsp_256x32 ram0
+  (
+        .CK       (clk),
+        .CEN      (!ce),
+        .WEN      (!we),
+        .OEN      (!oe),
+        .ADR      (addr),
+        .DI       (di),
+        .DOUT     (do)
+  );
+
+`else   // !ETH_VIRTUAL_SILICON_RAM
 
 	//
 	// Generic single-port synchronous RAM model
@@ -134,6 +150,7 @@ module eth_spram_256x32(
   	end
 	endtask
 
-`endif
+`endif  // !ETH_VIRTUAL_SILICON_RAM
+`endif  // !ETH_XILINX_RAMB4
 
 endmodule
