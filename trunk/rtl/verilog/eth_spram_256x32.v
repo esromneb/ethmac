@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/10/10 16:29:30  mohor
+// BIST added.
+//
 // Revision 1.2  2002/09/23 18:24:31  mohor
 // ETH_VIRTUAL_SILICON_RAM supported (for ASIC implementation).
 //
@@ -58,7 +61,13 @@ module eth_spram_256x32(
 	clk, rst, ce, we, oe, addr, di, do
 
 `ifdef ETH_BIST
-  ,trst, SO, SI, shift_DR, capture_DR, extest, tck
+  ,
+  // debug chain signals
+  scanb_rst,      // bist scan reset
+  scanb_clk,      // bist scan clock
+  scanb_si,       // bist scan serial in
+  scanb_so,       // bist scan serial out
+  scanb_en        // bist scan shift enable
 `endif
 
 
@@ -79,10 +88,11 @@ module eth_spram_256x32(
 
 
 `ifdef ETH_BIST
-  input           trst;
-  input           shift_DR, capture_DR, tck, extest;
-  input           SI;
-  output          SO;
+  input   scanb_rst;      // bist scan reset
+  input   scanb_clk;      // bist scan clock
+  input   scanb_si;       // bist scan serial in
+  output  scanb_so;       // bist scan serial out
+  input   scanb_en;       // bist scan shift enable
 `endif
 
 `ifdef ETH_XILINX_RAMB4
@@ -127,16 +137,12 @@ module eth_spram_256x32(
 
       `ifdef ETH_BIST
         ,
-        // reset
-        .trst      (trst),
-
         // debug chain signals
-        .SO        (SO),
-        .SI        (SI),
-        .shift_DR  (shift_DR),
-        .capture_DR(capture_DR),
-        .extest    (extest),
-        .tck       (tck)
+        .scanb_rst      (scanb_rst),
+        .scanb_clk      (scanb_clk),
+        .scanb_si       (scanb_si),
+        .scanb_so       (scanb_so),
+        .scanb_en       (scanb_en)
       `endif
       );
 

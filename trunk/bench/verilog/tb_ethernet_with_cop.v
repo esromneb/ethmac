@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/10/11 13:29:28  mohor
+// Bist signals added.
+//
 // Revision 1.1  2002/09/18 16:40:40  mohor
 // Simple testbench that includes eth_cop, eth_host and eth_memory modules.
 // This testbench is used for testing the whole environment. Use tb_ethernet
@@ -187,7 +190,12 @@ eth_top ethtop
 
   // Bist
 `ifdef ETH_BIST
-  , .trst(1'b0), .SO(), .SI(1'b0), .shift_DR(1'b0), .capture_DR(1'b0), .extest(1'b0), .tck(1'b0)
+  ,
+  .scanb_rst      (1'b0),
+  .scanb_clk      (1'b0),
+  .scanb_si       (1'b0),
+  .scanb_so       (),
+  .scanb_en       (1'b0)
 `endif
   
 );

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.41  2002/10/18 15:42:09  tadejm
+// Igor added WB burst support and repaired BUG when handling TX under-run and retry.
+//
 // Revision 1.40  2002/10/14 16:07:02  mohor
 // TxStatus is written after last access to the TX fifo is finished (in case of abort
 // or retry). TxDone is fixed.
@@ -233,7 +236,13 @@ module eth_wishbone
 
     // Bist
 `ifdef ETH_BIST
-   , trst, SO, SI, shift_DR, capture_DR, extest, tck
+    ,
+    // debug chain signals
+    scanb_rst,      // bist scan reset
+    scanb_clk,      // bist scan clock
+    scanb_si,       // bist scan serial in
+    scanb_so,       // bist scan serial out
+    scanb_en        // bist scan shift enable
 `endif
     
 
@@ -329,10 +338,11 @@ output Busy_IRQ;
 
 // Bist
 `ifdef ETH_BIST
-input           trst;
-input           shift_DR, capture_DR, tck, extest;
-input           SI;
-output          SO;
+input   scanb_rst;      // bist scan reset
+input   scanb_clk;      // bist scan clock
+input   scanb_si;       // bist scan serial in
+output  scanb_so;       // bist scan serial out
+input   scanb_en;       // bist scan shift enable
 `endif
 
 reg TxB_IRQ;
@@ -485,7 +495,12 @@ assign WB_DAT_O = ram_do;
 eth_spram_256x32 bd_ram (
 	.clk(WB_CLK_I), .rst(Reset), .ce(ram_ce), .we(ram_we), .oe(ram_oe), .addr(ram_addr), .di(ram_di), .do(ram_do)
 `ifdef ETH_BIST
-  , .trst(trst), .SO(SO), .SI(SI), .shift_DR(shift_DR), .capture_DR(capture_DR), .extest(extest), .tck(tck)
+  ,
+  .scanb_rst      (scanb_rst),
+  .scanb_clk      (scanb_clk),
+  .scanb_si       (scanb_si),
+  .scanb_so       (scanb_so),
+  .scanb_en       (scanb_en)
 `endif
 );
 

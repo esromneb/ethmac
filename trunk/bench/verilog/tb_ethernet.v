@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2002/10/18 13:58:22  tadejm
+// Some code changed due to bug fixes.
+//
 // Revision 1.16  2002/10/09 13:16:51  tadejm
 // Just back-up; not completed testbench and some testcases are not
 // wotking properly yet.
@@ -166,6 +169,16 @@ eth_top eth_top
   .mdc_pad_o(Mdc_O), .md_pad_i(Mdi_I), .md_pad_o(Mdo_O), .md_padoe_o(Mdo_OE),
   
   .int_o(wb_int)
+
+  // Bist
+`ifdef ETH_BIST
+  ,
+  .scanb_rst      (1'b0),
+  .scanb_clk      (1'b0),
+  .scanb_si       (1'b0),
+  .scanb_so       (),
+  .scanb_en       (1'b0)
+`endif
 );
 
 

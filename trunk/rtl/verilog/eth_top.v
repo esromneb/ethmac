@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.35  2002/10/11 13:36:58  mohor
+// Typo error fixed. (When using Bist)
+//
 // Revision 1.34  2002/10/10 16:49:50  mohor
 // Signals for WISHBONE B3 compliant interface added.
 //
@@ -209,7 +212,13 @@ module eth_top
 
   // Bist
 `ifdef ETH_BIST
-  , trst, SO, SI, shift_DR, capture_DR, extest, tck
+  ,
+  // debug chain signals
+  scanb_rst,      // bist scan reset
+  scanb_clk,      // bist scan clock
+  scanb_si,       // bist scan serial in
+  scanb_so,       // bist scan serial out
+  scanb_en        // bist scan shift enable
 `endif
 
 );
@@ -275,10 +284,11 @@ output          int_o;         // Interrupt output
 
 // Bist
 `ifdef ETH_BIST
-input           trst;
-input           shift_DR, capture_DR, tck, extest;
-input           SI;
-output          SO;
+input   scanb_rst;      // bist scan reset
+input   scanb_clk;      // bist scan clock
+input   scanb_si;       // bist scan serial in
+output  scanb_so;       // bist scan serial out
+input   scanb_en;       // bist scan shift enable
 `endif
 
 wire     [7:0]  r_ClkDiv;
@@ -757,9 +767,11 @@ eth_wishbone wishbone
   
 `ifdef ETH_BIST
   ,
-  .trst(trst),                        .SO(SO),                                  .SI(SI), 
-  .shift_DR(shift_DR),                .capture_DR(capture_DR),                  .extest(extest),
-  .tck(tck)
+  .scanb_rst      (scanb_rst),
+  .scanb_clk      (scanb_clk),
+  .scanb_si       (scanb_si),
+  .scanb_so       (scanb_so),
+  .scanb_en       (scanb_en)
 `endif
 );
 
