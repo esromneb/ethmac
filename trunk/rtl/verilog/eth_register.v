@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/08/16 12:33:27  mohor
+// Parameter ResetValue changed to capital letters.
+//
 // Revision 1.4  2002/02/26 16:18:08  mohor
 // Reset values are passed to registers through parameters
 //
@@ -71,7 +74,7 @@
 `include "timescale.v"
 
 
-module eth_register(DataIn, DataOut, Write, Clk, Reset);
+module eth_register(DataIn, DataOut, Write, Clk, Reset, SyncReset);
 
 parameter WIDTH = 8; // default parameter of the register width
 parameter RESET_VALUE = 0;
@@ -81,6 +84,7 @@ input [WIDTH-1:0] DataIn;
 input Write;
 input Clk;
 input Reset;
+input SyncReset;
 
 output [WIDTH-1:0] DataOut;
 reg    [WIDTH-1:0] DataOut;
@@ -90,6 +94,9 @@ reg    [WIDTH-1:0] DataOut;
 always @ (posedge Clk or posedge Reset)
 begin
   if(Reset)
+    DataOut<=#1 RESET_VALUE;
+  else
+  if(SyncReset)
     DataOut<=#1 RESET_VALUE;
   else
   if(Write)                         // write
