@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.44  2003/01/21 12:09:40  mohor
+// When receiving normal data frame and RxFlow control was switched on, RXB
+// interrupt was not set.
+//
 // Revision 1.43  2002/11/22 01:57:06  mohor
 // Rx Flow control fixed. CF flag added to the RX buffer descriptor. RxAbort
 // synchronized.
@@ -549,7 +553,8 @@ eth_maccontrol maccontrol1
   .TxDoneOut(TxDone),                           .TxAbortOut(TxAbort), 
   .WillSendControlFrame(WillSendControlFrame),  .TxCtrlEndFrm(TxCtrlEndFrm), 
   .ReceivedPauseFrm(ReceivedPauseFrm),          .ControlFrmAddressOK(ControlFrmAddressOK),
-  .LoadRxStatus(LoadRxStatus),                  .SetPauseTimer(SetPauseTimer)
+  .SetPauseTimer(SetPauseTimer),
+  .RxStatusWriteLatched_sync2(RxStatusWriteLatched_sync2),                .r_PassAll(r_PassAll)
 );
 
 
@@ -867,7 +872,7 @@ eth_wishbone wishbone
   .Busy_IRQ(Busy_IRQ),                .RxE_IRQ(RxE_IRQ),                        .RxB_IRQ(RxB_IRQ), 
   .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ), 
 
-  .RxAbort(RxAbort_wb), 
+  .RxAbort(RxAbort_wb),               .RxStatusWriteLatched_sync2(RxStatusWriteLatched_sync2), 
 
   .InvalidSymbol(InvalidSymbol),      .LatchedCrcError(LatchedCrcError),        .RxLength(RxByteCnt),
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),

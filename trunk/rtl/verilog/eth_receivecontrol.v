@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/11/22 01:57:06  mohor
+// Rx Flow control fixed. CF flag added to the RX buffer descriptor. RxAbort
+// synchronized.
+//
 // Revision 1.3  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -77,7 +81,7 @@ module eth_receivecontrol (MTxClk, MRxClk, TxReset, RxReset, RxData, RxValid, Rx
                            RxEndFrm, RxFlow, ReceiveEnd, MAC, DlyCrcEn, TxDoneIn, 
                            TxAbortIn, TxStartFrmOut, ReceivedLengthOK, ReceivedPacketGood, 
                            TxUsedDataOutDetected, Pause, ReceivedPauseFrm, AddressOK, 
-                           LoadRxStatus, SetPauseTimer
+                           RxStatusWriteLatched_sync2, r_PassAll, SetPauseTimer
                           );
 
 parameter Tp = 1;
@@ -101,12 +105,14 @@ input       TxStartFrmOut;
 input       ReceivedLengthOK;
 input       ReceivedPacketGood;
 input       TxUsedDataOutDetected;
-input       LoadRxStatus;
+input       RxStatusWriteLatched_sync2;
+input       r_PassAll;
 
 output      Pause;
 output      ReceivedPauseFrm;
 output      AddressOK;
 output      SetPauseTimer;
+
 
 reg         Pause;
 reg         AddressOK;                // Multicast or unicast address detected
@@ -209,7 +215,7 @@ begin
   if(RxReset)
     OpCodeOK <= #Tp 1'b0;
   else
-  if(RxStartFrm)
+  if(ByteCntEq16)
     OpCodeOK <= #Tp 1'b0;
   else
     begin
@@ -421,11 +427,11 @@ begin
   if(RxReset)
     ReceivedPauseFrm <=#Tp 1'b0;
   else
+  if(RxStatusWriteLatched_sync2 & r_PassAll | ReceivedPauseFrm & (~r_PassAll))
+    ReceivedPauseFrm <=#Tp 1'b0;
+  else
   if(ByteCntEq16 & TypeLengthOK & OpCodeOK)
     ReceivedPauseFrm <=#Tp 1'b1;        
-  else
-  if(RxStartFrm)
-    ReceivedPauseFrm <=#Tp 1'b0;
 end
 
 

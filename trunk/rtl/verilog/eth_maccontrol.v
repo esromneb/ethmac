@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/11/22 01:57:06  mohor
+// Rx Flow control fixed. CF flag added to the RX buffer descriptor. RxAbort
+// synchronized.
+//
 // Revision 1.5  2002/11/21 00:14:39  mohor
 // TxDone and TxAbort changed so they're not propagated to the wishbone
 // module when control frame is transmitted.
@@ -86,7 +90,7 @@ module eth_maccontrol (MTxClk, MRxClk, TxReset, RxReset, TPauseRq, TxDataIn, TxS
                        ReceivedPacketGood, ReceivedLengthOK, TxFlow, RxFlow, DlyCrcEn, TxPauseTV, 
                        MAC, PadIn, PadOut, CrcEnIn, CrcEnOut, TxDataOut, TxStartFrmOut, TxEndFrmOut, 
                        TxDoneOut, TxAbortOut, TxUsedDataOut, WillSendControlFrame, TxCtrlEndFrm, 
-                       ReceivedPauseFrm, ControlFrmAddressOK, LoadRxStatus, SetPauseTimer
+                       ReceivedPauseFrm, ControlFrmAddressOK, SetPauseTimer, r_PassAll, RxStatusWriteLatched_sync2
                       );
 
 
@@ -118,7 +122,8 @@ input         RxFlow;                   // Rx flow control (from registers)
 input         DlyCrcEn;                 // Delayed CRC enabled (from registers)
 input  [15:0] TxPauseTV;                // Transmit Pause Timer Value (from registers)
 input  [47:0] MAC;                      // MAC address (from registers)
-input         LoadRxStatus;
+input         RxStatusWriteLatched_sync2;
+input         r_PassAll;
 
 output  [7:0] TxDataOut;                // Transmit Packet Data (to TxEthMAC)
 output        TxStartFrmOut;            // Transmit packet start frame (output to TxEthMAC)
@@ -248,7 +253,7 @@ eth_receivecontrol receivecontrol1
  .TxAbortIn(TxAbortIn), .TxStartFrmOut(TxStartFrmOut), .ReceivedLengthOK(ReceivedLengthOK), 
  .ReceivedPacketGood(ReceivedPacketGood), .TxUsedDataOutDetected(TxUsedDataOutDetected), 
  .Pause(Pause), .ReceivedPauseFrm(ReceivedPauseFrm), .AddressOK(ControlFrmAddressOK), 
- .LoadRxStatus(LoadRxStatus), .SetPauseTimer(SetPauseTimer)
+ .r_PassAll(r_PassAll), .RxStatusWriteLatched_sync2(RxStatusWriteLatched_sync2), .SetPauseTimer(SetPauseTimer)
 );
 
 

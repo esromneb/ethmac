@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.49  2003/01/21 12:09:40  mohor
+// When receiving normal data frame and RxFlow control was switched on, RXB
+// interrupt was not set.
+//
 // Revision 1.48  2003/01/20 12:05:26  mohor
 // When in full duplex, transmit was sometimes blocked. Fixed.
 //
@@ -244,7 +248,7 @@ module eth_wishbone
     PerPacketPad, 
 
     //RX
-    MRxClk, RxData, RxValid, RxStartFrm, RxEndFrm, RxAbort, 
+    MRxClk, RxData, RxValid, RxStartFrm, RxEndFrm, RxAbort, RxStatusWriteLatched_sync2, 
     
     // Register
     r_TxEn, r_RxEn, r_TxBDNum, TX_BD_NUM_Wr, r_RxFlow, r_PassAll, 
@@ -351,6 +355,7 @@ input           RxValid;        //
 input           RxStartFrm;     // 
 input           RxEndFrm;       // 
 input           RxAbort;        // This signal is set when address doesn't match.
+output          RxStatusWriteLatched_sync2;
 
 //Register
 input           r_TxEn;         // Transmit enable
@@ -417,7 +422,6 @@ reg             RxReady;
 reg             TxBDReady;
 
 reg             RxBDRead;
-wire            RxStatusWrite;
 
 reg    [31:0]   TxDataLatched;
 reg     [1:0]   TxByteCnt;
@@ -484,6 +488,8 @@ wire    [7:0]   TempRxBDAddress;
 
 wire            SetGotData;
 wire            GotDataEvaluate;
+
+wire            RxStatusWrite;
 
 reg             WB_ACK_O;
 
@@ -722,11 +728,11 @@ begin
   if(Reset)
     BlockingTxStatusWrite <=#Tp 1'b0;
   else
-  if(TxStatusWrite)
-    BlockingTxStatusWrite <=#Tp 1'b1;
-  else
   if(~TxDone_wb & ~TxAbort_wb)
     BlockingTxStatusWrite <=#Tp 1'b0;
+  else
+  if(TxStatusWrite)
+    BlockingTxStatusWrite <=#Tp 1'b1;
 end
 
 
@@ -1432,11 +1438,12 @@ begin
   if(Reset)
     TxAbortPacket_NotCleared <=#Tp 1'b0;
   else
+  if(TxEn & TxEn_q & TxAbortPacket_NotCleared)
+    TxAbortPacket_NotCleared <=#Tp 1'b0;
+  else
   if(TxAbort_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished |
      TxAbort_wb & !MasterWbTX)
     TxAbortPacket_NotCleared <=#Tp 1'b1;
-  else
-    TxAbortPacket_NotCleared <=#Tp 1'b0;
 end
 
 
@@ -1472,11 +1479,12 @@ begin
   if(Reset)
     TxRetryPacket_NotCleared <=#Tp 1'b0;
   else
+  if(StartTxBDRead)
+    TxRetryPacket_NotCleared <=#Tp 1'b0;
+  else
   if(TxRetry_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished | 
      TxRetry_wb & !MasterWbTX)
     TxRetryPacket_NotCleared <=#Tp 1'b1;
-  else
-    TxRetryPacket_NotCleared <=#Tp 1'b0;
 end
 
 
@@ -1512,11 +1520,12 @@ begin
   if(Reset)
     TxDonePacket_NotCleared <=#Tp 1'b0;
   else
+  if(TxEn & TxEn_q & TxDonePacket_NotCleared)
+    TxDonePacket_NotCleared <=#Tp 1'b0;
+  else
   if(TxDone_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished | 
      TxDone_wb & !MasterWbTX)
     TxDonePacket_NotCleared <=#Tp 1'b1;
-  else
-    TxDonePacket_NotCleared <=#Tp 1'b0;
 end
 
 
@@ -2391,6 +2400,60 @@ wire RxError;
 // AddressMiss is identifying that a frame was received because of the promiscous
 // mode and is not an error
 assign RxError = (|RxStatusInLatched[6:3]) | (|RxStatusInLatched[1:0]);
+
+
+
+reg RxStatusWriteLatched;
+reg RxStatusWriteLatched_sync1;
+reg RxStatusWriteLatched_sync2;
+reg RxStatusWriteLatched_syncb1;
+reg RxStatusWriteLatched_syncb2;
+
+
+// Latching and synchronizing RxStatusWrite signal. This signal is used for clearing the ReceivedPauseFrm signal
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    RxStatusWriteLatched <=#Tp 1'b0;
+  else
+  if(RxStatusWriteLatched_syncb2)
+    RxStatusWriteLatched <=#Tp 1'b0;        
+  else
+  if(RxStatusWrite)
+    RxStatusWriteLatched <=#Tp 1'b1;
+end
+
+
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    begin
+      RxStatusWriteLatched_sync1 <=#Tp 1'b0;
+      RxStatusWriteLatched_sync2 <=#Tp 1'b0;
+    end
+  else
+    begin
+      RxStatusWriteLatched_sync1 <=#Tp RxStatusWriteLatched;
+      RxStatusWriteLatched_sync2 <=#Tp RxStatusWriteLatched_sync1;
+    end
+end
+
+
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    begin
+      RxStatusWriteLatched_syncb1 <=#Tp 1'b0;
+      RxStatusWriteLatched_syncb2 <=#Tp 1'b0;
+    end
+  else
+    begin
+      RxStatusWriteLatched_syncb1 <=#Tp RxStatusWriteLatched_sync2;
+      RxStatusWriteLatched_syncb2 <=#Tp RxStatusWriteLatched_syncb1;
+    end
+end
+
+
 
 // Tx Done Interrupt
 always @ (posedge WB_CLK_I or posedge Reset)
