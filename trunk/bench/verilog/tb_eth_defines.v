@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/07/25 17:19:06  mohor
+// Define ETH_MIIMODER_RST corrected to 0x00000400.
+//
 // Revision 1.3  2002/07/19 13:57:53  mohor
 // Testing environment also includes traffic cop, memory interface and host
 // interface.
@@ -131,6 +134,8 @@
 `define ETH_MAC_ADDR1  `ETH_BASE + 32'h44 /* MAC Individual Address Register 1 */
 `define ETH_HASH_ADDR0 `ETH_BASE + 32'h48 /* Hash Register 0 */
 `define ETH_HASH_ADDR1 `ETH_BASE + 32'h4C /* Hash Register 1 */
+`define ETH_TX_CTRL    `ETH_BASE + 32'h50 /* Tx Control Register */
+`define ETH_RX_CTRL    `ETH_BASE + 32'h54 /* Rx Control Register */
 
 /* MODER Register */
 `define ETH_MODER_RXEN     32'h00000001 /* Receive Enable  */
