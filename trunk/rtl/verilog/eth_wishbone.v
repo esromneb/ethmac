@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.21  2002/03/29 16:18:11  lampret
+// Small typo fixed.
+//
 // Revision 1.20  2002/03/25 16:19:12  mohor
 // Any address can be used for Tx and Rx BD pointers. Address does not need
 // to be aligned.
@@ -280,6 +283,9 @@ reg             TxDone_wb;
 reg             TxDone_wb_q;
 reg             TxAbort_wb_q;
 reg             TxRetry_wb_q;
+reg             TxDone_wb_q2;
+reg             TxAbort_wb_q2;
+reg             TxRetry_wb_q2;
 reg             RxBDReady;
 reg             TxBDReady;
 
@@ -334,6 +340,9 @@ reg             TxEndFrm_wb;
 wire            TxRetryPulse;
 wire            TxDonePulse;
 wire            TxAbortPulse;
+wire            TxRetryPulse_q;
+wire            TxDonePulse_q;
+wire            TxAbortPulse_q;
 
 wire            StartRxBDRead;
 
@@ -769,7 +778,7 @@ reg  [3:0] m_wb_sel_tmp_rx;
 
 assign m_wb_sel_tmp_tx[0] = TxWordAcc | TxHalfAcc | TxByteAcc &  TxPointer[1];
 assign m_wb_sel_tmp_tx[1] = TxWordAcc | TxHalfAcc;
-assign m_wb_sel_tmp_tx[2] = TxWordAcc |           | TxByteAcc & ~TxPointer[1];
+assign m_wb_sel_tmp_tx[2] = TxWordAcc |             TxByteAcc & ~TxPointer[1];
 assign m_wb_sel_tmp_tx[3] = TxWordAcc;
 
 
@@ -798,7 +807,7 @@ wire SetReadTxDataFromMemory;
 
 reg BlockReadTxDataFromMemory;
 
-assign ResetReadTxDataFromMemory = (TxLengthEq0) | TxAbortPulse | TxRetryPulse;
+assign ResetReadTxDataFromMemory = (TxLengthEq0) | TxAbortPulse_q | TxRetryPulse_q;
 assign SetReadTxDataFromMemory = TxEn & TxEn_q & TxPointerRead;
 
 always @ (posedge WB_CLK_I or posedge Reset)
@@ -851,7 +860,7 @@ begin
   else
     begin
       // Switching between two stages depends on enable signals
-      case ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished})
+      case ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished})  // synopsys parallel_case
         5'b00_01_0, 5'b00_11_0 :
           begin
             MasterWbTX <=#Tp 1'b0;  // idle and master write is needed (data write to rx buffer)
@@ -953,7 +962,7 @@ tx_fifo ( .data_in(tx_fifo_dat_i),                          .data_out(TxData_wb)
           .write(MasterWbTX & m_wb_ack_i & m_wb_sel_o[0]),  .read(ReadTxDataFromFifo_wb), 
           .clear(TxFifoClear),                              .full(TxBufferFull), 
           .almost_full(TxBufferAlmostFull),                 .almost_empty(TxBufferAlmostEmpty), 
-          .empty(TxBufferEmpty)
+          .empty(TxBufferEmpty),                            .cnt()
         );
 
 
@@ -1142,6 +1151,9 @@ assign TxBDDataIn = {LatchedTxLength, 1'b0, TxStatus, 2'h0, TxStatusInLatched};
 assign TxRetryPulse   = TxRetry_wb   & ~TxRetry_wb_q;
 assign TxDonePulse    = TxDone_wb    & ~TxDone_wb_q;
 assign TxAbortPulse   = TxAbort_wb   & ~TxAbort_wb_q;
+assign TxRetryPulse_q = TxRetry_wb_q & ~TxRetry_wb_q2;
+assign TxDonePulse_q  = TxDone_wb_q  & ~TxDone_wb_q2;
+assign TxAbortPulse_q = TxAbort_wb_q & ~TxAbort_wb_q2;
 
 
 assign TPauseRq = 0;
@@ -1173,12 +1185,18 @@ begin
       TxDone_wb_q   <=#Tp 1'b0;
       TxAbort_wb_q  <=#Tp 1'b0;
       TxRetry_wb_q  <=#Tp 1'b0;
+      TxDone_wb_q2  <=#Tp 1'b0;
+      TxAbort_wb_q2 <=#Tp 1'b0;
+      TxRetry_wb_q2 <=#Tp 1'b0;
     end
   else
     begin
       TxDone_wb_q   <=#Tp TxDone_wb;
       TxAbort_wb_q  <=#Tp TxAbort_wb;
       TxRetry_wb_q  <=#Tp TxRetry_wb;
+      TxDone_wb_q2  <=#Tp TxDone_wb_q;
+      TxAbort_wb_q2 <=#Tp TxAbort_wb_q;
+      TxRetry_wb_q2 <=#Tp TxRetry_wb_q;
     end
 end
 
@@ -1217,7 +1235,7 @@ begin
   else
   if(Flop & LastWord)
     begin
-      case (TxValidBytesLatched)
+      case (TxValidBytesLatched)  // synopsys parallel_case
         1 : TxEndFrm <=#Tp TxByteCnt == 2'h0;
         2 : TxEndFrm <=#Tp TxByteCnt == 2'h1;
         3 : TxEndFrm <=#Tp TxByteCnt == 2'h2;
@@ -1235,7 +1253,7 @@ begin
     TxData <=#Tp 0;
   else
   if(TxStartFrm_sync2 & ~TxStartFrm)
-    case(TxPointerLatched)
+    case(TxPointerLatched)  // synopsys parallel_case
       2'h0 : TxData <=#Tp TxData_wb[31:24];                  // Big Endian Byte Ordering
       2'h1 : TxData <=#Tp TxData_wb[23:16];                  // Big Endian Byte Ordering
       2'h2 : TxData <=#Tp TxData_wb[15:08];                  // Big Endian Byte Ordering
@@ -1247,7 +1265,7 @@ begin
   else
   if(TxUsedData & Flop)
     begin
-      case(TxByteCnt)
+      case(TxByteCnt)  // synopsys parallel_case
         0 : TxData <=#Tp TxDataLatched[31:24];      // Big Endian Byte Ordering
         1 : TxData <=#Tp TxDataLatched[23:16];
         2 : TxData <=#Tp TxDataLatched[15:8];
@@ -1306,7 +1324,7 @@ begin
     TxByteCnt <=#Tp 2'h0;
   else
   if(TxStartFrm & ~TxUsedData)
-    case(TxPointerLatched)
+    case(TxPointerLatched)  // synopsys parallel_case
       2'h0 : TxByteCnt <=#Tp 2'h1;
       2'h1 : TxByteCnt <=#Tp 2'h2;
       2'h2 : TxByteCnt <=#Tp 2'h3;
@@ -1531,7 +1549,7 @@ end
 
 always @ (RxPointerLatched)
 begin
-  case(RxPointerLatched[1:0])
+  case(RxPointerLatched[1:0])  // synopsys parallel_case
     2'h0 : m_wb_sel_tmp_rx[3:0] = 4'hf;
     2'h1 : m_wb_sel_tmp_rx[3:0] = 4'h7;
     2'h2 : m_wb_sel_tmp_rx[3:0] = 4'h3;
@@ -1644,7 +1662,7 @@ begin
     RxByteCnt <=#Tp 2'h0;
   else
   if(RxValid & RxStartFrm & RxBDReady)
-    case(RxPointerLatched)
+    case(RxPointerLatched)  // synopsys parallel_case
       2'h0 : RxByteCnt <=#Tp 2'h1;
       2'h1 : RxByteCnt <=#Tp 2'h2;
       2'h2 : RxByteCnt <=#Tp 2'h3;
@@ -1663,7 +1681,7 @@ begin
     RxValidBytes <=#Tp 2'h1;
   else
   if(RxValid & RxStartFrm)
-    case(RxPointerLatched)
+    case(RxPointerLatched)  // synopsys parallel_case
       2'h0 : RxValidBytes <=#Tp 2'h1;
       2'h1 : RxValidBytes <=#Tp 2'h2;
       2'h2 : RxValidBytes <=#Tp 2'h3;
@@ -1713,7 +1731,7 @@ begin
     RxDataLatched2 <=#Tp {RxDataLatched1[31:8], RxData};              // Big Endian Byte Ordering
   else
   if(SetWriteRxDataToFifo & ShiftWillEnd)
-    case(RxValidBytes)
+    case(RxValidBytes)  // synopsys parallel_case
 //      0 : RxDataLatched2 <=#Tp {RxDataLatched1[31:8],  RxData};       // Big Endian Byte Ordering
 //      1 : RxDataLatched2 <=#Tp {RxDataLatched1[31:24], 24'h0};
 //      2 : RxDataLatched2 <=#Tp {RxDataLatched1[31:16], 16'h0};
@@ -1823,7 +1841,7 @@ rx_fifo (.data_in(RxDataLatched2),                      .data_out(m_wb_dat_o),
          .write(WriteRxDataToFifo_wb),                  .read(MasterWbRX & m_wb_ack_i), 
          .clear(RxFifoReset),                           .full(RxBufferFull), 
          .almost_full(RxBufferAlmostFull),              .almost_empty(RxBufferAlmostEmpty), 
-         .empty(RxBufferEmpty)
+         .empty(RxBufferEmpty),                         .cnt()
         );
 
 assign WriteRxDataToMemory = ~RxBufferEmpty & (~MasterWbRX | ~RxBufferAlmostEmpty);

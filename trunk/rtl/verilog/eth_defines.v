@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.16  2002/03/19 12:53:29  mohor
+// Some defines that are used in testbench only were moved to tb_eth_defines.v
+// file.
+//
 // Revision 1.15  2002/02/26 16:11:32  mohor
 // Number of interrupts changed
 //
@@ -111,6 +115,7 @@
 
 
 //`define EXTERNAL_DMA                  // Using DMA
+//`define ETH_FIFO_XILINX               // Use Xilinx distributed ram for tx and rx fifo
 
 
 // Selection of the used memory
@@ -148,7 +153,7 @@
 `define ETH_IPGT_DEF          7'h12
 `define ETH_IPGR1_DEF         7'h0C
 `define ETH_IPGR2_DEF         7'h12
-`define ETH_PACKETLEN_DEF     32'h003C0600
+`define ETH_PACKETLEN_DEF     32'h00400600
 `define ETH_COLLCONF0_DEF     6'h3f
 `define ETH_COLLCONF1_DEF     4'hF
 `define ETH_TX_BD_NUM_DEF     8'h80
@@ -166,12 +171,12 @@
 
 
 // Outputs are registered (uncomment when needed)
-// `define ETH_REGISTERED_OUTPUTS
+//`define ETH_REGISTERED_OUTPUTS
 
-`define TX_FIFO_CNT_WIDTH      4
-`define TX_FIFO_DEPTH          8
+`define TX_FIFO_CNT_WIDTH      5
+`define TX_FIFO_DEPTH         16
 `define TX_FIFO_DATA_WIDTH    32
 
-`define RX_FIFO_CNT_WIDTH      4
-`define RX_FIFO_DEPTH          8
+`define RX_FIFO_CNT_WIDTH      5
+`define RX_FIFO_DEPTH         16
 `define RX_FIFO_DATA_WIDTH    32
