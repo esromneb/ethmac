@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/10/18 13:58:22  tadejm
+// Some code changed due to bug fixes.
+//
 // Revision 1.6  2002/10/09 13:16:51  tadejm
 // Just back-up; not completed testbench and some testcases are not
 // wotking properly yet.
@@ -210,6 +213,11 @@ end
 `endif
 
 // different clock calculation between RX and TX, so that there is alsways a litle difference
+/*initial
+begin
+  set_mrx_equal_mtx = 1; // default
+end*/
+
 always
 begin
   mtx_clk_o = 0;
@@ -229,7 +237,22 @@ end
 
 always
 begin
-  mrx_clk_o = 1;
+  // EQUAL mrx_clk to mtx_clk
+  mrx_clk_o = 0;
+  #7;
+  forever
+  begin
+    if (eth_speed) // 100 Mbps - 25 MHz, 40 ns
+    begin
+      #20 mrx_clk_o = ~mrx_clk_o;
+    end
+    else // 10 Mbps - 2.5 MHz, 400 ns
+    begin
+      #200 mrx_clk_o = ~mrx_clk_o;
+    end
+  end
+  // DIFFERENT mrx_clk than mtx_clk
+/*  mrx_clk_diff_than_mtx = 1;
   #3;
   forever
   begin
@@ -238,20 +261,28 @@ begin
       if (eth_speed) // 100 Mbps - 25 MHz, 40 ns
       begin
         //#(((1/0.025001)/2)) 
-        #19.99 mrx_clk_o = ~mrx_clk_o; // period is calculated from frequency in GHz
+        #19.99 mrx_clk_diff_than_mtx = ~mrx_clk_diff_than_mtx; // period is calculated from frequency in GHz
       end
       else // 10 Mbps - 2.5 MHz, 400 ns
       begin
         //#(((1/0.0024999)/2)) 
-        #200.01 mrx_clk_o = ~mrx_clk_o; // period is calculated from frequency in GHz
+        #200.01 mrx_clk_diff_than_mtx = ~mrx_clk_diff_than_mtx; // period is calculated from frequency in GHz
       end
     end
     else // Link is down
     begin
-      #(rx_link_down_halfperiod) mrx_clk_o = ~mrx_clk_o; // random frequency between 2 MHz and 40 MHz
+      #(rx_link_down_halfperiod) mrx_clk_diff_than_mtx = ~mrx_clk_diff_than_mtx; // random frequency between 2 MHz and 40 MHz
     end
-  end
+  end*/
+//  // set output mrx_clk
+//  if (set_mrx_equal_mtx)
+//    mrx_clk_o = mrx_clk_equal_to_mtx;
+//  else
+//    mrx_clk_o = mrx_clk_diff_than_mtx;
 end
+
+// set output mrx_clk
+//assign mrx_clk_o = set_mrx_equal_mtx ? mrx_clk_equal_to_mtx : mrx_clk_diff_than_mtx ;
 
 //////////////////////////////////////////////////////////////////////
 //
@@ -690,7 +721,7 @@ end
 reg     registers_addr_data_test_operation;
 
 // Non writable status registers
-always
+initial // always
 begin
   #1 status_bit6_0[6] = no_preamble;
   status_bit6_0[5] = 1'b0;
@@ -829,7 +860,12 @@ reg             mcrs_o;
 reg             mcrs_rx;
 reg             mcrs_tx;
   // delayed mtxen_i signal for generating delayed tx carrier sense
-reg             mtxen_d;
+reg             mtxen_d1;
+reg             mtxen_d2;
+reg             mtxen_d3;
+reg             mtxen_d4;
+reg             mtxen_d5;
+reg             mtxen_d6;
   // collision signal set or rest within task for controling collision
 reg             task_mcoll;
   // carrier sense signal set or rest within task for controling carrier sense
@@ -1057,21 +1093,26 @@ begin
   // generating CARRIER SENSE for TX with or without delay
   if (!m_rst_n_i)
   begin
-    mcrs_tx <= 0;
-    mtxen_d <= 0;
+    mcrs_tx  <= 0;
+    mtxen_d1 <= 0;
+    mtxen_d2 <= 0;
+    mtxen_d3 <= 0;
+    mtxen_d4 <= 0;
+    mtxen_d5 <= 0;
+    mtxen_d6 <= 0;
   end
   else
   begin
-    if (!real_carrier_sense)
-    begin
-      mtxen_d <= mtxen_i;
-      mcrs_tx <= mtxen_i;
-    end
+    mtxen_d1 <= mtxen_i;
+    mtxen_d2 <= mtxen_d1;
+    mtxen_d3 <= mtxen_d2;
+    mtxen_d4 <= mtxen_d3;
+    mtxen_d5 <= mtxen_d4;
+    mtxen_d6 <= mtxen_d5;
+    if (real_carrier_sense)
+      mcrs_tx  <= mtxen_d6;
     else
-    begin
-      mtxen_d <= mtxen_i;
-      mcrs_tx <= mtxen_d;
-    end
+      mcrs_tx  <= mtxen_i;
   end
 end
 

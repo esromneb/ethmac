@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.25  2002/11/27 16:21:55  mohor
+// Full duplex control frames tested.
+//
 // Revision 1.24  2002/11/22 17:29:42  mohor
 // Flow control test almost finished.
 //
@@ -416,10 +419,10 @@ initial
 begin
   wb_clk=0;
 //  forever #2.5 wb_clk = ~wb_clk;  // 2*2.5 ns -> 200.0 MHz    
-  forever #5 wb_clk = ~wb_clk;  // 2*5 ns -> 100.0 MHz    
+//  forever #5 wb_clk = ~wb_clk;  // 2*5 ns -> 100.0 MHz    
 //  forever #10 wb_clk = ~wb_clk;  // 2*10 ns -> 50.0 MHz    
 //  forever #12.5 wb_clk = ~wb_clk;  // 2*12.5 ns -> 40 MHz    
-//  forever #15 wb_clk = ~wb_clk;  // 2*10 ns -> 33.3 MHz    
+  forever #15 wb_clk = ~wb_clk;  // 2*10 ns -> 33.3 MHz    
 //  forever #20 wb_clk = ~wb_clk;  // 2*20 ns -> 25 MHz    
 //  forever #25 wb_clk = ~wb_clk;  // 2*25 ns -> 20.0 MHz
 //  forever #31.25 wb_clk = ~wb_clk;  // 2*31.25 ns -> 16.0 MHz    
@@ -438,6 +441,9 @@ reg   [3:0]  wbm_subseq_waits; // subsequent wait cycles between STB_Os of WB Ma
 reg   [2:0]  wbs_waits; // wait cycles befor WB Slave responds
 reg   [7:0]  wbs_retries; // if RTY response, then this is the number of retries before ACK
 
+reg          wbm_working; // tasks wbm_write and wbm_read set signal when working and reset it when stop working
+
+
 initial
 begin
   wait(StartTB);  // Start of testbench
@@ -445,6 +451,8 @@ begin
   // Initial global values
   tests_successfull = 0;
   tests_failed = 0;
+  
+  wbm_working = 0;
 
   wbm_init_waits = 4'h1;
   wbm_subseq_waits = 4'h3;
@@ -452,16 +460,21 @@ begin
   wbs_retries = 8'h2; 
   wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
+  // set DIFFERENT mrx_clk to mtx_clk!
+//  eth_phy.set_mrx_equal_mtx = 1'b0;
 
   //  Call tests
   //  ----------
-//    test_access_to_mac_reg(0, 3);           // 0 - 3
+//    test_access_to_mac_reg(0, 0);           // 0 - 3
 //    test_mii(0, 17);                        // 0 - 17
   test_note("PHY generates ideal Carrier sense and Collision signals for following tests");
   eth_phy.carrier_sense_real_delay(0);
-//    test_mac_full_duplex_transmit(8, 9);    // 0 - (21)
-//    test_mac_full_duplex_receive(8, 9);
-    test_mac_full_duplex_flow_control(0, 2);  // 0 - 2
+//    test_mac_full_duplex_transmit(0, 23);    // 0 - (21)
+    test_mac_full_duplex_transmit(8, 8);    // 0 - (21)
+//    test_mac_full_duplex_receive(0, 13);     // 0 - 13
+//    test_mac_full_duplex_flow_control(0, 4);  // 0 - 5   What 5 stands for ?
+                                              // 4 is executed, everything is OK
+//    test_mac_half_duplex_flow(0, 0);
 
   test_note("PHY generates 'real delayed' Carrier sense and Collision signals for following tests");
   eth_phy.carrier_sense_real_delay(1);
@@ -516,8 +529,8 @@ fail = 0;
 // reset MAC registers
 hard_reset;
 // reset MAC and MII LOGIC with soft reset
-reset_mac;
-reset_mii;
+//reset_mac;
+//reset_mii;
 
 
 //////////////////////////////////////////////////////////////////////
@@ -706,6 +719,7 @@ begin
                 else
                   begin
                     wbm_write(addr, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+                    wait (wbm_working == 0);
                     wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
                     if ( ((i_data >= bit_start_1) && (i_data <= bit_end_1)) ||
                          ((i_data >= bit_start_2) && (i_data <= bit_end_2)) ) // data should be equal to tmp_data
@@ -985,9 +999,13 @@ begin
         wbm_init_waits = {$random} % 3;
         wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
         if (i == 0)
+        begin
           wbm_write(addr, ~data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        end
         else if (i == 2)
+        begin
           wbm_write(addr, 32'hFFFFFFFF, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        end
         else if ((i == 1) || (i == 4))
         begin
           wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -1081,8 +1099,8 @@ begin
     // reset MAC registers
     hard_reset;
     // reset LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     for (i = 0; i <= 3; i = i + 1) // 0, 2 - WRITE; 1, 3 - READ
     begin
       for (i_addr = 32'h400; i_addr <= 32'h7FC; i_addr = i_addr + 4) // buffer descriptor address
@@ -1118,8 +1136,8 @@ begin
         // reset MAC registers
         hard_reset;
         // reset LOGIC with soft reset
-        reset_mac;
-        reset_mii;
+//        reset_mac;
+//        reset_mii;
       end
     end
     if(fail == 0)
@@ -1407,8 +1425,8 @@ fail = 0;
 // reset MAC registers
 hard_reset;
 // reset MAC and MII LOGIC with soft reset
-reset_mac;
-reset_mii;
+//reset_mac;
+//reset_mii;
 
 
 //////////////////////////////////////////////////////////////////////
@@ -1551,7 +1569,7 @@ begin
       #Tp mii_read_req(phy_addr, reg_addr);
       check_mii_busy; // wait for read to finish
       // read data
-      #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if (phy_data !== 16'hDEAD)
       begin
         test_fail("Wrong data was read from PHY from 'not used' address space");
@@ -1569,7 +1587,7 @@ begin
     #Tp mii_read_req(phy_addr, reg_addr);
     check_mii_busy; // wait for read to finish
     // read data
-    #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if (phy_data !== {`PHY_ID2, `MAN_MODEL_NUM, `MAN_REVISION_NUM})
     begin
       test_fail("Wrong data was read from PHY from ID register 2");
@@ -1603,7 +1621,7 @@ begin
     #Tp mii_read_req(phy_addr, reg_addr);
     check_mii_busy; // wait for read to finish
     // read data
-    #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if (tmp_data !== phy_data)
     begin
       test_fail("Data was written into unwritable PHY register - ID register 2");
@@ -1616,7 +1634,7 @@ begin
     #Tp mii_read_req(phy_addr, reg_addr);
     check_mii_busy; // wait for read to finish
     // read data
-    #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // write request
     phy_data = 16'h7DFF; // bit 15 (RESET bit) and bit 9 are self clearing bits
     #Tp mii_write_req(phy_addr, reg_addr, phy_data);
@@ -1625,7 +1643,7 @@ begin
     #Tp mii_read_req(phy_addr, reg_addr);
     check_mii_busy; // wait for read to finish
     // read data
-    #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if (phy_data !== 16'h7DFF)
     begin
       test_fail("Data was not correctly written into OR read from writable PHY register - control register");
@@ -1638,7 +1656,7 @@ begin
     #Tp mii_read_req(phy_addr, reg_addr);
     check_mii_busy; // wait for read to finish
     // read data
-    #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if (phy_data !== tmp_data)
     begin
       test_fail("Data was not correctly written into OR read from writable PHY register - control register");
@@ -1672,7 +1690,7 @@ begin
     #Tp mii_read_req(phy_addr, reg_addr);
     check_mii_busy; // wait for read to finish
     // read data
-    #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if (phy_data !== tmp_data)
     begin
       test_fail("Data was not correctly written into OR read from writable PHY register - control register");
@@ -1687,7 +1705,7 @@ begin
     #Tp mii_read_req(phy_addr, reg_addr);
     check_mii_busy; // wait for read to finish
     // read data
-    #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // check self clearing of reset bit
     if (tmp_data[15] !== 1'b0)
     begin
@@ -1740,7 +1758,7 @@ begin
         #Tp mii_read_req(phy_addr, reg_addr);
         check_mii_busy; // wait for read to finish
         // read data
-        #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         #Tp;
         if (phy_data !== tmp_data)
         begin
@@ -1799,7 +1817,7 @@ begin
         #Tp mii_read_req(phy_addr, reg_addr);
         check_mii_busy; // wait for read to finish
         // read data
-        #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         #Tp;
         if (phy_data !== tmp_data)
         begin
@@ -1858,7 +1876,7 @@ begin
         #Tp mii_read_req(phy_addr, reg_addr);
         check_mii_busy; // wait for read to finish
         // read data
-        #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         #Tp;
         if (phy_data !== tmp_data)
         begin
@@ -1902,7 +1920,7 @@ begin
     check_mii_busy; // wait for read to finish
     // read data
     $display("  => Two errors will be displayed from WB Bus Monitor, because correct HIGH Z data was read");
-    #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if (tmp_data !== 16'hzzzz)
     begin
       test_fail("Data was read from PHY register with wrong PHY address - control register");
@@ -1940,7 +1958,7 @@ begin
     #Tp mii_read_req(phy_addr, reg_addr);
     check_mii_busy; // wait for read to finish
     // read data
-    #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if (phy_data === tmp_data)
     begin
       test_fail("Data was written into PHY register with wrong PHY address - control register");
@@ -2045,7 +2063,7 @@ begin
             #Tp mii_read_req(phy_addr, reg_addr);
             check_mii_busy; // wait for read to finish
             // read and check data
-            #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if (phy_data !== tmp_data)
             begin
               test_fail("Data was not correctly written into OR read from PHY register - control register");
@@ -2067,7 +2085,7 @@ begin
             @(posedge Mdc_O);
             check_mii_busy; // wait for read to finish
             // read and check data
-            #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if (phy_data !== tmp_data)
             begin
               test_fail("Data was not correctly written into OR read from PHY register - control register");
@@ -2225,7 +2243,7 @@ begin
             #Tp mii_read_req(phy_addr, reg_addr);
             check_mii_busy; // wait for read to finish
             // read and check data
-            #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data , 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIIRX_DATA, tmp_data , 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if (phy_data !== tmp_data)
             begin
               test_fail("Data was not correctly written into OR read from PHY register - control register");
@@ -2247,7 +2265,7 @@ begin
             @(posedge Mdc_O);
             check_mii_busy; // wait for read to finish
             // read and check data
-            #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data , 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIIRX_DATA, tmp_data , 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if (phy_data !== tmp_data)
             begin
               test_fail("Data was not correctly written into OR read from PHY register - control register");
@@ -2344,7 +2362,7 @@ begin
       // write request
       #Tp mii_write_req(phy_addr, reg_addr, 16'h5A5A);
       // read data from MII status register - Busy and Nvalid bits
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
       // check MII IO signal and Busy and Nvalid bits
       if (Mdio_IO !== 1'bz) // Mdio_IO should be HIGH Z here - testbench selfcheck
@@ -2387,7 +2405,7 @@ begin
         repeat(64) @(posedge Mdc_O);
       end
       // read data from MII status register - Busy and Nvalid bits
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
       // check MII IO signal and Busy and Nvalid bits
       if (Mdio_IO === 1'bz) // Mdio_IO should not be HIGH Z here - testbench selfcheck
@@ -2421,7 +2439,7 @@ begin
       // wait for next negative clock edge
       @(negedge Mdc_O);
       // read data from MII status register - Busy and Nvalid bits
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
       // check MII IO signal and Busy and Nvalid bits
       if (Mdio_IO !== 1'bz) // Mdio_IO should be HIGH Z here - testbench selfcheck
@@ -2459,7 +2477,7 @@ begin
         // wait for next positive clock edge
         @(posedge Mdc_O);
         // read data from MII status register - Busy and Nvalid bits
-        #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
         // check MII IO signal and Busy and Nvalid bits
         if (Mdio_IO !== 1'bz) // Mdio_IO should be HIGH Z here - testbench selfcheck
@@ -2542,7 +2560,7 @@ begin
       // read request
       #Tp mii_read_req(phy_addr, reg_addr);
       // read data from MII status register - Busy and Nvalid bits
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
       // check MII IO signal and Busy and Nvalid bits
       if (Mdio_IO !== 1'bz) // Mdio_IO should be HIGH Z here - testbench selfcheck
@@ -2587,7 +2605,7 @@ begin
       // wait for next negative clock edge
       @(negedge Mdc_O);
       // read data from MII status register - Busy and Nvalid bits
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
       // check MII IO signal and Busy and Nvalid bits
       if (Mdio_IO === 1'bz) // Mdio_IO should not be HIGH Z here - testbench selfcheck
@@ -2621,7 +2639,7 @@ begin
       // wait for next positive clock edge
       @(posedge Mdc_O);
       // read data from MII status register - Busy and Nvalid bits
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
       // check MII IO signal and Busy and Nvalid bits
       if (Mdio_IO !== 1'bz) // Mdio_IO should be HIGH Z here - testbench selfcheck
@@ -2659,7 +2677,7 @@ begin
         // wait for next positive clock edge
         @(posedge Mdc_O);
         // read data from MII status register - Busy and Nvalid bits
-        #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
         // check MII IO signal and Busy and Nvalid bits
         if (Mdio_IO !== 1'bz) // Mdio_IO should be HIGH Z here - testbench selfcheck
@@ -2742,7 +2760,7 @@ begin
       // scan request
       #Tp mii_scan_req(phy_addr, reg_addr);
       // read data from MII status register - Busy and Nvalid bits
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
       // check MII IO signal and Busy and Nvalid bits
       if (Mdio_IO !== 1'bz) // Mdio_IO should be HIGH Z here - testbench selfcheck
@@ -2790,7 +2808,7 @@ begin
       // wait for next positive clock edge
       repeat(10) @(posedge Mdc_O);
       // read data from MII status register - Busy and Nvalid bits
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
       // check MII IO signal and Busy and Nvalid bits
       if (Mdio_IO === 1'bz) // Mdio_IO should not be HIGH Z here - testbench selfcheck
@@ -2820,7 +2838,7 @@ begin
       // wait for next negative clock edge
       @(negedge Mdc_O);
       // read data from MII status register - Busy and Nvalid bits
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
       // check MII IO signal and Busy and Nvalid bits
       if (Mdio_IO === 1'bz) // Mdio_IO should not be HIGH Z here - testbench selfcheck
@@ -2850,7 +2868,7 @@ begin
       // wait for next negative clock edge
       @(posedge Mdc_O);
       // read data from MII status register - Busy and Nvalid bits
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
       // check MII IO signal and Busy and Nvalid bits
       if (Mdio_IO !== 1'bz) // Mdio_IO should be HIGH Z here - testbench selfcheck
@@ -2891,7 +2909,7 @@ begin
         // wait for next positive clock edge
         @(posedge Mdc_O);
         // read data from MII status register - Busy and Nvalid bits
-        #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
         // check MII IO signal and Busy and Nvalid bits
         if (Mdio_IO !== 1'bz) // Mdio_IO should be HIGH Z here - testbench selfcheck
@@ -2984,7 +3002,7 @@ begin
     #Tp mii_read_req(phy_addr, reg_addr);
     check_mii_busy; // wait for read to finish
     // read data from PHY status register - remember LINK-UP status
-    #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
     for (i = 0; i <= 1; i = i + 1)
     begin
@@ -3006,14 +3024,14 @@ begin
       begin 
         repeat(2) @(posedge Mdc_O);
         // read data from PHY status register
-        #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         if (phy_data !== tmp_data)
         begin
           test_fail("Data was not correctly scaned from status register");
           fail = fail + 1;
         end
         // read data from MII status register
-        #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         if (phy_data[0] !== 1'b0)
         begin
           test_fail("Link FAIL bit was set in the MII status register");
@@ -3057,14 +3075,14 @@ begin
         begin
           repeat(2) @(posedge Mdc_O);
           // read data from PHY status register
-          #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+          wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
           if (phy_data !== tmp_data)
           begin
             test_fail("Data was not correctly scaned from status register");
             fail = fail + 1;
           end
           // read data from MII status register
-          #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+          wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
           if (phy_data[0] !== 1'b0)
           begin
             test_fail("Link FAIL bit was set in the MII status register");
@@ -3115,14 +3133,14 @@ begin
       begin
         repeat(2) @(posedge Mdc_O);
         // read data from PHY status register
-        #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         if (phy_data !== tmp_data)
         begin
           test_fail("Data was not correctly scaned from status register");
           fail = fail + 1;
         end
         // read data from MII status register
-        #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         if (phy_data[0] === 1'b0)
         begin
           test_fail("Link FAIL bit was not set in the MII status register");
@@ -3131,14 +3149,14 @@ begin
         // wait to see if data stayed latched
         repeat(4) @(posedge Mdc_O);
         // read data from PHY status register
-        #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         if (phy_data !== tmp_data)
         begin
           test_fail("Data was not latched correctly in status register");
           fail = fail + 1;
         end
         // read data from MII status register
-        #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         if (phy_data[0] === 1'b0)
         begin
           test_fail("Link FAIL bit was not set in the MII status register");
@@ -3164,14 +3182,14 @@ begin
   
       @(posedge Mdc_O);
       // read data from PHY status register
-      #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if (phy_data !== tmp_data)
       begin
         test_fail("Data was not correctly scaned from status register");
         fail = fail + 1;
       end
       // read data from MII status register
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if (phy_data[0] !== 1'b0)
       begin
         test_fail("Link FAIL bit was set in the MII status register");
@@ -3180,14 +3198,14 @@ begin
       // wait to see if data stayed latched
       repeat(4) @(posedge Mdc_O);
       // read data from PHY status register
-      #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if (phy_data !== tmp_data)
       begin
         test_fail("Data was not correctly scaned from status register");
         fail = fail + 1;
       end
       // read data from MII status register
-      #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if (phy_data[0] !== 1'b0)
       begin
         test_fail("Link FAIL bit was set in the MII status register");
@@ -3229,7 +3247,7 @@ begin
     #Tp mii_read_req(phy_addr, reg_addr);
     check_mii_busy; // wait for read to finish
     // read data from PHY status register - remember LINK-UP status
-    #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
     for (i2 = 0; i2 <= 1; i2 = i2 + 1) // choose preamble or not
     begin
@@ -3257,14 +3275,14 @@ begin
         begin
           repeat(4) @(posedge Mdc_O);
           // read data from PHY status register
-          #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+          wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
           if (phy_data !== tmp_data)
           begin
             test_fail("Second data was not correctly scaned from status register");
             fail = fail + 1;
           end
           // read data from MII status register
-          #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+          wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
           if (phy_data[0] !== 1'b0)
           begin
             test_fail("Link FAIL bit was set in the MII status register");
@@ -3319,7 +3337,7 @@ begin
               wait (cnt == 64);
             repeat(3) @(posedge Mdc_O);
             // read data from PHY status register
-            #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if ( ((i < 49) && !i2) || ((i < 17) && i2) )
             begin
               if (phy_data !== (tmp_data & 16'hFFFB)) // bit 3 is ZERO
@@ -3337,7 +3355,7 @@ begin
               end
             end
             // read data from MII status register
-            #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if ( ((i < 49) && !i2) || ((i < 17) && i2) )
             begin
               if (phy_data[0] === 1'b0)
@@ -3395,14 +3413,14 @@ begin
         begin
           repeat(2) @(posedge Mdc_O);
           // read data from PHY status register
-          #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+          wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
           if (phy_data !== (tmp_data & 16'hFFFB)) // bit 3 is ZERO
           begin
             test_fail("4. data was not correctly scaned from status register");
             fail = fail + 1;
           end
           // read data from MII status register
-          #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+          wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
           if (phy_data[0] === 1'b0)
           begin
             test_fail("Link FAIL bit was not set in the MII status register");
@@ -3458,7 +3476,7 @@ begin
               wait (cnt == 64);
             repeat(3) @(posedge Mdc_O);
             // read data from PHY status register
-            #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if ( ((i < 49) && !i2) || ((i < 17) && i2) )
             begin
               if (phy_data !== tmp_data) 
@@ -3476,7 +3494,7 @@ begin
               end
             end
             // read data from MII status register
-            #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if ( ((i < 49) && !i2) || ((i < 17) && i2) )
             begin
               if (phy_data[0] !== 1'b0)
@@ -3530,14 +3548,14 @@ begin
         // check last scan 
         repeat(4) @(posedge Mdc_O);
         // read data from PHY status register
-        #Tp wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIIRX_DATA, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         if (phy_data !== tmp_data)
         begin
           test_fail("7. data was not correctly scaned from status register");
           fail = fail + 1;
         end
         // read data from MII status register
-        #Tp wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wbm_read(`ETH_MIISTATUS, phy_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         if (phy_data[0] !== 1'b0)
         begin
           test_fail("Link FAIL bit was set in the MII status register");
@@ -3709,7 +3727,7 @@ begin
             #Tp mii_read_req(phy_addr, reg_addr);
             check_mii_busy; // wait for read to finish
             // read and check data
-            #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if (phy_data !== tmp_data)
             begin
               test_fail("Data was not correctly written into OR read from PHY register - control register");
@@ -3731,7 +3749,7 @@ begin
             @(posedge Mdc_O);
             check_mii_busy; // wait for read to finish
             // read and check data
-            #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if (phy_data !== tmp_data)
             begin
               test_fail("Data was not correctly written into OR read from PHY register - control register");
@@ -3974,7 +3992,7 @@ begin
             #Tp mii_read_req(phy_addr, reg_addr);
             check_mii_busy; // wait for read to finish
             // read and check data
-            #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if (phy_data !== tmp_data)
             begin
               test_fail("Data was not correctly written into OR read from PHY register - control register");
@@ -3996,7 +4014,7 @@ begin
             @(posedge Mdc_O);
             check_mii_busy; // wait for read to finish
             // read and check data
-            #Tp wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
             if (phy_data !== tmp_data)
             begin
               test_fail("Data was not correctly written into OR read from PHY register - control register");
@@ -4103,6 +4121,7 @@ task test_mac_full_duplex_transmit;
   reg    [ 7:0]  st_data;
   reg    [15:0]  max_tmp;
   reg    [15:0]  min_tmp;
+  integer        a, b, c;
 begin
 // MAC FULL DUPLEX TRANSMIT TEST
 test_heading("MAC FULL DUPLEX TRANSMIT TEST");
@@ -4113,8 +4132,8 @@ fail = 0;
 // reset MAC registers
 hard_reset;
 // reset MAC and MII LOGIC with soft reset
-reset_mac;
-reset_mii;
+//reset_mac;
+//reset_mii;
 // set wb slave response
 wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -4202,8 +4221,10 @@ begin
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // set all buffer descriptors to RX - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
@@ -4252,6 +4273,7 @@ begin
         end
         @(posedge wb_clk);
       end
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if (tmp[6:0] !== 0)
       begin
@@ -4266,6 +4288,7 @@ begin
         i = i + 120;
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if(fail == 0)
@@ -4287,11 +4310,14 @@ begin
     `TIME; $display("  TEST 1: NO TRANSMIT WHEN ALL BUFFERS ARE RX ( 100Mbps )");
   
     // unmask interrupts
+    wait (wbm_working == 0);
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // set all buffer descriptors to RX - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
   
@@ -4340,6 +4366,7 @@ begin
         end
         @(posedge wb_clk);
       end
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if (tmp[6:0] !== 0)
       begin
@@ -4354,6 +4381,7 @@ begin
         i = i + 120;
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if(fail == 0)
@@ -4378,11 +4406,14 @@ begin
     max_tmp = 0;
     min_tmp = 0;
     // set one TX buffer descriptor - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h1, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, NO padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -4412,6 +4443,7 @@ begin
         // enable interrupt generation
         set_tx_bd(0, 0, i_length, 1'b1, 1'b1, 1'b1, (`MEMORY_BASE + i_length[1:0]));
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -4423,6 +4455,7 @@ begin
         // enable interrupt generation
         set_tx_bd(0, 0, i_length, 1'b1, 1'b1, 1'b1, ((`MEMORY_BASE + i_length[1:0]) + max_tmp));
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -4433,6 +4466,7 @@ begin
         // disable interrupt generation
         set_tx_bd(0, 0, i_length, 1'b0, 1'b1, 1'b1, (`MEMORY_BASE + i_length[1:0]));
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -4444,6 +4478,7 @@ begin
         // disable interrupt generation
         set_tx_bd(0, 0, i_length, 1'b0, 1'b1, 1'b1, ((`MEMORY_BASE + i_length[1:0]) + max_tmp));
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -4455,6 +4490,8 @@ begin
       set_tx_bd_wrap(0);
       set_tx_bd_ready(0, 0);
       #1 check_tx_bd(0, data);
+
+
       if (i_length < min_tmp) // just first four
       begin
         while (data[15] === 1)
@@ -4498,6 +4535,9 @@ begin
         end
         repeat (1) @(posedge wb_clk);
       end
+
+      repeat(5) @(posedge mtx_clk);  // Wait some time so PHY stores the CRC igor
+
       // check length of a PACKET
       if (eth_phy.tx_len != (i_length + 4))
       begin
@@ -4523,6 +4563,7 @@ begin
         end
         // check transmited TX packet CRC
         check_tx_crc(max_tmp, i_length, 1'b0, tmp); // length without CRC
+
         if (tmp > 0)
         begin
           test_fail("Wrong CRC of the transmitted packet");
@@ -4571,6 +4612,7 @@ begin
       // clear TX buffer descriptor
       clear_tx_bd(0, 0);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1))
       begin
@@ -4597,6 +4639,7 @@ begin
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -4612,6 +4655,7 @@ begin
         $display("    ->packets with lengths from %0d (MINFL) to %0d are checked (length increasing by 1 byte)",
                  min_tmp, (min_tmp + 64));
         // set padding, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       end
@@ -4622,6 +4666,7 @@ begin
         $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 128 bytes)",
                  (min_tmp + 64 + 128), tmp_data); 
         // reset padding, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       end
@@ -4650,6 +4695,7 @@ begin
       end
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if(fail == 0)
@@ -4674,11 +4720,14 @@ begin
     max_tmp = 0;
     min_tmp = 0;
     // set one TX buffer descriptor - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h1, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, NO padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -4708,6 +4757,7 @@ begin
         // enable interrupt generation
         set_tx_bd(0, 0, i_length, 1'b1, 1'b1, 1'b1, (`MEMORY_BASE + i_length[1:0]));
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -4719,6 +4769,7 @@ begin
         // enable interrupt generation
         set_tx_bd(0, 0, i_length, 1'b1, 1'b1, 1'b1, ((`MEMORY_BASE + i_length[1:0]) + max_tmp));
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -4729,6 +4780,7 @@ begin
         // disable interrupt generation
         set_tx_bd(0, 0, i_length, 1'b0, 1'b1, 1'b1, (`MEMORY_BASE + i_length[1:0]));
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -4740,6 +4792,7 @@ begin
         // disable interrupt generation
         set_tx_bd(0, 0, i_length, 1'b0, 1'b1, 1'b1, ((`MEMORY_BASE + i_length[1:0]) + max_tmp));
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -4863,6 +4916,7 @@ begin
       // clear TX buffer descriptor
       clear_tx_bd(0, 0);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1))
       begin
@@ -4889,6 +4943,7 @@ begin
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -4904,6 +4959,7 @@ begin
         $display("    ->packets with lengths from %0d (MINFL) to %0d are checked (length increasing by 1 byte)",
                  min_tmp, (min_tmp + 64));
         // set padding, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       end
@@ -4914,6 +4970,7 @@ begin
         $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 128 bytes)",
                  (min_tmp + 64 + 128), tmp_data); 
         // reset padding, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       end
@@ -4942,6 +4999,7 @@ begin
       end
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if(fail == 0)
@@ -4966,8 +5024,8 @@ begin
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -4976,11 +5034,14 @@ begin
     num_of_frames = 0;
     num_of_bd = 0;
     // set maximum TX buffer descriptors (128) - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h80, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, NO padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -5009,6 +5070,7 @@ begin
       begin
         // Reset_tx_bd nable interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -5019,6 +5081,7 @@ begin
       begin
         // set_tx_bd enable interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -5028,6 +5091,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -5038,6 +5102,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -5270,6 +5335,7 @@ begin
       if (num_of_frames == 140)
         clear_tx_bd(127, 127);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1))
       begin
@@ -5296,6 +5362,7 @@ begin
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -5313,6 +5380,7 @@ begin
                  min_tmp, (min_tmp + 7));
         $display("    ->all packets were send from TX BD 0");
         // set padding, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       end
@@ -5327,6 +5395,7 @@ begin
                  1'b0, num_of_bd);
         tmp_bd = num_of_bd + 1;
         // set padding, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       end
@@ -5345,6 +5414,7 @@ begin
                    tmp_bd, num_of_bd);
         tmp_bd = num_of_bd + 1;
         // reset padding, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       end
@@ -5388,6 +5458,7 @@ begin
         num_of_bd = num_of_bd + 1;
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -5413,8 +5484,8 @@ begin
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -5423,11 +5494,14 @@ begin
     num_of_frames = 0;
     num_of_bd = 0;
     // set maximum TX buffer descriptors (128) - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h80, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, NO padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -5456,6 +5530,7 @@ begin
       begin
         // Reset_tx_bd nable interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -5466,6 +5541,7 @@ begin
       begin
         // set_tx_bd enable interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -5475,6 +5551,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -5485,6 +5562,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -5718,6 +5796,7 @@ begin
       if (num_of_frames == 140)
         clear_tx_bd(127, 127);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1))
       begin
@@ -5744,6 +5823,7 @@ begin
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -5761,6 +5841,7 @@ begin
                  min_tmp, (min_tmp + 7));
         $display("    ->all packets were send from TX BD 0");
         // set padding, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       end
@@ -5775,6 +5856,7 @@ begin
                  1'b0, num_of_bd);
         tmp_bd = num_of_bd + 1;
         // set padding, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       end
@@ -5793,6 +5875,7 @@ begin
                    tmp_bd, num_of_bd);
         tmp_bd = num_of_bd + 1;
         // reset padding, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       end
@@ -5836,6 +5919,7 @@ begin
         num_of_bd = num_of_bd + 1;
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -5861,19 +5945,22 @@ begin
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
     max_tmp = 0;
     min_tmp = 0;
     // set 8 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h8, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_PAD | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -5906,6 +5993,7 @@ begin
       begin
         // Reset_tx_bd nable interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -5916,6 +6004,7 @@ begin
       begin
         // set_tx_bd enable interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -5925,6 +6014,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -5935,6 +6025,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -6221,6 +6312,7 @@ begin
       if (num_of_frames == 63)
         clear_tx_bd(16, 16);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ( ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1)) && (num_of_frames >= 5) )
       begin
@@ -6247,6 +6339,7 @@ begin
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -6312,6 +6405,7 @@ begin
         num_of_bd = num_of_bd + 1;
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -6337,19 +6431,22 @@ begin
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
     max_tmp = 0;
     min_tmp = 0;
     // set 8 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h8, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_PAD | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -6382,6 +6479,7 @@ begin
       begin
         // Reset_tx_bd nable interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -6392,6 +6490,7 @@ begin
       begin
         // set_tx_bd enable interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -6401,6 +6500,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -6411,6 +6511,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -6569,7 +6670,7 @@ begin
         frame_started = 1;
       end
       begin
-        repeat (30) @(posedge mtx_clk);
+        repeat (50) @(posedge mtx_clk);     // Increased from 30 to 50 igor
         if (num_of_frames < 5)
         begin
           if (frame_started == 1)
@@ -6697,6 +6798,7 @@ begin
       if (num_of_frames == 63)
         clear_tx_bd(16, 16);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ( ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1)) && (num_of_frames >= 5) )
       begin
@@ -6723,6 +6825,7 @@ begin
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -6809,24 +6912,27 @@ begin
     // TEST 8: TRANSMIT PACKETS (NO PADs) FROM 0 TO (MINFL - 1) SIZES AT 8 TX BD ( 10Mbps )
     test_name = "TEST 8: TRANSMIT PACKETS (NO PADs) FROM 0 TO (MINFL - 1) SIZES AT 8 TX BD ( 10Mbps )";
     `TIME; $display("  TEST 8: TRANSMIT PACKETS (NO PADs) FROM 0 TO (MINFL - 1) SIZES AT 8 TX BD ( 10Mbps )");
-  
+$display("(%0t) tu smo zdaj", $time);  
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
     max_tmp = 0;
     min_tmp = 0;
     // set 8 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h8, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, padding and CRC appending
+    wait (wbm_working == 0);
 //    wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_PAD | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -6859,6 +6965,7 @@ begin
       begin
         // Reset_tx_bd nable interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -6869,6 +6976,7 @@ begin
       begin
         // set_tx_bd enable interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -6878,6 +6986,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -6888,6 +6997,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -6910,10 +7020,24 @@ begin
           tmp_bd_num = 0; // TX BD number
           // if i_length[1] == 0 then enable interrupt generation otherwise disable it
           // if i_length[0] == 0 then base address is `MEMORY_BASE otherwise it is `MEMORY_BASE + max_tmp
+
+/*
+  input  [6:0]  tx_bd_num_start;
+  input  [6:0]  tx_bd_num_end;
+  input  [15:0] len;
+  input         irq;
+  input         pad;
+  input         crc;
+  input  [31:0] txpnt;
+*/
+
+
           if (tmp_len[0] == 0) // CRC appended by 'HARDWARE'
-            set_tx_bd(tmp_bd_num, tmp_bd_num, tmp_len, !tmp_len[1], 1'b0, 1'b1, `MEMORY_BASE);
+//            set_tx_bd(tmp_bd_num, tmp_bd_num, tmp_len, !tmp_len[1], 1'b0, 1'b1, `MEMORY_BASE);
+            set_tx_bd(tmp_bd_num, tmp_bd_num, tmp_len, 1'b1, 1'b0, !tmp_len[1], `MEMORY_BASE);
           else
-            set_tx_bd(tmp_bd_num, tmp_bd_num, tmp_len, !tmp_len[1], 1'b0, 1'b1, (`MEMORY_BASE + max_tmp));
+//            set_tx_bd(tmp_bd_num, tmp_bd_num, tmp_len, !tmp_len[1], 1'b0, 1'b1, (`MEMORY_BASE + max_tmp));
+            set_tx_bd(tmp_bd_num, tmp_bd_num, tmp_len, 1'b1, 1'b0, !tmp_len[1], (`MEMORY_BASE + max_tmp));
           // set wrap bit
           set_tx_bd_wrap(0);
         end
@@ -7094,22 +7218,37 @@ begin
           @(posedge wb_clk);
         end
         repeat (1) @(posedge wb_clk);
+
+$display("(%0t) 1eth_phy.tx_len = 0x%0x, i_length = 0x%0x", $time, eth_phy.tx_len, i_length);
+$display("(%0t) 1num_of_frames = 0x%0x", $time, num_of_frames);
+
         // check length of a PACKET 
-        if ((eth_phy.tx_len != i_length) && (i_length[0] == 1'b0) && (num_of_frames >= 6))
+        if ((eth_phy.tx_len != i_length) && (i_length[0] == 1'b0) && (num_of_frames >= 6))    // (num_of_frames >= 6) igor
+//        if ((a !== b) && (b[0] == 1'b0) && (c >= 6))
         begin
           `TIME; $display("*E Wrong length of the packet out from MAC");
           test_fail("Wrong length of the packet out from MAC");
           fail = fail + 1;
         end
-        else if ((eth_phy.tx_len != (i_length + 4)) && (num_of_frames != 23))
+        else if ((eth_phy.tx_len != (i_length + 4)) && (num_of_frames != 23))   // i_length + 4 igor
         begin
-          `TIME; $display("*E Wrong length of the packet out from MAC");
+          `TIME; $display("*E Wrong length of the packet out from MAC yyy");
           test_fail("Wrong length of the packet out from MAC");
           fail = fail + 1;
+$display("(%0t) 2eth_phy.tx_len = 0x%0x, i_length = 0x%0x", $time, eth_phy.tx_len, i_length);
+$display("(%0t) 2num_of_frames = 0x%0x", $time, num_of_frames);
+//a = eth_phy.tx_len;
+//b = i_length;
+//c = num_of_frames;
+//#1;
+//$display("(%0t) 2eth_phy.tx_len = 0x%0x, i_length = 0x%0x", $time, eth_phy.tx_len, i_length);
+//$display("(%0t) 2num_of_frames = 0x%0x", $time, num_of_frames);
+//$display("(%0t) 3eth_phy.tx_len = 0x%0x, i_length = 0x%0x", $time, eth_phy.tx_len, i_length);
+//$display("(%0t) 3num_of_frames = 0x%0x", $time, num_of_frames);
         end
         else if ((eth_phy.tx_len != (min_tmp)) && (num_of_frames == 23))
         begin
-          `TIME; $display("*E Wrong length of the packet out from MAC");
+          `TIME; $display("*E Wrong length of the packet out from MAC zzz");
           test_fail("Wrong length of the packet out from MAC");
           fail = fail + 1;
         end
@@ -7231,6 +7370,7 @@ begin
       if (num_of_frames == 63)
         clear_tx_bd(16, 16);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ( ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1)) && (num_of_frames >= 5) )
       begin
@@ -7257,6 +7397,7 @@ begin
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -7267,7 +7408,7 @@ begin
       // INTERMEDIATE DISPLAYS
       if (i_length == 3)
       begin
-        $display("    pads appending to packets is selected");
+        $display("    pads appending to packets is selected");  // Is this line OK? Do we have PADS? igor
         $display("    using 1 BD out of 8 BDs assigned to TX (wrap at 1st BD - TX BD 0)");
         $display("    ->packets with lengths from %0d to %0d are not transmitted (length increasing by 1 byte)",
                  0, 3);
@@ -7322,6 +7463,7 @@ begin
         num_of_bd = num_of_bd + 1;
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -7347,19 +7489,22 @@ begin
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
     max_tmp = 0;
     min_tmp = 0;
     // set 8 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h8, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_PAD | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -7392,6 +7537,7 @@ begin
       begin
         // Reset_tx_bd nable interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -7402,6 +7548,7 @@ begin
       begin
         // set_tx_bd enable interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -7411,6 +7558,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -7421,6 +7569,7 @@ begin
       begin
         // set_tx_bd disable the interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.carrier_sense_tx_fd_detect(1);
@@ -7694,6 +7843,7 @@ begin
       if (num_of_frames == 63)
         clear_tx_bd(16, 16);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ( ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1)) && (num_of_frames >= 5) )
       begin
@@ -7720,6 +7870,7 @@ begin
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -7785,6 +7936,7 @@ begin
         num_of_bd = num_of_bd + 1;
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -7810,8 +7962,8 @@ begin
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -7820,11 +7972,14 @@ begin
     num_of_frames = 0;
     num_of_bd = 0;
     // set 13 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'hD, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, NO padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare a packet of MAXFL + 10 length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -7852,6 +8007,7 @@ $display("   i_length = %0d", i_length);
 //      begin
         // Reset_tx_bd nable interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -7862,6 +8018,7 @@ $display("   i_length = %0d", i_length);
 //      begin
         // set_tx_bd enable interrupt generation
         // mask interrupts
+//        wait (wbm_working == 0);
 //        wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
 //        eth_phy.carrier_sense_tx_fd_detect(1);
@@ -7871,6 +8028,7 @@ $display("   i_length = %0d", i_length);
 //      begin
         // set_tx_bd disable the interrupt generation
         // unmask interrupts
+//        wait (wbm_working == 0);
 //        wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
 //                                 `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -7881,6 +8039,7 @@ $display("   i_length = %0d", i_length);
 //      begin
         // set_tx_bd disable the interrupt generation
         // mask interrupts
+//        wait (wbm_working == 0);
 //        wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
 //        eth_phy.carrier_sense_tx_fd_detect(1);
@@ -8028,6 +8187,7 @@ if ( ((data[15:0] !== 16'h7800) && (num_of_bd == 2)) || // wrap bit
 //      if (num_of_frames < 4)
 //        clear_tx_bd((i_length - (max_tmp - 8)), (i_length - (max_tmp - 8)));
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
 //      if ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1))
 //      begin
@@ -8054,6 +8214,7 @@ if ( ((data[15:0] !== 16'h7800) && (num_of_bd == 2)) || // wrap bit
 //        end
 //      end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -8076,6 +8237,7 @@ else if (num_of_bd == 2)
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -8101,8 +8263,8 @@ else if (num_of_bd == 2)
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -8111,11 +8273,14 @@ else if (num_of_bd == 2)
     num_of_frames = 0;
     num_of_bd = 0;
     // set 13 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'hD, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, NO padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare a packet of MAXFL + 10 length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -8139,6 +8304,7 @@ else if (num_of_bd == 2)
       $display("   i_length = %0d", i_length);
       // Reset_tx_bd nable interrupt generation
       // unmask interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // not detect carrier sense in FD and no collision
@@ -8215,6 +8381,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((data & `ETH_INT_TXB) !== 1'b1)
       begin
@@ -8229,6 +8396,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -8251,6 +8419,7 @@ else if (num_of_bd == 2)
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -8276,8 +8445,8 @@ else if (num_of_bd == 2)
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -8286,18 +8455,22 @@ else if (num_of_bd == 2)
     num_of_frames = 0;
     num_of_bd = 0;
     // set 47 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h2F, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare a packet of MAXFL + 10 length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
     // change MAXFL value
     max_tmp = min_tmp + 53;
+    wait (wbm_working == 0);
     wbm_write(`ETH_PACKETLEN, {min_tmp, max_tmp}, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     st_data = 8'h62;
     set_tx_packet(`MEMORY_BASE, max_tmp, st_data); // length with CRC
     append_tx_crc(`MEMORY_BASE, (max_tmp - 5), 1'b0); // for first packet
     // enable TX, set full-duplex mode, NO padding and NO CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // check WB INT signal
@@ -8321,6 +8494,7 @@ else if (num_of_bd == 2)
         append_tx_crc(`MEMORY_BASE, (max_tmp - 4), 1'b0); // for second and third packets
       // Reset_tx_bd nable interrupt generation
       // unmask interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // not detect carrier sense in FD and no collision
@@ -8397,6 +8571,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((data & `ETH_INT_TXB) !== 1'b1)
       begin
@@ -8411,6 +8586,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -8433,6 +8609,7 @@ else if (num_of_bd == 2)
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -8458,8 +8635,8 @@ else if (num_of_bd == 2)
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -8468,18 +8645,22 @@ else if (num_of_bd == 2)
     num_of_frames = 0;
     num_of_bd = 0;
     // set 47 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h2F, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare a packet of MAXFL + 10 length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
     // change MAXFL value
     max_tmp = min_tmp + 53;
+    wait (wbm_working == 0);
     wbm_write(`ETH_PACKETLEN, {min_tmp, max_tmp}, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     st_data = 8'h62;
     set_tx_packet(`MEMORY_BASE, max_tmp, st_data); // length with CRC
     append_tx_crc(`MEMORY_BASE, (max_tmp - 5), 1'b0); // for first packet
     // enable TX, set full-duplex mode, NO padding and NO CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // check WB INT signal
@@ -8503,6 +8684,7 @@ else if (num_of_bd == 2)
         append_tx_crc(`MEMORY_BASE, (max_tmp - 4), 1'b0); // for second and third packets
       // Reset_tx_bd nable interrupt generation
       // unmask interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // not detect carrier sense in FD and no collision
@@ -8579,6 +8761,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((data & `ETH_INT_TXB) !== 1'b1)
       begin
@@ -8593,6 +8776,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -8615,6 +8799,7 @@ else if (num_of_bd == 2)
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -8640,8 +8825,8 @@ else if (num_of_bd == 2)
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -8650,17 +8835,21 @@ else if (num_of_bd == 2)
     num_of_frames = 0;
     num_of_bd = 0;
     // set 7 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h7, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare a packet of MAXFL + 10 length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
     // change MINFL value
     min_tmp = max_tmp - 177;
+    wait (wbm_working == 0);
     wbm_write(`ETH_PACKETLEN, {min_tmp, max_tmp}, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     st_data = 8'h62;
     set_tx_packet(`MEMORY_BASE, min_tmp, st_data); // length without CRC
     // enable TX, set full-duplex mode, padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_PAD | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // check WB INT signal
@@ -8681,6 +8870,7 @@ else if (num_of_bd == 2)
       $display("   i_length = %0d", i_length);
       // Reset_tx_bd nable interrupt generation
       // unmask interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // not detect carrier sense in FD and no collision
@@ -8757,6 +8947,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((data & `ETH_INT_TXB) !== 1'b1)
       begin
@@ -8771,6 +8962,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -8793,6 +8985,7 @@ else if (num_of_bd == 2)
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -8818,8 +9011,8 @@ else if (num_of_bd == 2)
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -8828,17 +9021,21 @@ else if (num_of_bd == 2)
     num_of_frames = 0;
     num_of_bd = 0;
     // set 7 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h7, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare a packet of MAXFL + 10 length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
     // change MINFL value
     min_tmp = max_tmp - 177;
+    wait (wbm_working == 0);
     wbm_write(`ETH_PACKETLEN, {min_tmp, max_tmp}, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     st_data = 8'h62;
     set_tx_packet(`MEMORY_BASE, min_tmp, st_data); // length without CRC
     // enable TX, set full-duplex mode, padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_PAD | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // check WB INT signal
@@ -8859,6 +9056,7 @@ else if (num_of_bd == 2)
       $display("   i_length = %0d", i_length);
       // Reset_tx_bd nable interrupt generation
       // unmask interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // not detect carrier sense in FD and no collision
@@ -8935,6 +9133,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((data & `ETH_INT_TXB) !== 1'b1)
       begin
@@ -8949,6 +9148,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -8971,6 +9171,7 @@ else if (num_of_bd == 2)
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -8996,8 +9197,8 @@ else if (num_of_bd == 2)
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -9006,14 +9207,17 @@ else if (num_of_bd == 2)
     num_of_frames = 0;
     num_of_bd = 0;
     // set 19 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h13, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare a packet of 64k - 1 length (16'hFFFF)
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
     st_data = 8'h8D;
     set_tx_packet(`MEMORY_BASE, 16'hFFFF, st_data); // length with CRC
     // enable TX, set full-duplex mode, NO padding, CRC appending and huge enabled
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN | `ETH_MODER_HUGEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // check WB INT signal
@@ -9034,6 +9238,7 @@ else if (num_of_bd == 2)
       $display("   i_length = %0d", i_length);
       // Reset_tx_bd nable interrupt generation
       // unmask interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // not detect carrier sense in FD and no collision
@@ -9116,6 +9321,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((data & `ETH_INT_TXB) !== 1'b1)
       begin
@@ -9130,6 +9336,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -9150,6 +9357,7 @@ else if (num_of_bd == 2)
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -9175,8 +9383,8 @@ else if (num_of_bd == 2)
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -9185,14 +9393,17 @@ else if (num_of_bd == 2)
     num_of_frames = 0;
     num_of_bd = 0;
     // set 19 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h13, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare a packet of 64k - 1 length (16'hFFFF)
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
     st_data = 8'h8D;
     set_tx_packet(`MEMORY_BASE, 16'hFFFF, st_data); // length with CRC
     // enable TX, set full-duplex mode, NO padding, CRC appending and huge enabled
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN | `ETH_MODER_HUGEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // check WB INT signal
@@ -9213,6 +9424,7 @@ else if (num_of_bd == 2)
       $display("   i_length = %0d", i_length);
       // Reset_tx_bd nable interrupt generation
       // unmask interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // not detect carrier sense in FD and no collision
@@ -9295,6 +9507,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((data & `ETH_INT_TXB) !== 1'b1)
       begin
@@ -9309,6 +9522,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -9329,6 +9543,7 @@ else if (num_of_bd == 2)
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -9354,8 +9569,8 @@ else if (num_of_bd == 2)
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -9365,11 +9580,14 @@ else if (num_of_bd == 2)
     num_of_bd = 0;
     tmp_ipgt = 0;
     // set 88 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h58, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, NO padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -9391,15 +9609,19 @@ else if (num_of_bd == 2)
     while (i_length < (max_tmp - 4))
     begin
       // disable TX, set full-duplex mode, NO padding and CRC appending
+      wait (wbm_working == 0);
       wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
                 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // set IPGT register
+      wait (wbm_working == 0);
       wbm_write(`ETH_IPGT, tmp_ipgt, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // enable TX, set full-duplex mode, NO padding and CRC appending
+      wait (wbm_working == 0);
       wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
                 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // Reset_tx_bd enable interrupt generation
       // unmask interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // not detect carrier sense in FD and no collision
@@ -9517,6 +9739,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((data & `ETH_INT_TXB) !== 1'b1)
       begin
@@ -9531,6 +9754,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -9560,6 +9784,7 @@ else if (num_of_bd == 2)
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -9585,8 +9810,8 @@ else if (num_of_bd == 2)
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -9596,11 +9821,14 @@ else if (num_of_bd == 2)
     num_of_bd = 0;
     tmp_ipgt = 0;
     // set 88 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h58, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, NO padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -9622,15 +9850,19 @@ else if (num_of_bd == 2)
     while (i_length < (max_tmp - 4))
     begin
       // disable TX, set full-duplex mode, NO padding and CRC appending
+      wait (wbm_working == 0);
       wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
                 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // set IPGT register
+      wait (wbm_working == 0);
       wbm_write(`ETH_IPGT, tmp_ipgt, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // enable TX, set full-duplex mode, NO padding and CRC appending
+      wait (wbm_working == 0);
       wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
                 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // Reset_tx_bd enable interrupt generation
       // unmask interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // not detect carrier sense in FD and no collision
@@ -9748,6 +9980,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((data & `ETH_INT_TXB) !== 1'b1)
       begin
@@ -9762,6 +9995,7 @@ else if (num_of_bd == 2)
         fail = fail + 1;
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -9791,6 +10025,7 @@ else if (num_of_bd == 2)
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -9817,25 +10052,29 @@ else if (num_of_bd == 2)
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
     max_tmp = 0;
     min_tmp = 0;
     // set 2 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h2, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, NO padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN |/* `ETH_MODER_PAD |*/ `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare a packet of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
     st_data = 8'h99;
     set_tx_packet(`MEMORY_BASE, (max_tmp - 4), st_data); // length without CRC
     // read IPG value
+    wait (wbm_working == 0);
     wbm_read(`ETH_IPGT, tmp_ipgt, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // check WB INT signal
     if (wb_int !== 1'b0)
@@ -9857,6 +10096,7 @@ else if (num_of_bd == 2)
     begin
       // Reset_tx_bd enable interrupt generation
       // unmask interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // not detect carrier sense in FD and no collision
@@ -9990,6 +10230,7 @@ else if (num_of_bd == 2)
           fail = fail + 1;
         end
         // check interrupts
+        wait (wbm_working == 0);
         wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         if ((data & `ETH_INT_TXB) !== 1'b1)
         begin
@@ -10004,6 +10245,7 @@ else if (num_of_bd == 2)
           fail = fail + 1;
         end
         // clear interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // check WB INT signal
         if (wb_int !== 1'b0)
@@ -10049,6 +10291,7 @@ else if (num_of_bd == 2)
           fail = fail + 1;
         end
         // check interrupts
+        wait (wbm_working == 0);
         wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         if ((data & `ETH_INT_TXE) !== 2'b10)
         begin
@@ -10063,6 +10306,7 @@ else if (num_of_bd == 2)
           fail = fail + 1;
         end
         // clear interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // check WB INT signal
         if (wb_int !== 1'b0)
@@ -10136,6 +10380,7 @@ end
         fail = fail + 1;
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((data & `ETH_INT_TXB) !== 1'b1)
       begin
@@ -10150,6 +10395,7 @@ end
         fail = fail + 1;
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -10168,6 +10414,7 @@ end
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -10194,25 +10441,29 @@ end
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
     max_tmp = 0;
     min_tmp = 0;
     // set 2 TX buffer descriptors - must be set before TX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h2, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX, set full-duplex mode, NO padding and CRC appending
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_TXEN |/* `ETH_MODER_PAD |*/ `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare a packet of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
     st_data = 8'h99;
     set_tx_packet(`MEMORY_BASE, (max_tmp - 4), st_data); // length without CRC
     // read IPG value
+    wait (wbm_working == 0);
     wbm_read(`ETH_IPGT, tmp_ipgt, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // check WB INT signal
     if (wb_int !== 1'b0)
@@ -10234,6 +10485,7 @@ end
     begin
       // Reset_tx_bd enable interrupt generation
       // unmask interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // not detect carrier sense in FD and no collision
@@ -10364,6 +10616,7 @@ $display("  Under-run frame ended");
           fail = fail + 1;
         end
         // check interrupts
+        wait (wbm_working == 0);
         wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         if ((data & `ETH_INT_TXB) !== 1'b1)
         begin
@@ -10378,6 +10631,7 @@ $display("  Under-run frame ended");
           fail = fail + 1;
         end
         // clear interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // check WB INT signal
         if (wb_int !== 1'b0)
@@ -10444,6 +10698,7 @@ $display("  Under-run frame ended");
         fail = fail + 1;
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((data & `ETH_INT_TXB) !== 1'b1)
       begin
@@ -10458,6 +10713,7 @@ $display("  Under-run frame ended");
         fail = fail + 1;
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -10476,6 +10732,7 @@ $display("  Under-run frame ended");
       @(posedge wb_clk);
     end
     // disable TX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -10541,8 +10798,8 @@ fail = 0;
 // reset MAC registers
 hard_reset;
 // reset MAC and MII LOGIC with soft reset
-reset_mac;
-reset_mii;
+//reset_mac;
+//reset_mii;
 // set wb slave response
 wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -10631,11 +10888,14 @@ begin
     `TIME; $display("  TEST 0: NO RECEIVE WHEN ALL BUFFERS ARE TX ( 10Mbps )");
 
     // unmask interrupts
+    wait (wbm_working == 0);
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // set all buffer descriptors to TX - must be set before RX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h80, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable RX, set full-duplex mode, receive small, NO correct IFG
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -10680,6 +10940,7 @@ begin
         end
         @(posedge wb_clk);
       end
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if (tmp[6:0] !== 0)
       begin
@@ -10694,6 +10955,7 @@ begin
         i = i + 120;
     end
     // disable RX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -10716,11 +10978,14 @@ begin
     `TIME; $display("  TEST 1: NO RECEIVE WHEN ALL BUFFERS ARE TX ( 100Mbps )");
 
     // unmask interrupts
+    wait (wbm_working == 0);
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // set all buffer descriptors to TX - must be set before RX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h80, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable RX, set full-duplex mode, receive small, NO correct IFG
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -10765,6 +11030,7 @@ begin
         end
         @(posedge wb_clk);
       end
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if (tmp[6:0] !== 0)
       begin
@@ -10779,6 +11045,7 @@ begin
         i = i + 120;
     end
     // disable RX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -10802,15 +11069,19 @@ begin
     `TIME; $display("  TEST 2: RECEIVE PACKET SYNCHRONIZATION WITH RECEIVE DISABLE/ENABLE ( 10Mbps )");
 
     // unmask interrupts
+    wait (wbm_working == 0);
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // set 10 RX buffer descriptor (8'h80 - 8'hA) - must be set before RX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h76, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // disable RX, set full-duplex mode, NO receive small, NO correct IFG
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -10902,7 +11173,8 @@ begin
             // enable RX, set full-duplex mode, NO receive small, NO correct IFG
             wbm_init_waits = 4'h0;
             wbm_subseq_waits = 4'h0;
-            #1 wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
+            #1 wait (wbm_working == 0);
+            wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
                       `ETH_MODER_PRO | `ETH_MODER_BRO, 
                       4'hF, 1, wbm_init_waits, wbm_subseq_waits); // write ASAP
           end
@@ -11070,6 +11342,7 @@ begin
         end
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((num_of_frames[0] == 1'b0) && (first_fr_received == 0)) // interrupt enabled but no receive
       begin
@@ -11096,6 +11369,7 @@ begin
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -11107,6 +11381,7 @@ begin
       if (num_of_frames[0] == 1'b1)
       begin
         // disable RX, set full-duplex mode, NO receive small, NO correct IFG
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, 4'h0, 4'h0); // write ASAP
@@ -11120,6 +11395,7 @@ begin
       @(posedge wb_clk);
     end
     // disable RX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -11143,15 +11419,19 @@ begin
     `TIME; $display("  TEST 3: RECEIVE PACKET SYNCHRONIZATION WITH RECEIVE DISABLE/ENABLE ( 100Mbps )");
 
     // unmask interrupts
+    wait (wbm_working == 0);
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // set 10 RX buffer descriptor (8'h80 - 8'hA) - must be set before RX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h76, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // disable RX, set full-duplex mode, NO receive small, NO correct IFG
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -11223,6 +11503,7 @@ begin
 //if (first_fr_received == 0)
 //begin
 //  check_rx_bd(118, data);
+//  wait (wbm_working == 0);
 //  wbm_read((`TX_BD_BASE + (118 * 8) + 4), tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
 //  $display("RX BD set : %h, %h", data, tmp);
 //end
@@ -11232,7 +11513,6 @@ begin
       check_frame = 0;
       stop_checking_frame = 0;
       tmp_data = 0;
-$display("mama 1");
       fork
         begin // enable RX MAC on first of each two packets - every second should be recived normaly
           if (num_of_frames[0] == 1'b0)
@@ -11250,7 +11530,8 @@ $display("mama 1");
             // enable RX, set full-duplex mode, NO receive small, NO correct IFG
             wbm_init_waits = 4'h0;
             wbm_subseq_waits = 4'h0;
-            #1 wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
+            #1 wait (wbm_working == 0);
+            wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
                       `ETH_MODER_PRO | `ETH_MODER_BRO, 
                       4'hF, 1, wbm_init_waits, wbm_subseq_waits); // write ASAP
 $display("mama 2, num_of_frames=%0h", num_of_frames);
@@ -11445,6 +11726,7 @@ $display("mama 6");
         end
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((num_of_frames[0] == 1'b0) && (first_fr_received == 0)) // interrupt enabled but no receive
       begin
@@ -11471,6 +11753,7 @@ $display("mama 6");
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -11482,6 +11765,7 @@ $display("mama 6");
       if (num_of_frames[0] == 1'b1)
       begin
         // disable RX, set full-duplex mode, NO receive small, NO correct IFG
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, 4'h0, 4'h0); // write ASAP
@@ -11495,6 +11779,7 @@ $display("mama 6");
       @(posedge wb_clk);
     end
     // disable RX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -11518,15 +11803,19 @@ $display("mama 6");
     `TIME; $display("  TEST 4: RECEIVE PACKETS FROM MINFL TO MAXFL SIZES AT ONE RX BD ( 10Mbps )");
 
     // unmask interrupts
+    wait (wbm_working == 0);
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // set 1 RX buffer descriptor (8'h80 - 1) - must be set before RX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h7F, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable RX, set full-duplex mode, NO receive small, NO correct IFG
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -11556,6 +11845,7 @@ $display("mama 6");
         // enable interrupt generation
         set_rx_bd(127, 127, 1'b1, (`MEMORY_BASE + i_length[1:0]));
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -11567,6 +11857,7 @@ $display("mama 6");
         // enable interrupt generation
         set_rx_bd(127, 127, 1'b1, ((`MEMORY_BASE + i_length[1:0]) + max_tmp));
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.no_carrier_sense_rx_fd_detect(1);
@@ -11577,6 +11868,7 @@ $display("mama 6");
         // disable interrupt generation
         set_rx_bd(127, 127, 1'b0, (`MEMORY_BASE + i_length[1:0]));
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -11588,6 +11880,7 @@ $display("mama 6");
         // disable interrupt generation
         set_rx_bd(127, 127, 1'b0, ((`MEMORY_BASE + i_length[1:0]) + max_tmp));
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.no_carrier_sense_rx_fd_detect(1);
@@ -11708,6 +12001,7 @@ $display("mama 6");
       if (i_length < min_tmp)
         clear_rx_bd(127, 127);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1))
       begin
@@ -11734,6 +12028,7 @@ $display("mama 6");
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -11749,6 +12044,7 @@ $display("mama 6");
         $display("    ->packets with lengths from %0d (MINFL) to %0d are checked (length increasing by 1 byte)",
                  min_tmp, (min_tmp + 64));
         // set receive small, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -11760,6 +12056,7 @@ $display("mama 6");
         $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 128 bytes)",
                  (min_tmp + 64 + 128), tmp_data); 
         // reset receive small, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -11789,6 +12086,7 @@ $display("mama 6");
       end
     end
     // disable RX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -11812,15 +12110,19 @@ $display("mama 6");
     `TIME; $display("  TEST 5: RECEIVE PACKETS FROM MINFL TO MAXFL SIZES AT ONE RX BD ( 100Mbps )");
 
     // unmask interrupts
+    wait (wbm_working == 0);
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // set 1 RX buffer descriptor (8'h80 - 1) - must be set before RX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h7F, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable RX, set full-duplex mode, NO receive small, NO correct IFG
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -11850,6 +12152,7 @@ $display("mama 6");
         // enable interrupt generation
         set_rx_bd(127, 127, 1'b1, (`MEMORY_BASE + i_length[1:0]));
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -11861,6 +12164,7 @@ $display("mama 6");
         // enable interrupt generation
         set_rx_bd(127, 127, 1'b1, ((`MEMORY_BASE + i_length[1:0]) + max_tmp));
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.no_carrier_sense_rx_fd_detect(1);
@@ -11871,6 +12175,7 @@ $display("mama 6");
         // disable interrupt generation
         set_rx_bd(127, 127, 1'b0, (`MEMORY_BASE + i_length[1:0]));
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -11882,6 +12187,7 @@ $display("mama 6");
         // disable interrupt generation
         set_rx_bd(127, 127, 1'b0, ((`MEMORY_BASE + i_length[1:0]) + max_tmp));
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.no_carrier_sense_rx_fd_detect(1);
@@ -12002,6 +12308,7 @@ $display("mama 6");
       if (i_length < min_tmp)
         clear_rx_bd(127, 127);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1))
       begin
@@ -12028,6 +12335,7 @@ $display("mama 6");
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -12043,6 +12351,7 @@ $display("mama 6");
         $display("    ->packets with lengths from %0d (MINFL) to %0d are checked (length increasing by 1 byte)",
                  min_tmp, (min_tmp + 64));
         // set receive small, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -12054,6 +12363,7 @@ $display("mama 6");
         $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 128 bytes)",
                  (min_tmp + 64 + 128), tmp_data); 
         // reset receive small, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -12083,6 +12393,7 @@ $display("mama 6");
       end
     end
     // disable RX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -12108,8 +12419,8 @@ $display("mama 6");
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -12118,12 +12429,15 @@ $display("mama 6");
     num_of_frames = 0;
     num_of_bd = 0;
     // set maximum RX buffer descriptors (128) - must be set before RX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable RX, set full-duplex mode, NO receive small, NO correct IFG
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -12157,6 +12471,7 @@ $display("mama 6");
       begin
         // Reset_tx_bd nable interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -12167,6 +12482,7 @@ $display("mama 6");
       begin
         // set_tx_bd enable interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.no_carrier_sense_rx_fd_detect(1);
@@ -12176,6 +12492,7 @@ $display("mama 6");
       begin
         // set_tx_bd disable the interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -12186,6 +12503,7 @@ $display("mama 6");
       begin
         // set_tx_bd disable the interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.no_carrier_sense_rx_fd_detect(1);
@@ -12401,6 +12719,7 @@ $display("mama 6");
       if (num_of_frames == 140)
         clear_rx_bd(127, 127);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1))
       begin
@@ -12427,6 +12746,7 @@ $display("mama 6");
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -12444,6 +12764,7 @@ $display("mama 6");
                  min_tmp, (min_tmp + 7));
         $display("    ->all packets were received on RX BD 0");
         // reset receive small, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -12459,6 +12780,7 @@ $display("mama 6");
                  1'b0, num_of_bd);
         tmp_bd = num_of_bd + 1;
         // set receive small, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -12478,6 +12800,7 @@ $display("mama 6");
                    tmp_bd, num_of_bd);
         tmp_bd = num_of_bd + 1;
         // reset receive small, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -12522,6 +12845,7 @@ $display("mama 6");
         num_of_bd = num_of_bd + 1;
     end
     // disable RX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -12548,8 +12872,8 @@ $display("mama 6");
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -12558,12 +12882,15 @@ $display("mama 6");
     num_of_frames = 0;
     num_of_bd = 0;
     // set maximum RX buffer descriptors (128) - must be set before RX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable RX, set full-duplex mode, NO receive small, NO correct IFG
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -12597,6 +12924,7 @@ $display("mama 6");
       begin
         // Reset_tx_bd nable interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and no collision
@@ -12607,6 +12935,7 @@ $display("mama 6");
       begin
         // set_tx_bd enable interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and no collision
         eth_phy.no_carrier_sense_rx_fd_detect(1);
@@ -12616,6 +12945,7 @@ $display("mama 6");
       begin
         // set_tx_bd disable the interrupt generation
         // unmask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                                  `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // not detect carrier sense in FD and set collision
@@ -12626,6 +12956,7 @@ $display("mama 6");
       begin
         // set_tx_bd disable the interrupt generation
         // mask interrupts
+        wait (wbm_working == 0);
         wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         // detect carrier sense in FD and set collision
         eth_phy.no_carrier_sense_rx_fd_detect(1);
@@ -12840,6 +13171,7 @@ $display("mama 6");
       if (num_of_frames == 140)
         clear_rx_bd(127, 127);
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1))
       begin
@@ -12866,6 +13198,7 @@ $display("mama 6");
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -12883,6 +13216,7 @@ $display("mama 6");
                  min_tmp, (min_tmp + 7));
         $display("    ->all packets were received on RX BD 0");
         // reset receive small, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -12898,6 +13232,7 @@ $display("mama 6");
                  1'b0, num_of_bd);
         tmp_bd = num_of_bd + 1;
         // set receive small, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -12917,6 +13252,7 @@ $display("mama 6");
                    tmp_bd, num_of_bd);
         tmp_bd = num_of_bd + 1;
         // reset receive small, remain the rest
+        wait (wbm_working == 0);
         wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
                   `ETH_MODER_PRO | `ETH_MODER_BRO, 
                   4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -12961,6 +13297,7 @@ $display("mama 6");
         num_of_bd = num_of_bd + 1;
     end
     // disable RX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -12987,20 +13324,23 @@ $display("mama 6");
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
     max_tmp = 0;
     min_tmp = 0;
     // set 8 RX buffer descriptors (120 - 127) - must be set before RX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h78, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable RX, set full-duplex mode, receive small, NO correct IFG
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -13015,6 +13355,7 @@ $display("mama 6");
       fail = fail + 1;
     end
     // unmask interrupts
+    wait (wbm_working == 0);
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
 
@@ -13381,6 +13722,7 @@ $display("mama 6");
         end
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if (num_of_frames >= 5)
       begin
@@ -13422,6 +13764,7 @@ $display("mama 6");
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -13498,6 +13841,7 @@ $display("mama 6");
         num_of_bd = num_of_bd + 1;
     end
     // disable RX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -13523,20 +13867,23 @@ $display("mama 6");
     // reset MAC registers
     hard_reset;
     // reset MAC and MII LOGIC with soft reset
-    reset_mac;
-    reset_mii;
+//    reset_mac;
+//    reset_mii;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
     max_tmp = 0;
     min_tmp = 0;
     // set 8 RX buffer descriptors (120 - 127) - must be set before RX enable
+    wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h78, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable RX, set full-duplex mode, receive small, NO correct IFG
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // prepare two packets of MAXFL length
+    wait (wbm_working == 0);
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
     min_tmp = tmp[31:16];
@@ -13551,6 +13898,7 @@ $display("mama 6");
       fail = fail + 1;
     end
     // unmask interrupts
+    wait (wbm_working == 0);
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
 
@@ -13916,6 +14264,7 @@ $display("mama 6");
         end
       end
       // check interrupts
+      wait (wbm_working == 0);
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if (num_of_frames >= 5)
       begin
@@ -13957,6 +14306,7 @@ $display("mama 6");
         end
       end
       // clear interrupts
+      wait (wbm_working == 0);
       wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       // check WB INT signal
       if (wb_int !== 1'b0)
@@ -14033,6 +14383,7 @@ $display("mama 6");
         num_of_bd = num_of_bd + 1;
     end
     // disable RX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     @(posedge wb_clk);
@@ -14139,6 +14490,7 @@ task test_mac_full_duplex_flow_control;
   integer        bit_end_2;
   integer        num_of_reg;
   integer        num_of_frames;
+  integer        num_of_rx_frames;
   integer        num_of_bd;
   integer        i_addr;
   integer        i_data;
@@ -14149,7 +14501,10 @@ task test_mac_full_duplex_flow_control;
   integer        tmp_data;
   integer        tmp_ipgt;
   integer        test_num;
+  integer        rx_len;
+  integer        tx_len;
   reg    [31:0]  tx_bd_num;
+  reg    [31:0]  rx_bd_num;
   reg    [((`MAX_BLK_SIZE * 32) - 1):0] burst_data;
   reg    [((`MAX_BLK_SIZE * 32) - 1):0] burst_tmp_data;
   integer        i;
@@ -14173,6 +14528,7 @@ task test_mac_full_duplex_flow_control;
   reg            RxFlow;
   reg            enable_irq_in_rxbd;
   reg    [15:0]  pause_value;
+  
 begin
 // MAC FULL DUPLEX FLOW CONTROL TEST
 test_heading("MAC FULL DUPLEX FLOW CONTROL TEST");
@@ -14183,8 +14539,8 @@ fail = 0;
 // reset MAC registers
 hard_reset;
 // reset MAC and MII LOGIC with soft reset
-reset_mac;
-reset_mii;
+//reset_mac;
+//reset_mii;
 // set wb slave response
 wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
 
@@ -14269,7 +14625,6 @@ begin
     hard_reset;
     // set wb slave response
     wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
-
     max_tmp = 0;
     min_tmp = 0;
     // set 4 TX buffer descriptors - must be set before TX enable
@@ -14279,13 +14634,11 @@ begin
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     // enable TX flow control
     wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_TXFLOW, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-
     // Set MAC address
     mac_hi_addr = 32'h00000001;
     mac_lo_addr = 32'h02030405;
     wbm_write(`ETH_MAC_ADDR1, mac_hi_addr, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     wbm_write(`ETH_MAC_ADDR0, mac_lo_addr, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-
     // prepare two packets of MAXFL length
     wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
@@ -14310,8 +14663,6 @@ begin
     num_of_frames = 0;
     num_of_bd = 0;
     i_length = 0; // 0;
-
-
     // Initialize one part of memory with data of control packet
     wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h0), 32'h0180c200, 4'hF);
     wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h4), {16'h0001, mac_hi_addr[15:0]}, 4'hF);
@@ -14329,12 +14680,11 @@ begin
     wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h34), 32'h00000000, 4'hF);
     wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h38), 32'h00000000, 4'hF);
 //    append_tx_crc(`MEMORY_BASE + 2 * max_tmp, 60, 0);       // CRC is appended after the data
-
-
     /////////////////////////////////////////////////////////////////////////////////////////////////////
     // In the following section, control frame will be sent while no other transmission is in progress.//
     // TXC interrupt won't be unmasked.                                                                //
     /////////////////////////////////////////////////////////////////////////////////////////////////////
+    // check interrupts
     wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if(data)
       begin
@@ -14342,24 +14692,22 @@ begin
         fail = fail + 1;
         `TIME; $display("*E IRQ already pending!");
       end
-
     if (wb_int)
     begin
       test_fail("WB INT signal should not be set!");
       fail = fail + 1;
       `TIME; $display("*E WB INT signal should not be set!");
     end
-
     // first destination address on ethernet PHY
     eth_phy.set_tx_mem_addr(0);
     // Request sending the control frame with pause value = 0x1111
     wbm_write(`ETH_TX_CTRL, `ETH_TX_CTRL_TXPAUSERQ | 32'h1111, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-
+    // wait for transmission to come over
     wait (MTxEn === 1'b1); // start transmit
     wait (MTxEn === 1'b0); // end transmit
     repeat(10) @ (posedge wb_clk);  // wait some time
     repeat(10) @ (posedge mtx_clk); // wait some time
-
+    // check interrupt
     wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if(data !== `ETH_INT_TXC)
       begin
@@ -14367,24 +14715,21 @@ begin
         fail = fail + 1;
         `TIME; $display("*E TXC IRQ should be set!");
       end
-
     if (wb_int)
     begin
       test_fail("WB INT signal should not be set because TXC irq is masked!");
       fail = fail + 1;
       `TIME; $display("*E WB INT signal should not be set because TXC irq is masked!");
     end
-
     // Clear TXC interrupt
     wbm_write(`ETH_INT, `ETH_INT_TXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-
     if (wb_int)
     begin
       test_fail("WB INT signal should not be set!");
       fail = fail + 1;
       `TIME; $display("*E WB INT signal should not be set!");
     end
-
+    // check transmited TX packet
     check_tx_packet((`MEMORY_BASE + 2 * max_tmp), 0, 60, tmp);
     if (tmp > 0)
     begin
@@ -14400,18 +14745,14 @@ begin
       test_fail("Wrong CRC of the transmitted packet");
       fail = fail + 1;
     end
-
-
-
     /////////////////////////////////////////////////////////////////////////////////////////////////////
     // In the following section, control frame will be sent while no other transmission is in progress.//
     // TXC interrupt is unmasked.                                                                      //
     /////////////////////////////////////////////////////////////////////////////////////////////////////
-
     // unmask all interrupts
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-
+    // check interrupts
     wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if(data)
       begin
@@ -14419,28 +14760,25 @@ begin
         fail = fail + 1;
         `TIME; $display("*E IRQ already pending!");
       end
-
     if (wb_int)
     begin
       test_fail("WB INT signal should not be set!");
       fail = fail + 1;
       `TIME; $display("*E WB INT signal should not be set!");
     end
-
     // unmask only TXC interrupts
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-
     // first destination address on ethernet PHY
     eth_phy.set_tx_mem_addr(0);
     // Request sending the control frame with pause value = 0x2222
     wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h10), 32'h22220000, 4'hF);  // Just for data test
     wbm_write(`ETH_TX_CTRL, `ETH_TX_CTRL_TXPAUSERQ | 32'h2222, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-
+    // wait for transmit to come over
     wait (MTxEn === 1'b1); // start transmit
     wait (MTxEn === 1'b0); // end transmit
     repeat(10) @ (posedge wb_clk);  // wait some time
     repeat(10) @ (posedge mtx_clk); // wait some time
-
+    // check INT
     wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if(data !== `ETH_INT_TXC)
       begin
@@ -14448,25 +14786,21 @@ begin
         fail = fail + 1;
         `TIME; $display("*E TXC IRQ should be set!");
       end
-
     if (!wb_int)
     begin
       test_fail("WB INT signal should be set!");
       fail = fail + 1;
       `TIME; $display("*E WB INT signal should be set!");
     end
-
     // Clear TXC interrupt
     wbm_write(`ETH_INT, `ETH_INT_TXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-
     if (wb_int)
     begin
       test_fail("WB INT signal should not be set!");
       fail = fail + 1;
       `TIME; $display("*E WB INT signal should not be set!");
     end
-
-
+    // check transmited TX packet
     check_tx_packet((`MEMORY_BASE + 2 * max_tmp), 0, 60, tmp);
     if (tmp > 0)
     begin
@@ -14482,17 +14816,13 @@ begin
       test_fail("Wrong CRC of the transmitted packet");
       fail = fail + 1;
     end
-
-
     /////////////////////////////////////////////////////////////////////////////////////////////////////
     // In the following section, control frame sending is requested while no other transmission        //
     // is in progress. TXC interrupt is unmasked.                                                      //
     /////////////////////////////////////////////////////////////////////////////////////////////////////
-
     // unmask all interrupts
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-
     wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if(data)
       begin
@@ -14500,15 +14830,12 @@ begin
         fail = fail + 1;
         `TIME; $display("*E IRQ already pending!");
       end
-
     if (wb_int)
     begin
       test_fail("WB INT signal should not be set!");
       fail = fail + 1;
       `TIME; $display("*E WB INT signal should not be set!");
     end
-
-
     /////////////////////////////////////////////////////////////////////////////////////////////////////
     // In the following section, control frame request and data send request are both set. At the      //
     // beginning control frame request will be faster than data send request, later the opposite.      //
@@ -14521,23 +14848,20 @@ begin
       // first destination address on ethernet PHY
       eth_phy.set_tx_mem_addr(0);
       set_tx_bd_ready(0, 0);
-  
+      // wait for transmission to start  
       wait (MTxEn === 1'b1); // start transmit
-  
       repeat(i) @ (posedge mtx_clk);  // We need to wait some time until TX module starts using the data (preamble stage is over)
-  
       // Send control frame request
       wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h10), {i[3:0], i[3:0], i[3:0], i[3:0], 16'h0}, 4'hF);  // Just for data test
       wbm_write(`ETH_TX_CTRL, `ETH_TX_CTRL_TXPAUSERQ | {16'h0, i[3:0], i[3:0], i[3:0], i[3:0]}, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-  
+      // wait until transmission is over  
       wait (MTxEn === 1'b0); // Wait until data frame transmission is over
       repeat(10) @ (posedge mtx_clk); // wait some time so status is written
       tmp_len = eth_phy.tx_len; // the length of a packet which was sent out first!!!
       repeat(10) @ (posedge wb_clk);  // wait some time so status is written
-  
       // first destination address on ethernet PHY
       eth_phy.set_tx_mem_addr(0);
-  
+      // check interrupt depending on which packet was sent
       if(tmp_len == 64)  // Control frame
       begin
         wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -14560,19 +14884,17 @@ begin
           `TIME; $display("ETH_INT = 0x%0x", data);
         end
       end
-  
+      // check transmited TX packet
       if(tmp_len == 64)  // Control frame
         check_tx_packet((`MEMORY_BASE + 2 * max_tmp), 0, 60, tmp);
       else
         check_tx_packet((`MEMORY_BASE), 0, 32'h100, tmp);
-  
       if (tmp > 0)
       begin
         $display("Wrong data of the transmitted packet");
         test_fail("Wrong data of the transmitted packet");
         fail = fail + 1;
       end
-  
       // check transmited TX packet CRC
       if(tmp_len == 64)  // Control frame
         #1 check_tx_crc(0, 60, 1'b0, tmp); // length without CRC
@@ -14585,13 +14907,12 @@ begin
         test_fail("Wrong CRC of the transmitted packet");
         fail = fail + 1;
       end
-  
-  
+      // wait for control frame to transmit
       wait (MTxEn === 1'b1); // start transmit of the control frame
       wait (MTxEn === 1'b0); // end transmit of the control frame
       repeat(10) @ (posedge wb_clk);  // wait some time
       repeat(10) @ (posedge mtx_clk); // wait some time so status is written
-  
+      // check interrupts  
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if(data !== (`ETH_INT_TXC | `ETH_INT_TXB))
       begin
@@ -14599,42 +14920,35 @@ begin
         fail = fail + 1;
         `TIME; $display("*E TXC and TXB IRQ should be set! (ETH_INT=0x%0x)", data);
       end
-  
       if (!wb_int)
       begin
         test_fail("WB INT signal should be set!");
         fail = fail + 1;
         `TIME; $display("*E WB INT signal should be set!");
       end
-  
       // Clear TXC and TXB interrupt
       wbm_write(`ETH_INT, `ETH_INT_TXC | `ETH_INT_TXB, 4'hF, 1, 4'h0, 4'h0);
-  
       if (wb_int)
       begin
         test_fail("WB INT signal should not be set!");
         fail = fail + 1;
         `TIME; $display("*E WB INT signal should not be set!");
       end
-  
       if(tmp_len == 64)  // Control frame
         check_tx_packet((`MEMORY_BASE), 0, 32'h100, tmp);
       else
         check_tx_packet((`MEMORY_BASE + 2 * max_tmp), 0, 60, tmp);
-  
       if (tmp > 0)
       begin
         $display("Wrong data of the transmitted packet");
         test_fail("Wrong data of the transmitted packet");
         fail = fail + 1;
       end
-  
       // check transmited TX packet CRC
       if(tmp_len == 64)  // Control frame
         #1 check_tx_crc(0, 32'h100, 1'b0, tmp); // length without CRC
       else
         #1 check_tx_crc(0, 60, 1'b0, tmp); // length without CRC
-  
       if (tmp > 0)
       begin
         $display("Wrong CRC of the transmitted packet");
@@ -14642,33 +14956,368 @@ begin
         fail = fail + 1;
       end
     end // for loop
-
-    if(fail)
-    begin
-      test_name = "TEST 0: FINISHED WITH ERRORS";
-      `TIME; $display("  TEST 0: FINISHED WITH ERRORS");
-    end
-    else
-    begin
-      test_name = "TEST 0: SUCCESSFULLY FINISHED";
-      `TIME; $display("  TEST 0: SUCCESSFULLY FINISHED");
-    end
-
     if(fail == 0)
       test_ok;
     else
       fail = 0;
-
   end
 
 
+  ////////////////////////////////////////////////////////////////////
+  ////                                                            ////
+  ////  Test inserts control frames while transmitting normal     ////
+  ////  frames. Using 4 TX buffer decriptors ( 100Mbps ).         ////
+  ////                                                            ////
+  ////////////////////////////////////////////////////////////////////
   if (test_num == 1) // 
   begin
-    #1;
     // TEST 1: INSERT CONTROL FRM. WHILE TRANSMITTING NORMAL FRM. AT 4 TX BD ( 100Mbps )
     test_name = "TEST 1: INSERT CONTROL FRM. WHILE TRANSMITTING NORMAL FRM. AT 4 TX BD ( 100Mbps )";
     `TIME; $display("  TEST 1: INSERT CONTROL FRM. WHILE TRANSMITTING NORMAL FRM. AT 4 TX BD ( 100Mbps )");
+
+    // reset MAC completely
+    hard_reset;
+    // set wb slave response
+    wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
+    max_tmp = 0;
+    min_tmp = 0;
+    // set 4 TX buffer descriptors - must be set before TX enable
+    wbm_write(`ETH_TX_BD_NUM, 32'h4, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // enable TX, set full-duplex mode, padding and CRC appending
+    wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_PAD | `ETH_MODER_FULLD | `ETH_MODER_CRCEN,
+              4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // enable TX flow control
+    wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_TXFLOW, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // Set MAC address
+    mac_hi_addr = 32'h00000001;
+    mac_lo_addr = 32'h02030405;
+    wbm_write(`ETH_MAC_ADDR1, mac_hi_addr, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_write(`ETH_MAC_ADDR0, mac_lo_addr, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // prepare two packets of MAXFL length
+    wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
+    min_tmp = tmp[31:16];
+    st_data = 8'h34;
+    set_tx_packet(`MEMORY_BASE, (max_tmp - 4), st_data); // length without CRC. Writing data to the memory
+    st_data = 8'h56;
+    set_tx_packet((`MEMORY_BASE + max_tmp), (max_tmp - 4), st_data); // length without CRC. Writing data to the memory
+    // check WB INT signal
+    if (wb_int !== 1'b0)
+    begin
+      test_fail("WB INT signal should not be set");
+      fail = fail + 1;
+    end
+  
+    // write to phy's control register for 100Mbps
+    #Tp eth_phy.control_bit14_10 = 5'b01000; // bit 13 set - speed 100
+    #Tp eth_phy.control_bit8_0   = 9'h1_00;  // bit 6 reset - (10/100), bit 8 set - FD
+    speed = 100;
+  
+    frame_started = 0;
+    num_of_frames = 0;
+    num_of_bd = 0;
+    i_length = 0; // 0;
+    // Initialize one part of memory with data of control packet
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h0), 32'h0180c200, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h4), {16'h0001, mac_hi_addr[15:0]}, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h8), mac_lo_addr, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'hc), 32'h88080001, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h10), 32'h11110000, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h14), 32'h00000000, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h18), 32'h00000000, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h1c), 32'h00000000, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h20), 32'h00000000, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h24), 32'h00000000, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h28), 32'h00000000, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h2c), 32'h00000000, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h30), 32'h00000000, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h34), 32'h00000000, 4'hF);
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h38), 32'h00000000, 4'hF);
+//    append_tx_crc(`MEMORY_BASE + 2 * max_tmp, 60, 0);       // CRC is appended after the data
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+    // In the following section, control frame will be sent while no other transmission is in progress.//
+    // TXC interrupt won't be unmasked.                                                                //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+    // check interrupts
+    wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    if(data)
+      begin
+        test_fail("IRQ already pending!");
+        fail = fail + 1;
+        `TIME; $display("*E IRQ already pending!");
+      end
+    if (wb_int)
+    begin
+      test_fail("WB INT signal should not be set!");
+      fail = fail + 1;
+      `TIME; $display("*E WB INT signal should not be set!");
+    end
+    // first destination address on ethernet PHY
+    eth_phy.set_tx_mem_addr(0);
+    // Request sending the control frame with pause value = 0x1111
+    wbm_write(`ETH_TX_CTRL, `ETH_TX_CTRL_TXPAUSERQ | 32'h1111, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // wait for transmission to come over
+    wait (MTxEn === 1'b1); // start transmit
+    wait (MTxEn === 1'b0); // end transmit
+    repeat(10) @ (posedge wb_clk);  // wait some time
+    repeat(10) @ (posedge mtx_clk); // wait some time
+    // check interrupt
+    wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    if(data !== `ETH_INT_TXC)
+      begin
+        test_fail("TXC IRQ should be set!");
+        fail = fail + 1;
+        `TIME; $display("*E TXC IRQ should be set!");
+      end
+    if (wb_int)
+    begin
+      test_fail("WB INT signal should not be set because TXC irq is masked!");
+      fail = fail + 1;
+      `TIME; $display("*E WB INT signal should not be set because TXC irq is masked!");
+    end
+    // Clear TXC interrupt
+    wbm_write(`ETH_INT, `ETH_INT_TXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    if (wb_int)
+    begin
+      test_fail("WB INT signal should not be set!");
+      fail = fail + 1;
+      `TIME; $display("*E WB INT signal should not be set!");
+    end
+    // check transmited TX packet
+    check_tx_packet((`MEMORY_BASE + 2 * max_tmp), 0, 60, tmp);
+    if (tmp > 0)
+    begin
+      $display("Wrong data of the transmitted packet");
+      test_fail("Wrong data of the transmitted packet");
+      fail = fail + 1;
+    end
+    // check transmited TX packet CRC
+    #1 check_tx_crc(0, 60, 1'b0, tmp); // length without CRC
+    if (tmp > 0)
+    begin
+      $display("Wrong CRC of the transmitted packet");
+      test_fail("Wrong CRC of the transmitted packet");
+      fail = fail + 1;
+    end
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+    // In the following section, control frame will be sent while no other transmission is in progress.//
+    // TXC interrupt is unmasked.                                                                      //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+    // unmask all interrupts
+    wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
+                             `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // check interrupts
+    wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    if(data)
+      begin
+        test_fail("IRQ already pending!");
+        fail = fail + 1;
+        `TIME; $display("*E IRQ already pending!");
+      end
+    if (wb_int)
+    begin
+      test_fail("WB INT signal should not be set!");
+      fail = fail + 1;
+      `TIME; $display("*E WB INT signal should not be set!");
+    end
+    // unmask only TXC interrupts
+    wbm_write(`ETH_INT_MASK, `ETH_INT_TXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // first destination address on ethernet PHY
+    eth_phy.set_tx_mem_addr(0);
+    // Request sending the control frame with pause value = 0x2222
+    wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h10), 32'h22220000, 4'hF);  // Just for data test
+    wbm_write(`ETH_TX_CTRL, `ETH_TX_CTRL_TXPAUSERQ | 32'h2222, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // wait for transmit to come over
+    wait (MTxEn === 1'b1); // start transmit
+    wait (MTxEn === 1'b0); // end transmit
+    repeat(10) @ (posedge wb_clk);  // wait some time
+    repeat(10) @ (posedge mtx_clk); // wait some time
+    // check INT
+    wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    if(data !== `ETH_INT_TXC)
+      begin
+        test_fail("TXC IRQ should be set!");
+        fail = fail + 1;
+        `TIME; $display("*E TXC IRQ should be set!");
+      end
+    if (!wb_int)
+    begin
+      test_fail("WB INT signal should be set!");
+      fail = fail + 1;
+      `TIME; $display("*E WB INT signal should be set!");
+    end
+    // Clear TXC interrupt
+    wbm_write(`ETH_INT, `ETH_INT_TXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    if (wb_int)
+    begin
+      test_fail("WB INT signal should not be set!");
+      fail = fail + 1;
+      `TIME; $display("*E WB INT signal should not be set!");
+    end
+    // check transmited TX packet
+    check_tx_packet((`MEMORY_BASE + 2 * max_tmp), 0, 60, tmp);
+    if (tmp > 0)
+    begin
+      $display("Wrong data of the transmitted packet");
+      test_fail("Wrong data of the transmitted packet");
+      fail = fail + 1;
+    end
+    // check transmited TX packet CRC
+    #1 check_tx_crc(0, 60, 1'b0, tmp); // length without CRC
+    if (tmp > 0)
+    begin
+      $display("Wrong CRC of the transmitted packet");
+      test_fail("Wrong CRC of the transmitted packet");
+      fail = fail + 1;
+    end
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+    // In the following section, control frame sending is requested while no other transmission        //
+    // is in progress. TXC interrupt is unmasked.                                                      //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+    // unmask all interrupts
+    wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
+                             `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    if(data)
+      begin
+        test_fail("IRQ already pending!");
+        fail = fail + 1;
+        `TIME; $display("*E IRQ already pending!");
+      end
+    if (wb_int)
+    begin
+      test_fail("WB INT signal should not be set!");
+      fail = fail + 1;
+      `TIME; $display("*E WB INT signal should not be set!");
+    end
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+    // In the following section, control frame request and data send request are both set. At the      //
+    // beginning control frame request will be faster than data send request, later the opposite.      //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+    for (i=0; i<32; i=i+1)
+    begin
+      // Request sending the control frame with pause value = 0x5678
+      set_tx_bd(0, 0, 16'h100, 1'b1, 1'b1, 1'b1, (`MEMORY_BASE)); // irq, pad, crc
+      set_tx_bd_wrap(0);
+      // first destination address on ethernet PHY
+      eth_phy.set_tx_mem_addr(0);
+      set_tx_bd_ready(0, 0);
+      // wait for transmission to start  
+      wait (MTxEn === 1'b1); // start transmit
+      repeat(i) @ (posedge mtx_clk);  // We need to wait some time until TX module starts using the data (preamble stage is over)
+      // Send control frame request
+      wb_slave.wr_mem((`MEMORY_BASE + 2 * max_tmp + 8'h10), {i[3:0], i[3:0], i[3:0], i[3:0], 16'h0}, 4'hF);  // Just for data test
+      wbm_write(`ETH_TX_CTRL, `ETH_TX_CTRL_TXPAUSERQ | {16'h0, i[3:0], i[3:0], i[3:0], i[3:0]}, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      // wait until transmission is over  
+      wait (MTxEn === 1'b0); // Wait until data frame transmission is over
+      repeat(10) @ (posedge mtx_clk); // wait some time so status is written
+      tmp_len = eth_phy.tx_len; // the length of a packet which was sent out first!!!
+      repeat(10) @ (posedge wb_clk);  // wait some time so status is written
+      // first destination address on ethernet PHY
+      eth_phy.set_tx_mem_addr(0);
+      // check interrupt depending on which packet was sent
+
+      if(tmp_len == 64)  // Control frame
+      begin
+        wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        if(data !== `ETH_INT_TXC)
+        begin
+          test_fail("TXC IRQ should be set!");
+          fail = fail + 1;
+          `TIME; $display("*E TXC IRQ should be set!");
+          `TIME; $display("ETH_INT = 0x%0x", data);
+        end
+      end
+      else
+      begin
+        wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        if(data !== `ETH_INT_TXB)
+        begin
+          test_fail("TXB IRQ should be set!");
+          fail = fail + 1;
+          `TIME; $display("*E TXB IRQ should be set!");
+          `TIME; $display("ETH_INT = 0x%0x", data);
+        end
+      end
+      // check transmited TX packet
+      if(tmp_len == 64)  // Control frame
+        check_tx_packet((`MEMORY_BASE + 2 * max_tmp), 0, 60, tmp);
+      else
+        check_tx_packet((`MEMORY_BASE), 0, 32'h100, tmp);
+      if (tmp > 0)
+      begin
+        $display("Wrong data of the transmitted packet");
+        test_fail("Wrong data of the transmitted packet");
+        fail = fail + 1;
+      end
+      // check transmited TX packet CRC
+      if(tmp_len == 64)  // Control frame
+        #1 check_tx_crc(0, 60, 1'b0, tmp); // length without CRC
+      else
+        #1 check_tx_crc(0, 32'h100, 1'b0, tmp); // length without CRC
+  
+      if (tmp > 0)
+      begin
+        $display("Wrong CRC of the transmitted packet");
+        test_fail("Wrong CRC of the transmitted packet");
+        fail = fail + 1;
+      end
+      // wait for control frame to transmit
+      wait (MTxEn === 1'b1); // start transmit of the control frame
+      wait (MTxEn === 1'b0); // end transmit of the control frame
+      repeat(10) @ (posedge wb_clk);  // wait some time
+      repeat(10) @ (posedge mtx_clk); // wait some time so status is written
+      // check interrupts  
+      wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      if(data !== (`ETH_INT_TXC | `ETH_INT_TXB))
+      begin
+        test_fail("TXC and TXB IRQ should be set!");
+        fail = fail + 1;
+        `TIME; $display("*E TXC and TXB IRQ should be set! (ETH_INT=0x%0x)", data);
+      end
+      if (!wb_int)
+      begin
+        test_fail("WB INT signal should be set!");
+        fail = fail + 1;
+        `TIME; $display("*E WB INT signal should be set!");
+      end
+      // Clear TXC and TXB interrupt
+      wbm_write(`ETH_INT, `ETH_INT_TXC | `ETH_INT_TXB, 4'hF, 1, 4'h0, 4'h0);
+      if (wb_int)
+      begin
+        test_fail("WB INT signal should not be set!");
+        fail = fail + 1;
+        `TIME; $display("*E WB INT signal should not be set!");
+      end
+      if(tmp_len == 64)  // Control frame
+        check_tx_packet((`MEMORY_BASE), 0, 32'h100, tmp);
+      else
+        check_tx_packet((`MEMORY_BASE + 2 * max_tmp), 0, 60, tmp);
+      if (tmp > 0)
+      begin
+        $display("Wrong data of the transmitted packet");
+        test_fail("Wrong data of the transmitted packet");
+        fail = fail + 1;
+      end
+      // check transmited TX packet CRC
+      if(tmp_len == 64)  // Control frame
+        #1 check_tx_crc(0, 32'h100, 1'b0, tmp); // length without CRC
+      else
+        #1 check_tx_crc(0, 60, 1'b0, tmp); // length without CRC
+      if (tmp > 0)
+      begin
+        $display("Wrong CRC of the transmitted packet");
+        test_fail("Wrong CRC of the transmitted packet");
+        fail = fail + 1;
+      end
+    end // for loop
+    if(fail == 0)
+      test_ok;
+    else
+      fail = 0;
   end
+
 
   ////////////////////////////////////////////////////////////////////
   ////                                                            ////
@@ -14701,14 +15350,13 @@ begin
     set_tx_packet(`MEMORY_BASE + 64, 100, 8'h01); // length without CRC
     set_tx_bd(0, 0, 100, 1'b1, 1'b1, 1'b1, (`MEMORY_BASE + 64));
     set_tx_bd_wrap(0);
-
     // check WB INT signal
     if (wb_int !== 1'b0)
     begin
       test_fail("WB INT signal should not be set");
       fail = fail + 1;
     end
-  
+
     // write to phy's control register for 10Mbps
     #Tp eth_phy.control_bit14_10 = 5'b00000; // bit 13 reset - speed 10
     #Tp eth_phy.control_bit8_0   = 9'h1_00;  // bit 6 reset  - (10/100), bit 8 set - FD
@@ -14717,11 +15365,10 @@ begin
     // RXB and RXC interrupts masked
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-
     // Test irq logic while RXB and RXC interrupts are masked. IRQ in RxBD is cleared
     for (i=0; i<3; i=i+1)
     begin
-      pause_value = i+1;
+      pause_value = i+2;
       set_rx_control_packet(0, pause_value);  // CRC already appended
       // choose generating carrier sense and collision for first and last 64 lengths of frames
       case (i)
@@ -14756,15 +15403,13 @@ begin
         fail = fail + 1;
       end
       endcase
-
       // not detect carrier sense in FD and no collision
       eth_phy.no_carrier_sense_rx_fd_detect(0);
       eth_phy.collision(0);
-
       // set wrap bit and empty bit
       set_rx_bd_wrap(127);
       set_rx_bd_empty(127, 127);
-
+      // transmit
       fork
         begin
             #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h7, 8'hD5, 0, 64, 1'b0);
@@ -14779,22 +15424,16 @@ begin
             test_fail("Wrong buffer descriptor's ready bit read out from MAC");
             fail = fail + 1;
           end
-
           wait (MRxDV === 1'b0); // received pause frame
           repeat(5) @(posedge mrx_clk);  // Wait some time so pause is activated.
           repeat(5) @(posedge mtx_clk);  // Wait some time so pause is activated.
-
           set_tx_bd_ready(0, 0); // Request sending the data. Data should not be sent when pause frame was received
                                  // and RxFlow enabled.
-
-
           // When we exit the while loop, status frame is received
           repeat(`ETH_TX_FIFO_DEPTH) @(eth_ma_wb_ack_i);  // Waiting until TX fifo is filled.
           repeat(10) @(posedge mtx_clk);  // Wait some time for tx start.
         end
-
       join
-
       #1 check_rx_bd(127, data);
       // Checking buffer descriptor
       if(PassAll)
@@ -14830,7 +15469,6 @@ begin
           fail = fail + 1;
         end
       end
-      
       // Checking if interrupt was generated
       if (wb_int)
       begin
@@ -14838,7 +15476,6 @@ begin
         test_fail("WB INT signal should not be set because both RXB and RXC interrupts are masked");
         fail = fail + 1;
       end
-
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if(RxFlow)
       begin
@@ -14871,8 +15508,6 @@ begin
           `TIME; $display("*E Some IRQs is active! (ETH_INT=0x%0x)", data);
         end
       end
-
-
       if(RxFlow)
         begin
           if(MTxEn)   // If pause frame was received OK, transmission of the data packet should not start
@@ -14908,8 +15543,6 @@ begin
               fail = fail + 1;
             end
         end
-
-
       wait(wb_int);   // Wait antil frame transmission is over and irq generated
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if(data !== (`ETH_INT_TXB))
@@ -14923,11 +15556,9 @@ begin
     end
     // End: Test is irq is set while RXB and RXC interrupts are masked.
 
-
     // Now all interrupts are unmasked. Performing tests again.
     wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
                              `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-
     for (i=0; i<4; i=i+1)
     begin
       pause_value = i+1;
@@ -14967,15 +15598,13 @@ begin
         wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_PASSALL | `ETH_CTRLMODER_RXFLOW, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       end
       endcase
-
       // not detect carrier sense in FD and no collision
       eth_phy.no_carrier_sense_rx_fd_detect(0);
       eth_phy.collision(0);
-
       // set wrap bit and empty bit
       set_rx_bd_wrap(127);
       set_rx_bd_empty(127, 127);
-
+      // transmit
       fork
         begin
             #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h7, 8'hD5, 0, 64, 1'b0);
@@ -14991,7 +15620,6 @@ begin
             test_fail("Wrong buffer descriptor's ready bit read out from MAC");
             fail = fail + 1;
           end
-          
           wait (MRxDV === 1'b0); // end transmit
           repeat(50) @(posedge mrx_clk);  // Wait some time so frame is received and
           repeat (100) @(posedge wb_clk); // status/irq is written.
@@ -15000,9 +15628,7 @@ begin
             repeat(64 * 2 * pause_value) @(posedge mrx_clk);
         end
       join
-
       #1 check_rx_bd(127, data);
-
       // Checking buffer descriptor
       if(PassAll)
       begin
@@ -15024,7 +15650,6 @@ begin
           fail = fail + 1;
         end
       end
-      
       // Checking if interrupt was generated
       if(RxFlow || PassAll)
       begin
@@ -15044,7 +15669,6 @@ begin
           fail = fail + 1;
         end
       end
-
       wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
       if(RxFlow)
       begin
@@ -15078,9 +15702,1646 @@ begin
         end
       end
     end
-
-    
     // disable RX
+    wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
+              `ETH_MODER_PRO | `ETH_MODER_BRO,
+              4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    if(fail == 0)
+      test_ok;
+    else
+      fail = 0;
+  end
+
+
+  ////////////////////////////////////////////////////////////////////
+  ////                                                            ////
+  ////  Receive control frames with PASSALL option turned on and  ////
+  ////  off. Using only one RX buffer decriptor ( 100Mbps ).      ////
+  ////                                                            ////
+  ////////////////////////////////////////////////////////////////////
+  if (test_num == 3) // 
+  begin
+    // TEST 3: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED ON AND OFF AT ONE RX BD ( 100Mbps )
+    test_name   = "TEST 3: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED ON AND OFF AT ONE RX BD ( 100Mbps )";
+    `TIME; $display("  TEST 3: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED ON AND OFF AT ONE RX BD ( 100Mbps )");
+
+    // unmask interrupts
+    wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
+                             `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // set 1 RX buffer descriptor (8'h80 - 1) - must be set before RX enable
+    wbm_write(`ETH_TX_BD_NUM, 32'h7F, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // enable RX, set full-duplex mode, NO receive small, NO correct IFG
+    wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
+              `ETH_MODER_PRO | `ETH_MODER_BRO, 
+              4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // enable RX_FLOW control
+    wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_RXFLOW, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // prepare one packet of 100 bytes long
+//    st_data = 8'h1A;
+//    set_rx_packet(64, 100, 1'b0, 48'h1234_5678_8765, 48'hA1B2_C3D4_E5F6, 16'hE77E, st_data); 
+//    append_rx_crc (64, 100, 1'b0, 1'b0); // CRC for data packet
+    st_data = 8'h01;
+    set_tx_packet(`MEMORY_BASE + 64, 100, 8'h01); // length without CRC
+    set_tx_bd(0, 0, 100, 1'b1, 1'b1, 1'b1, (`MEMORY_BASE + 64));
+    set_tx_bd_wrap(0);
+    // check WB INT signal
+    if (wb_int !== 1'b0)
+    begin
+      test_fail("WB INT signal should not be set");
+      fail = fail + 1;
+    end
+
+    // write to phy's control register for 100Mbps
+    #Tp eth_phy.control_bit14_10 = 5'b01000; // bit 13 set - speed 100
+    #Tp eth_phy.control_bit8_0   = 9'h1_00;  // bit 6 reset - (10/100), bit 8 set - FD
+    speed = 100;
+
+    // RXB and RXC interrupts masked
+    wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXE | `ETH_INT_BUSY |
+                             `ETH_INT_TXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // Test irq logic while RXB and RXC interrupts are masked. IRQ in RxBD is cleared
+    for (i=0; i<3; i=i+1)
+    begin
+      pause_value = i+2;
+      set_rx_control_packet(0, pause_value);  // CRC already appended
+      // choose generating carrier sense and collision for first and last 64 lengths of frames
+      case (i)
+      0: // PASSALL = 0, RXFLOW = 1, IRQ in RxBD = 1
+      begin
+        PassAll=0; RxFlow=1; enable_irq_in_rxbd=1;
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b1, `MEMORY_BASE);
+        // Set PASSALL = 0 and RXFLOW = 0
+        wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_RXFLOW, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      1: // PASSALL = 1, RXFLOW = 0, IRQ in RxBD = 1
+      begin
+        PassAll=1; RxFlow=0; enable_irq_in_rxbd=1;
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b1, `MEMORY_BASE);
+        // Set PASSALL = 0 and RXFLOW = 0
+        wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_PASSALL, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      2: // PASSALL = 1, RXFLOW = 0, IRQ in RxBD = 0
+      begin
+        PassAll=1; RxFlow=0; enable_irq_in_rxbd=0;
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b0, `MEMORY_BASE);
+        // Set PASSALL = 0 and RXFLOW = 0
+        wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_PASSALL, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      default: 
+      begin
+        `TIME; $display("*E We should never get here !!!");
+        test_fail("We should never get here !!!");
+        fail = fail + 1;
+      end
+      endcase
+      // not detect carrier sense in FD and no collision
+      eth_phy.no_carrier_sense_rx_fd_detect(0);
+      eth_phy.collision(0);
+      // set wrap bit and empty bit
+      set_rx_bd_wrap(127);
+      set_rx_bd_empty(127, 127);
+      // transmit
+      fork
+        begin
+            #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h7, 8'hD5, 0, 64, 1'b0);
+          repeat(10) @(posedge mrx_clk);
+        end
+        begin
+          wait (MRxDV === 1'b1); // start transmit
+          #1 check_rx_bd(127, data);          
+          if (data[15] !== 1)
+          begin
+            `TIME; $display("*E Wrong buffer descriptor's ready bit read out from MAC");
+            test_fail("Wrong buffer descriptor's ready bit read out from MAC");
+            fail = fail + 1;
+          end
+          wait (MRxDV === 1'b0); // received pause frame
+          repeat(5) @(posedge mrx_clk);  // Wait some time so pause is activated.
+          repeat(5) @(posedge mtx_clk);  // Wait some time so pause is activated.
+          set_tx_bd_ready(0, 0); // Request sending the data. Data should not be sent when pause frame was received
+                                 // and RxFlow enabled.
+          // When we exit the while loop, status frame is received
+          repeat(`ETH_TX_FIFO_DEPTH) @(eth_ma_wb_ack_i);  // Waiting until TX fifo is filled.
+          repeat(10) @(posedge mtx_clk);  // Wait some time for tx start.
+        end
+      join
+      #1 check_rx_bd(127, data);
+      // Checking buffer descriptor
+      if(PassAll)
+      begin
+        if(enable_irq_in_rxbd)
+        begin
+          if(data !== 32'h406100)    // Rx BD must not be marked as EMPTY (control frame is received)
+          begin
+            `TIME; $display("*E Rx BD is not OK. Control frame should be received because PASSALL bit is 1");
+            $display("RxBD = 0x%0x", data);
+            test_fail("Rx BD is not OK. Control frame should be received because PASSALL bit is 1");
+            fail = fail + 1;
+          end
+        end
+        else
+        begin
+          if(data !== 32'h402100)    // Rx BD must not be marked as EMPTY (control frame is received)
+          begin
+            `TIME; $display("*E Rx BD is not OK. Control frame should be received because PASSALL bit is 1");
+            $display("RxBD = 0x%0x", data);
+            test_fail("Rx BD is not OK. Control frame should be received because PASSALL bit is 1");
+            fail = fail + 1;
+          end
+        end
+      end
+      else
+      begin
+        if(data !== 32'he000)    // Rx BD must be marked as EMPTY (no packet received)
+        begin
+          `TIME; $display("*E Rx BD should be marked as EMPTY because a control frame was received while PASSALL bit is 0");
+          $display("RxBD = 0x%0x", data);
+          test_fail("Rx BD should be marked as EMPTY because a control frame was received while PASSALL bit is 0");
+          fail = fail + 1;
+        end
+      end
+      // Checking if interrupt was generated
+      if (wb_int)
+      begin
+        `TIME; $display("*E WB INT signal should not be set because both RXB and RXC interrupts are masked");
+        test_fail("WB INT signal should not be set because both RXB and RXC interrupts are masked");
+        fail = fail + 1;
+      end
+      wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      if(RxFlow)
+      begin
+        if(data !== (`ETH_INT_RXC))
+        begin
+          test_fail("RXC is not set or multiple IRQs active!");
+          fail = fail + 1;
+          `TIME; $display("*E RXC is not set or multiple IRQs active! (ETH_INT=0x%0x)", data);
+        end
+        // Clear RXC interrupt
+        wbm_write(`ETH_INT, `ETH_INT_RXC, 4'hF, 1, 4'h0, 4'h0);
+      end
+      else if(enable_irq_in_rxbd)
+      begin
+        if(data !== (`ETH_INT_RXB))
+        begin
+          test_fail("RXB is not set or multiple IRQs active!");
+          fail = fail + 1;
+          `TIME; $display("*E RXB is not set or multiple IRQs active! (ETH_INT=0x%0x)", data);
+        end
+        // Clear RXC interrupt
+        wbm_write(`ETH_INT, `ETH_INT_RXB, 4'hF, 1, 4'h0, 4'h0);
+      end
+      else
+      begin
+        if(data !== 0)
+        begin
+          test_fail("Some IRQs is active!");
+          fail = fail + 1;
+          `TIME; $display("*E Some IRQs is active! (ETH_INT=0x%0x)", data);
+        end
+      end
+      if(RxFlow)
+        begin
+          if(MTxEn)   // If pause frame was received OK, transmission of the data packet should not start
+            begin
+              `TIME; $display("*E Transmission should not be started because pause frame was received.");
+              test_fail("Transmission should not be started because pause frame was received.");
+              fail = fail + 1;
+            end
+          while(pause_value)
+            begin
+              pause_value=pause_value-1;
+              repeat(2*64) @(posedge mtx_clk);  // Wait for the time needed for the pause (1 slot).
+              if((!pause_value) && (!MTxEn))        // Transmission should be enabled now.
+                begin
+                  `TIME; $display("*E Transmission should be started because pause passed.");
+                  test_fail("Transmission should be started because pause passed.");
+                  fail = fail + 1;
+                end
+              else if((pause_value) && (MTxEn))     // Transmission should not be enabled now.
+                begin
+                  `TIME; $display("*E Transmission should still be paused.");
+                  test_fail("Transmission should still be paused.");
+                  fail = fail + 1;
+                end
+            end
+        end
+      else
+        begin
+          if(!MTxEn)   // Pause frame was not received because RxFlow is turned off.
+            begin
+              `TIME; $display("*E Transmission should be started because pause frame was not received (RxFlow=0).");
+              test_fail("Transmission should be started because pause frame was not received (RxFlow=0).");
+              fail = fail + 1;
+            end
+        end
+      wait(wb_int);   // Wait antil frame transmission is over and irq generated
+      wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      if(data !== (`ETH_INT_TXB))
+        begin
+          test_fail("TXB is not set or multiple IRQs active!");
+          fail = fail + 1;
+          `TIME; $display("*E TXB is not set or multiple IRQs active! (ETH_INT=0x%0x)", data);
+        end
+        // Clear TXB interrupt
+        wbm_write(`ETH_INT, `ETH_INT_TXB, 4'hF, 1, 4'h0, 4'h0);
+    end
+    // End: Test is irq is set while RXB and RXC interrupts are masked.
+
+    // Now all interrupts are unmasked. Performing tests again.
+    wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
+                             `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    for (i=0; i<4; i=i+1)
+    begin
+      pause_value = i+1;
+      set_rx_control_packet(0, pause_value);  // CRC already appended
+      // choose generating carrier sense and collision for first and last 64 lengths of frames
+      case (i)
+      0: // PASSALL = 0, RXFLOW = 0
+      begin
+        PassAll=0; RxFlow=0;
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b1, `MEMORY_BASE);
+        // Set PASSALL = 0 and RXFLOW = 0
+        wbm_write(`ETH_CTRLMODER, 0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      1: // PASSALL = 0, RXFLOW = 1
+      begin
+        PassAll=0; RxFlow=1;
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b1, `MEMORY_BASE);
+        // Set PASSALL = 0 and RXFLOW = 0
+        wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_RXFLOW, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      2: // PASSALL = 1, RXFLOW = 0
+      begin
+        PassAll=1; RxFlow=0;
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b1, `MEMORY_BASE);
+        // Set PASSALL = 0 and RXFLOW = 0
+        wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_PASSALL, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      default: // 3: PASSALL = 1, RXFLOW = 1
+      begin
+        PassAll=1; RxFlow=1;
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b1, `MEMORY_BASE);
+        // Set PASSALL = 1 and RXFLOW = 1
+        wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_PASSALL | `ETH_CTRLMODER_RXFLOW, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      endcase
+      // not detect carrier sense in FD and no collision
+      eth_phy.no_carrier_sense_rx_fd_detect(0);
+      eth_phy.collision(0);
+      // set wrap bit and empty bit
+      set_rx_bd_wrap(127);
+      set_rx_bd_empty(127, 127);
+      // transmit
+      fork
+        begin
+            #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h7, 8'hD5, 0, 64, 1'b0);
+          repeat(10) @(posedge mrx_clk);
+        end
+        begin
+          #1 check_rx_bd(127, data);
+          wait (MRxDV === 1'b1); // start transmit
+          #1 check_rx_bd(127, data);          
+          if (data[15] !== 1)
+          begin
+            $display("*E Wrong buffer descriptor's ready bit read out from MAC");
+            test_fail("Wrong buffer descriptor's ready bit read out from MAC");
+            fail = fail + 1;
+          end
+          wait (MRxDV === 1'b0); // end transmit
+          repeat(50) @(posedge mrx_clk);  // Wait some time so frame is received and
+          repeat (100) @(posedge wb_clk); // status/irq is written.
+
+          if(RxFlow)    // Waiting x slot times before continuing so pause is deactivated.
+            repeat(64 * 2 * pause_value) @(posedge mrx_clk);
+        end
+      join
+      #1 check_rx_bd(127, data);
+      // Checking buffer descriptor
+      if(PassAll)
+      begin
+        if(data !== 32'h406100)    // Rx BD must not be marked as EMPTY (control frame is received)
+        begin
+          `TIME; $display("*E Rx BD is not OK. Control frame should be received because PASSALL bit is 1");
+          $display("RxBD = 0x%0x", data);
+          test_fail("Rx BD is not OK. Control frame should be received because PASSALL bit is 1");
+          fail = fail + 1;
+        end
+      end
+      else
+      begin
+        if(data !== 32'he000)    // Rx BD must be marked as EMPTY (no packet received)
+        begin
+          `TIME; $display("*E Rx BD should be marked as EMPTY because a control frame was received while PASSALL bit is 0");
+          $display("RxBD = 0x%0x", data);
+          test_fail("Rx BD should be marked as EMPTY because a control frame was received while PASSALL bit is 0");
+          fail = fail + 1;
+        end
+      end
+      // Checking if interrupt was generated
+
+      if(RxFlow | PassAll)
+      begin
+        if (!wb_int)
+        begin
+          `TIME; $display("*E WB INT signal should be set");
+          test_fail("WB INT signal should be set");
+          fail = fail + 1;
+        end
+      end
+      else
+      begin
+        if (wb_int)
+        begin
+          `TIME; $display("*E WB INT signal should not be set");
+          test_fail("WB INT signal should not be set");
+          fail = fail + 1;
+        end
+      end
+      wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      if(RxFlow)
+      begin
+        if(data !== (`ETH_INT_RXC))
+        begin
+          test_fail("RXC is not set or multiple IRQs active!");
+          fail = fail + 1;
+          `TIME; $display("*E RXC is not set or multiple IRQs active! (ETH_INT=0x%0x)", data);
+        end
+        // Clear RXC interrupt
+        wbm_write(`ETH_INT, `ETH_INT_RXC, 4'hF, 1, 4'h0, 4'h0);
+      end
+      else if(PassAll)
+      begin
+        if(data !== (`ETH_INT_RXB))
+        begin
+          test_fail("RXB is not set or multiple IRQs active!");
+          fail = fail + 1;
+          `TIME; $display("*E RXB is not set or multiple IRQs active! (ETH_INT=0x%0x)", data);
+        end
+        // Clear RXB interrupt
+        wbm_write(`ETH_INT, `ETH_INT_RXB, 4'hF, 1, 4'h0, 4'h0);
+      end
+      else
+      begin
+        if(data !== 0)
+        begin
+          test_fail("No interrupt should be set!");
+          fail = fail + 1;
+          `TIME; $display("*E No interrupt should be set! (ETH_INT=0x%0x)", data);
+        end
+      end
+    end
+    // disable RX
+    wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
+              `ETH_MODER_PRO | `ETH_MODER_BRO,
+              4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    if(fail == 0)
+      test_ok;
+    else
+      fail = 0;
+  end
+
+
+  ////////////////////////////////////////////////////////////////////
+  ////                                                            ////
+  ////  Receive control frames with PASSALL option turned on and  ////
+  ////  off. Using only one RX buffer decriptor ( 10Mbps ).       ////
+  ////                                                            ////
+  ////////////////////////////////////////////////////////////////////
+  if (test_num == 4) // 
+  begin
+    // TEST 4: RANDOM RECEIVE AND TRANSMIT FRAMES AT ONE TX AND ONE RX BD ( 10Mbps )
+    test_name   = "TEST 4: RANDOM RECEIVE AND TRANSMIT FRAMES AT ONE TX AND ONE RX BD ( 10Mbps )";
+    `TIME; $display("  TEST 4: RANDOM RECEIVE AND TRANSMIT FRAMES AT ONE TX AND ONE RX BD ( 10Mbps )");
+
+    // unmask interrupts
+    wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
+                             `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // set 1 TX and 1 RX buffer descriptor (8'h01) - must be set before RX enable
+    wbm_write(`ETH_TX_BD_NUM, 32'h01, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // enable RX, set full-duplex mode, NO receive small, NO correct IFG
+    wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_TXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
+              `ETH_MODER_PRO | `ETH_MODER_BRO, 
+              4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // enable flow control
+
+    wbm_write(`ETH_CTRLMODER, `ETH_CTRLMODER_PASSALL | `ETH_CTRLMODER_RXFLOW | `ETH_CTRLMODER_TXFLOW, 
+              4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // prepare one RX and one TX packet of 100 bytes long
+    rx_len = 100; // length of frame without CRC
+    st_data = 8'h1A;
+    set_rx_packet(200, rx_len, 1'b0, 48'h1234_5678_8765, 48'hA1B2_C3D4_E5F6, 16'hE77E, st_data); 
+    append_rx_crc (200, rx_len, 1'b0, 1'b0); // CRC for data packet
+    tx_len = 64; // length of frame without CRC
+    st_data = 8'h01;
+    set_tx_packet(`MEMORY_BASE + 64, tx_len, st_data); // length without CRC
+    // set TX and RX Buffer Descriptors 
+    tx_bd_num = 0; // tx BDs go from 0 to 0
+    rx_bd_num = 1; // rx BDs go from 1 to 1
+    // check WB INT signal
+    if (wb_int !== 1'b0)
+    begin
+      test_fail("WB INT signal should not be set");
+      fail = fail + 1;
+    end
+
+    // set EQUAL mrx_clk to mtx_clk!
+//    eth_phy.set_mrx_equal_mtx = 1'b1;
+    
+    // write to phy's control register for 10Mbps
+    #Tp eth_phy.control_bit14_10 = 5'b00000; // bit 13 reset - speed 10
+    #Tp eth_phy.control_bit8_0   = 9'h1_00;  // bit 6 reset  - (10/100), bit 8 set - FD
+    speed = 10;
+
+    // TXB and RXB interrupts masked
+    wbm_write(`ETH_INT_MASK, `ETH_INT_TXE | `ETH_INT_RXE | `ETH_INT_BUSY | `ETH_INT_TXC | `ETH_INT_RXC, 
+              4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+
+    tmp_len = 0;
+    num_of_frames = 0;
+    num_of_rx_frames = 0;
+//    num_of_iter = 0;
+    // TX frame loop & RX frame loop work independently
+
+
+    fork
+      // TX frame loop
+      while (num_of_frames < 400)
+      begin
+        eth_phy.set_tx_mem_addr(64 + num_of_frames);
+        // set tx bd
+          // wait for WB master if it is working
+          @(posedge wb_clk);
+          while (wbm_working)
+          begin
+            @(posedge wb_clk);
+          end
+        set_tx_bd(0, 0, tx_len, 1'b1, 1'b1, 1'b1, (`MEMORY_BASE + 64));
+        set_tx_bd_wrap(0);
+        set_tx_bd_ready(0, 0);
+        check_tx_bd(0, data);
+        // check frame
+        i = 0;
+        while((i < 100) && (MTxEn === 1'b0)) // wait for start of TX frame!
+        begin
+          @(posedge mtx_clk);
+          i = i + 1;
+        end
+        if (MTxEn != 1'b1)
+        begin
+          `TIME; $display("*E Tx Frame %0d: MAC TX didn't start transmitting the packet", num_of_frames);
+          test_fail("MAC TX didn't start transmitting the packet");
+          fail = fail + 1;
+          #10000 $stop;
+        end
+
+        repeat (30) @(posedge mtx_clk); // waiting some time so PHY clears the tx_len
+
+        wait ((MTxEn === 1'b0) || (eth_phy.tx_len > (tx_len + 4))) // wait for end of TX frame
+        if (MTxEn != 1'b0)
+        begin
+          `TIME; $display("*E Tx Frame %0d: MAC TX didn't stop transmitting the packet", num_of_frames);
+          test_fail("MAC TX didn't stop transmitting the packet");
+          fail = fail + 1;
+          #10000 $stop;
+        end
+        tmp_len = eth_phy.tx_len;
+          // wait for WB master if it is working
+          @(posedge wb_clk);
+          while (wbm_working)
+          begin
+            @(posedge wb_clk);
+          end
+        check_tx_bd(0, data);
+        while (data[15] === 1)
+        begin
+            // wait for WB master if it is working
+            @(posedge wb_clk);
+            while (wbm_working)
+            begin
+              @(posedge wb_clk);
+            end
+          check_tx_bd(0, data);
+        end
+        repeat (1) @(posedge wb_clk);
+        // check length of a PACKET
+        if (tmp_len != (tx_len + 4))
+        begin
+          `TIME; $display("*E Tx Frame %0d: Wrong length of the packet out from MAC (%0d instead of %0d)", num_of_frames, 
+                          tmp_len, (tx_len + 4));
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
+        // check transmitted TX packet data
+        check_tx_packet((`MEMORY_BASE + 64), (64 + num_of_frames), (tx_len), tmp);
+        if (tmp > 0)
+        begin
+          `TIME; $display("*E Tx Frame %0d: Wrong data of the transmitted packet", num_of_frames);
+          test_fail("Wrong data of the transmitted packet");
+          fail = fail + 1;
+        end
+        // check transmited TX packet CRC
+        check_tx_crc((64 + num_of_frames), (tx_len), 1'b0, tmp); // length without CRC
+        if (tmp > 0)
+        begin
+          `TIME; $display("*E Tx Frame %0d: Wrong CRC of the transmitted packet", num_of_frames);
+          test_fail("Wrong CRC of the transmitted packet");
+          fail = fail + 1;
+        end
+        // check WB INT signal
+        if (wb_int !== 1'b0)
+        begin
+          `TIME; $display("*E Tx Frame %0d: WB INT signal should not be set", num_of_frames);
+          test_fail("WB INT signal should not be set");
+          fail = fail + 1;
+        end
+        // check TX buffer descriptor of a packet
+          // wait for WB master if it is working
+          @(posedge wb_clk);
+          while (wbm_working)
+          begin
+            @(posedge wb_clk);
+          end
+        check_tx_bd(0, data);
+        if (data[15:0] !== 16'h7800)
+        begin
+          `TIME; $display("*E Tx Frame %0d: TX buffer descriptor status is not correct: %0h", num_of_frames, data[15:0]);
+          test_fail("TX buffer descriptor status is not correct");
+          fail = fail + 1;
+        end
+        // check interrupts
+          // wait for WB master if it is working
+          @(posedge wb_clk);
+          while (wbm_working)
+          begin
+            @(posedge wb_clk);
+          end
+        wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        if ((data & `ETH_INT_TXB) !== `ETH_INT_TXB)
+        begin
+          `TIME; $display("*E Tx Frame %0d: Interrupt Transmit Buffer was not set, interrupt reg: %0h", num_of_frames, data);
+          test_fail("Interrupt Transmit Buffer was not set");
+          fail = fail + 1;
+        end
+        if ((data & (~(`ETH_INT_TXB | `ETH_INT_RXB))) !== 0) // RXB might occur at the same time - not error
+        begin
+          `TIME; $display("*E Tx Frame %0d: Other interrupts (except Tx and Rx Buffer) were set, interrupt reg: %0h", 
+                          num_of_frames, data);
+          test_fail("Other interrupts (except Transmit Buffer) were set");
+          fail = fail + 1;
+        end
+        // clear interrupts (except RXB)
+          // wait for WB master if it is working
+          @(posedge wb_clk);
+          while (wbm_working)
+          begin
+            @(posedge wb_clk);
+          end
+        wbm_write(`ETH_INT, (data & (~`ETH_INT_RXB)), 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        // check WB INT signal
+        if (wb_int !== 1'b0)
+        begin
+          `TIME; $display("*E Tx Frame %0d: WB INT signal should not be set", num_of_frames);
+          test_fail("WB INT signal should not be set");
+          fail = fail + 1;
+        end
+        // Displays
+        if (num_of_frames[2:0] == 3'b111)
+        begin
+          `TIME; $display("   ->8 frames transmitted");
+        end
+        // set length (loop variable)
+        num_of_frames = num_of_frames + 1;
+      end // TX frame loop
+      // RX frame loop
+      while (num_of_rx_frames < 400)
+      begin
+        // set rx bd
+          // wait for WB master if it is working
+          @(posedge wb_clk);
+          #1;
+          while (wbm_working)
+          begin
+            @(posedge wb_clk);
+            #1;
+          end
+        set_rx_bd(1, 1, 1'b1, (`MEMORY_BASE + 200 + num_of_rx_frames));
+        set_rx_bd_wrap(1);
+        set_rx_bd_empty(1, 1);
+        // check frame
+        fork
+          begin
+            #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h7, 8'hD5, 200, (rx_len + 4), 1'b0);
+            repeat(10) @(posedge mrx_clk);
+          end
+          begin
+            wait (MRxDV === 1'b1); // start receive
+              // wait for WB master if it is working
+              @(posedge wb_clk);
+              #1;
+              while (wbm_working)
+              begin
+                @(posedge wb_clk);
+                #1;
+              end
+            check_rx_bd(1, data);
+            if (data[15] !== 1)
+            begin
+              `TIME; $display("*E Rx Frame %0d: Wrong buffer descriptor's ready bit read out from MAC", num_of_rx_frames);
+              test_fail("Wrong buffer descriptor's ready bit read out from MAC");
+              fail = fail + 1;
+            end
+            wait (MRxDV === 1'b0); // end receive
+
+            while (data[15] === 1)
+            begin
+                // wait for WB master if it is working
+                @(posedge wb_clk);
+                #1;
+                while (wbm_working)
+                begin
+                  @(posedge wb_clk);
+                  #1;
+                end
+              check_rx_bd(1, data);
+            end
+            repeat (1) @(posedge wb_clk);
+          end
+        join
+        // check length of a PACKET
+
+        // Additional read because simulator was not working OK.
+        // wait for WB master if it is working
+        @(posedge wb_clk);
+        #1;
+        while (wbm_working)
+        begin
+          @(posedge wb_clk);
+          #1;
+        end
+        check_rx_bd(1, data);
+
+        if (data[31:16] != (rx_len + 4))
+        begin
+          `TIME; $display("*E Rx Frame %0d: Wrong length of the packet written to MAC's register (%0d instead of %0d)", 
+                          num_of_rx_frames, data[31:16], (rx_len + 4));
+          test_fail("Wrong length of the packet out from PHY");
+          fail = fail + 1;
+        end
+        // check received RX packet data and CRC
+        check_rx_packet(200, (`MEMORY_BASE + 200 + num_of_rx_frames), (rx_len + 4), 1'b0, 1'b0, tmp);
+        if (tmp > 0)
+        begin
+          `TIME; $display("*E Rx Frame %0d: Wrong data of the received packet", num_of_rx_frames);
+          test_fail("Wrong data of the received packet");
+          fail = fail + 1;
+        end
+        // check WB INT signal
+        if (wb_int !== 1'b0)
+        begin
+          `TIME; $display("*E Rx Frame %0d: WB INT signal should not be set", num_of_rx_frames);
+          test_fail("WB INT signal should not be set");
+          fail = fail + 1;
+        end
+        // check RX buffer descriptor of a packet
+          // wait for WB master if it is working
+          @(posedge wb_clk);
+          #1;
+          while (wbm_working)
+          begin
+            @(posedge wb_clk);
+            #1;
+          end
+        check_rx_bd(1, data);
+        if (data[15:0] !== 16'h6080)
+        begin
+          `TIME; $display("*E Rx Frame %0d: RX buffer descriptor status is not correct: %0h", num_of_rx_frames, data[15:0]);
+          test_fail("RX buffer descriptor status is not correct");
+          fail = fail + 1;
+        end
+        // check interrupts
+          // wait for WB master if it is working
+          @(posedge wb_clk);
+          #1;
+          while (wbm_working)
+          begin
+            @(posedge wb_clk);
+            #1;
+          end
+        wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+
+        if ((data & `ETH_INT_RXB) !== `ETH_INT_RXB)
+        begin
+          `TIME; $display("*E Rx Frame %0d: Interrupt Receive Buffer was not set, interrupt reg: %0h", 
+                          num_of_rx_frames, data);
+          test_fail("Interrupt Receive Buffer was not set");
+          fail = fail + 1;
+        end
+        if ((data & (~(`ETH_INT_RXB | `ETH_INT_TXB))) !== 0) // TXB might occur at the same time - not error
+        begin
+          `TIME; $display("*E Rx Frame %0d: Other interrupts (except Rx and Tx Buffer) were set, interrupt reg: %0h", 
+                          num_of_rx_frames, data);
+          test_fail("Other interrupts (except Receive Buffer) were set");
+          fail = fail + 1;
+        end
+        // clear interrupts (except TXB)
+          // wait for WB master if it is working
+          @(posedge wb_clk);
+          #1;
+          while (wbm_working)
+          begin
+            @(posedge wb_clk);
+            #1;
+          end
+        wbm_write(`ETH_INT, (data & (~`ETH_INT_TXB)), 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        // check WB INT signal
+        if (wb_int !== 1'b0)
+        begin
+          `TIME; $display("*E Rx Frame %0d: WB INT signal should not be set", num_of_rx_frames);
+          test_fail("WB INT signal should not be set");
+          fail = fail + 1;
+        end
+        // Displays
+        if (num_of_rx_frames[2:0] == 3'b111)
+        begin
+          `TIME; $display("   ->8 frames received");
+        end
+        // set length (loop variable)
+        num_of_rx_frames = num_of_rx_frames + 1;
+      end // RX frame loop
+    join
+    // disable TX & RX
+    wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_PAD | `ETH_MODER_CRCEN | 
+              `ETH_MODER_IFG | `ETH_MODER_PRO | `ETH_MODER_BRO,
+              4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // set DIFFERENT mrx_clk to mtx_clk!
+//    eth_phy.set_mrx_equal_mtx = 1'b0;
+    if(fail == 0)
+      test_ok;
+    else
+      fail = 0;
+  end
+
+end   //  for (test_num=start_task; test_num <= end_task; test_num=test_num+1)
+
+end
+endtask // test_mac_full_duplex_flow_control
+
+
+task test_mac_half_duplex_flow;
+  input  [31:0]  start_task;
+  input  [31:0]  end_task;
+  integer        bit_start_1;
+  integer        bit_end_1;
+  integer        bit_start_2;
+  integer        bit_end_2;
+  integer        num_of_reg;
+  integer        num_of_frames;
+  integer        num_of_bd;
+  integer        num_of_iter;
+  integer        i_addr;
+  integer        i_data;
+  integer        i_length;
+  integer        tmp_len;
+  integer        tmp_bd;
+  integer        tmp_bd_num;
+  integer        tmp_data;
+  integer        tmp_ipgt;
+  integer        test_num;
+  reg    [31:0]  tx_bd_num;
+  reg    [31:0]  rx_bd_num;
+  reg    [((`MAX_BLK_SIZE * 32) - 1):0] burst_data;
+  reg    [((`MAX_BLK_SIZE * 32) - 1):0] burst_tmp_data;
+  integer        i;
+  integer        i1;
+  integer        i2;
+  integer        i3;
+  integer        fail;
+  integer        speed;
+  integer        mac_hi_addr;
+  integer        mac_lo_addr;
+  reg            frame_started;
+  reg            frame_ended;
+  reg            check_rx_frame;
+  reg            wait_for_tx_frame;
+  reg    [31:0]  addr;
+  reg    [31:0]  data;
+  reg    [31:0]  tmp;
+  reg    [ 7:0]  st_data;
+  reg    [15:0]  max_tmp;
+  reg    [15:0]  min_tmp;
+begin
+// MAC HALF DUPLEX FLOW TEST
+test_heading("MAC HALF DUPLEX FLOW TEST");
+$display(" ");
+$display("MAC HALF DUPLEX FLOW TEST");
+fail = 0;
+
+// reset MAC registers
+hard_reset;
+// reset MAC and MII LOGIC with soft reset
+//reset_mac;
+//reset_mii;
+// set wb slave response
+wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
+
+  /*
+  TASKS for set and control TX buffer descriptors (also send packet - set_tx_bd_ready):
+  -------------------------------------------------------------------------------------
+  set_tx_bd 
+    (tx_bd_num_start[6:0], tx_bd_num_end[6:0], len[15:0], irq, pad, crc, txpnt[31:0]);
+  set_tx_bd_wrap 
+    (tx_bd_num_end[6:0]);
+  set_tx_bd_ready 
+    (tx_bd_num_start[6:0], tx_bd_num_end[6:0]);
+  check_tx_bd 
+    (tx_bd_num_start[6:0], tx_bd_status[31:0]);
+  clear_tx_bd 
+    (tx_bd_num_start[6:0], tx_bd_num_end[6:0]);
+
+  TASKS for set and control RX buffer descriptors:
+  ------------------------------------------------
+  set_rx_bd 
+    (rx_bd_num_strat[6:0], rx_bd_num_end[6:0], irq, rxpnt[31:0]);
+  set_rx_bd_wrap 
+    (rx_bd_num_end[6:0]);
+  set_rx_bd_empty 
+    (rx_bd_num_strat[6:0], rx_bd_num_end[6:0]);
+  check_rx_bd 
+    (rx_bd_num_end[6:0], rx_bd_status);
+  clear_rx_bd 
+    (rx_bd_num_strat[6:0], rx_bd_num_end[6:0]);
+
+  TASKS for set and check TX packets:
+  -----------------------------------
+  set_tx_packet 
+    (txpnt[31:0], len[15:0], eth_start_data[7:0]);
+  check_tx_packet 
+    (txpnt_wb[31:0], txpnt_phy[31:0], len[15:0], failure[31:0]);
+
+  TASKS for set and check RX packets:
+  -----------------------------------
+  set_rx_packet 
+    (rxpnt[31:0], len[15:0], plus_nibble, d_addr[47:0], s_addr[47:0], type_len[15:0], start_data[7:0]);
+  check_rx_packet 
+    (rxpnt_phy[31:0], rxpnt_wb[31:0], len[15:0], plus_nibble, successful_nibble, failure[31:0]);
+
+  TASKS for append and check CRC to/of TX packet:
+  -----------------------------------------------
+  append_tx_crc 
+    (txpnt_wb[31:0], len[15:0], negated_crc);
+  check_tx_crc 
+    (txpnt_phy[31:0], len[15:0], negated_crc, failure[31:0]); 
+
+  TASK for append CRC to RX packet (CRC is checked together with check_rx_packet):
+  --------------------------------------------------------------------------------
+  append_rx_crc 
+    (rxpnt_phy[31:0], len[15:0], plus_nibble, negated_crc);
+  */
+
+//////////////////////////////////////////////////////////////////////
+////                                                              ////
+////  test_mac_half_duplex_flow:                                  ////
+////                                                              ////
+////  0: Test                                                     ////
+////                                                              ////
+//////////////////////////////////////////////////////////////////////
+
+for (test_num = start_task; test_num <= end_task; test_num = test_num + 1)
+begin
+
+  ////////////////////////////////////////////////////////////////////
+  ////                                                            ////
+  ////  Test collision and late collision while transmitting and  ////
+  ////  receiving normal frames. Using 4 TX and RX buffer         ////
+  ////  decriptors ( 10Mbps ).                                    ////
+  ////                                                            ////
+  ////////////////////////////////////////////////////////////////////
+  if (test_num == 0) // 
+  begin
+    // TEST 0: DEFER, COLL. AND LATE COLL. WHILE TRANSMITTING AND RECEIVING FRM. AT 4 TX/RX BD ( 10Mbps )
+    //         
+    test_name = "TEST 0: DEFER, COLL. AND LATE COLL. WHILE TRANSMITTING AND RECEIVING FRM. AT 4 TX/RX BD ( 10Mbps )";
+    `TIME; $display("  TEST 0: DEFER, COLL. AND LATE COLL. WHILE TRANSMITTING AND RECEIVING FRM. AT 4 TX/RX BD ( 10Mbps )");
+
+    // reset MAC completely
+    hard_reset;
+    // set wb slave response
+    wb_slave.cycle_response(`ACK_RESPONSE, wbs_waits, wbs_retries);
+
+    max_tmp = 0;
+    min_tmp = 0;
+    // set 4 TX buffer descriptors (4 TX and 4 RX BDs will be used) - must be set before TX/RX enable
+    wait (wbm_working == 0);
+    wbm_write(`ETH_TX_BD_NUM, 32'h4, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // enable TX and RX, set half-duplex mode, receive small, NO correct IFG
+    wait (wbm_working == 0);
+    wbm_write(`ETH_MODER, `ETH_MODER_TXEN | `ETH_MODER_RXEN | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
+              `ETH_MODER_PRO | `ETH_MODER_BRO, 
+              4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // prepare two packets of MAXFL length for TX and RX
+    wait (wbm_working == 0);
+    wbm_read(`ETH_PACKETLEN, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    max_tmp = tmp[15:0]; // 18 bytes consists of 6B dest addr, 6B source addr, 2B type/len, 4B CRC
+    min_tmp = tmp[31:16];
+    st_data = 8'h17;
+    set_rx_packet(0, (min_tmp), 1'b0, 48'h0102_0304_0506, 48'h0708_090A_0B0C, 16'h0D0E, st_data); // length without CRC
+    append_rx_crc (0, (min_tmp), 1'b0, 1'b0);
+    st_data = 8'h92;
+    set_tx_packet(`MEMORY_BASE, (min_tmp), st_data); // length without CRC
+    append_tx_crc (`MEMORY_BASE, (min_tmp), 1'b0);
+
+    // check WB INT signal
+    if (wb_int !== 1'b0)
+    begin
+      test_fail("WB INT signal should not be set");
+      fail = fail + 1;
+    end
+    // unmask interrupts
+    wait (wbm_working == 0);
+    wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
+                             `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+
+    // write to phy's control register for 10Mbps
+    #Tp eth_phy.control_bit14_10 = 5'b00000; // bit 13 reset - speed 10
+    #Tp eth_phy.control_bit8_0   = 9'h1_00;  // bit 6 reset  - (10/100), bit 8 set - FD
+    speed = 10;
+  
+    // set TX and RX Buffer Descriptors 
+    tx_bd_num = 0; // tx BDs go from 0 to 3
+    rx_bd_num = 4; // rx BDs go from 4 to 7
+    set_tx_bd(0, 3, i_length[15:0], 1'b1, 1'b1, 1'b1, (`MEMORY_BASE + max_tmp));
+    set_tx_bd_wrap(3);
+    set_rx_bd(4, 7, 1'b1, `MEMORY_BASE);
+    set_rx_bd_wrap(7);
+    set_rx_bd_empty(4, 7);
+    
+//    frame_ended = 0;
+    tmp_len = 0;
+    num_of_frames = 0;// 0; // 10;
+    num_of_iter = 0;
+//    num_of_bd = 0;
+//    i_length = 0;// (0 - 4); // 6; // 4 less due to CRC
+    while (num_of_frames < 80)
+    begin
+      // change COLLVALID bits in COLLCONF register
+      if ((num_of_frames == 0) && (num_of_iter == 0))
+      begin
+        wait (wbm_working == 0);
+        wbm_read(`ETH_COLLCONF, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        tmp[5:0] = 6'h00; // 6'b00_0000 ->  0 + 1 =  1 byte from preamble
+        wait (wbm_working == 0);
+        wbm_write(`ETH_COLLCONF, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        $display("    Collision window is set to 1 byte after preamble and SFD");
+      end
+      else if ((num_of_frames == 0) && (num_of_iter == 1))
+      begin
+        wait (wbm_working == 0);
+        wbm_read(`ETH_COLLCONF, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        tmp[5:0] = 6'h15; // 6'b01_0101 -> 21 + 1 = 22 bytes from preamble
+        wait (wbm_working == 0);
+        wbm_write(`ETH_COLLCONF, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        $display("    Collision window is set to 22 bytes after preamble and SFD");
+      end
+      else if ((num_of_frames == 0) && (num_of_iter == 2))
+      begin
+        wait (wbm_working == 0);
+        wbm_read(`ETH_COLLCONF, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        tmp[5:0] = 6'h2A; // 6'b10_1010 -> 42 + 1 = 43 bytes from preamble
+        wait (wbm_working == 0);
+        wbm_write(`ETH_COLLCONF, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        $display("    Collision window is set to 43 bytes after preamble and SFD");
+      end
+      else if ((num_of_frames == 0) && (num_of_iter == 3))
+      begin
+        wait (wbm_working == 0);
+        wbm_read(`ETH_COLLCONF, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        tmp[5:0] = 6'h3F; // 6'b11_1111 -> 63 + 1 = 64 bytes from preamble
+        wait (wbm_working == 0);
+        wbm_write(`ETH_COLLCONF, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        $display("    Collision window is set to 64 bytes after preamble and SFD");
+      end
+
+
+//wire          MRxDV;    // This goes to PHY
+//wire          MRxErr;   // This goes to PHY
+//wire          MColl;    // This goes to PHY
+//wire          MCrs;     // This goes to PHY
+//wire          MTxEn;
+//wire          MTxErr;
+      // CHECK END OF RECEIVE WHILE TRANSMITTING
+      frame_ended = 0;
+      check_rx_frame = 0;
+      fork
+        // send frames
+        begin // start with RX frame
+          repeat(num_of_frames) @(posedge mrx_clk);
+          #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h7, 8'hD5, 0, (min_tmp + 4), 1'b0);
+          repeat(10) @(posedge mrx_clk);
+        end
+        begin // start with TX frame 
+          repeat(2) @(posedge mrx_clk);
+          repeat(2) @(posedge wb_clk); 
+          #1 set_tx_bd_ready(tx_bd_num, tx_bd_num);
+        end
+        // observe TX Enable, Carrier Sense and Collision - TX frame is not repeated after Late Collision
+        begin
+          wait (MCrs || MTxEn); 
+          #1;
+          if ((MCrs == 1'b1) && (MTxEn == 1'b0)) // defer TX due to Carrier Sense
+            wait_for_tx_frame = 1'b1; // wait for retransmission of TX frame
+          else
+          begin
+            i = 0;
+            while (MColl == 1'b0) // wait for Collision to occure
+            begin
+              repeat(2) @(posedge mtx_clk); // counting bytes
+              #1 i = i + 1'b1;
+            end
+            i = i - 8; // subtract preamble and SFD (bytes) - Late Collision is measured from SFD!
+            tmp_len = eth_phy.tx_len; // without preamble and SFD (bytes)
+            //wait (MTxEn == 1'b0); // wait for TX frame to end
+            repeat(10) @(posedge mrx_clk);
+            repeat(8) @(posedge wb_clk); 
+            #1 check_tx_bd(tx_bd_num, data);
+            if (data[15] === 0) // if transmit is aborted, then it was Late Collision
+            begin
+              wait_for_tx_frame = 1'b0; // don't wait for retransmission of TX frame
+              $display("    ->Late Collision occured on %0d. byte after frame and SFD", i);
+            end
+            else
+              wait_for_tx_frame = 1'b1; // wait for retransmission of TX frame
+          end
+        end
+        // check if RX frame is accepted
+        begin
+          wait (MRxDV === 1'b1); // start receive
+          wait (MRxDV === 1'b0); // end receive
+          repeat(10) @(posedge mrx_clk);
+          repeat(8) @(posedge wb_clk); 
+          #1 check_rx_bd(rx_bd_num, data);
+          if (data[15] === 0)
+          begin
+            check_rx_frame = 1'b1; // RX frame accepted and must be checked
+            if ((i + 8) == 0) // add preamble and SFD length (bytes)
+              $display("    ->RX frame, which started before or at beginning of TX frame, was accepted");
+            else
+              $display("    ->RX frame, which started %0d byte(s) after beginning of TX frame, was accepted", (i + 8));
+          end
+          else
+            check_rx_frame = 1'b0; // RX frame rejected
+          repeat(1) @(posedge wb_clk);
+        end
+      join
+
+
+
+      // check length of a PACKET
+      if ( ((data[31:16] != (i_length + 4)) && (num_of_frames >= 3)) ||
+           ((data[31:16] != 0) && (num_of_frames < 3)) )
+      begin
+        `TIME; $display("*E Wrong length of the packet out from PHY (%0d instead of %0d)", 
+                        data[31:16], (i_length + 4));
+        test_fail("Wrong length of the packet out from PHY");
+        fail = fail + 1;
+      end
+      // check received RX packet data and CRC
+//if ((num_of_frames == 5))
+//begin                                           // CRC has 4 bytes for itself
+//  if (i_length[0] == 1'b1)
+//  begin
+//    check_rx_packet(0, (`MEMORY_BASE + i_length[1:0]), (i_length + 4), 1'b0, 1'b0, tmp);
+//  end
+//  else
+//  begin
+//    check_rx_packet(max_tmp, ((`MEMORY_BASE + i_length[1:0]) + max_tmp), (i_length + 4), 1'b0, 1'b0, tmp);
+//  end
+//  if (tmp > 0)
+//  begin
+//    `TIME; $display("*E Wrong data of the received packet");
+//    test_fail("Wrong data of the received packet");
+//    fail = fail + 1;
+//  end
+//end
+//else
+//if ((num_of_frames == 10))
+//begin                                           // CRC has 4 bytes for itself
+//  if (i_length[0] == 1'b1)
+//  begin
+//    check_rx_packet(0, (`MEMORY_BASE + i_length[1:0]), (i_length + 4), 1'b0, 1'b0, tmp);
+//  end
+//  else
+//  begin
+//    check_rx_packet(max_tmp, ((`MEMORY_BASE + i_length[1:0]) + max_tmp), (i_length + 4), 1'b0, 1'b0, tmp);
+//  end
+//  if (tmp > 0)
+//  begin
+//    `TIME; $display("*E Wrong data of the received packet");
+//    test_fail("Wrong data of the received packet");
+//    fail = fail + 1;
+//  end
+//end
+//else
+      if ((frame_ended == 1) && (num_of_frames >= 5)) // 5 bytes is minimum size without CRC error, since
+      begin                                           // CRC has 4 bytes for itself
+        if (i_length[0] == 1'b0)
+        begin
+          check_rx_packet(0, (`MEMORY_BASE + i_length[1:0]), (i_length + 4), 1'b0, 1'b0, tmp);
+        end
+        else
+        begin
+          check_rx_packet(max_tmp, ((`MEMORY_BASE + i_length[1:0]) + max_tmp), (i_length + 4), 1'b0, 1'b0, tmp);
+        end
+        if (tmp > 0)
+        begin
+          `TIME; $display("*E Wrong data of the received packet");
+          test_fail("Wrong data of the received packet");
+          fail = fail + 1;
+        end
+      end
+
+      // check WB INT signal
+      if (num_of_frames >= 3) // Frames smaller than 3 are not received.
+      begin                   // Frames greater then 5 always cause an interrupt (Frame received)
+        if (wb_int !== 1'b1)  // Frames with length 3 or 4 always cause an interrupt (CRC error)
+        begin
+          `TIME; $display("*E WB INT signal should be set");
+          test_fail("WB INT signal should be set");
+          fail = fail + 1;
+        end
+      end
+      else 
+      begin
+        if (wb_int !== 1'b0)
+        begin
+          `TIME; $display("*E WB INT signal should not be set");
+          test_fail("WB INT signal should not be set");
+          fail = fail + 1;
+        end
+      end
+
+      // check RX buffer descriptor of a packet
+      if (num_of_frames >= min_tmp)
+      begin
+        if ( (data[15:0] !== 16'h6000) && // wrap bit
+             (data[15:0] !== 16'h4000) ) // without wrap bit
+        begin
+          `TIME; $display("*E RX buffer descriptor status is not correct: %0h - len: %0d", data[15:0], num_of_frames);
+          test_fail("RX buffer descriptor status is not correct");
+          fail = fail + 1;
+        end
+      end
+      else if (num_of_frames > 4)
+      begin
+        if ( (data[15:0] !== 16'h6004) && // wrap bit
+             (data[15:0] !== 16'h4004) ) // without wrap bit
+        begin
+          `TIME; $display("*E RX buffer descriptor status is not correct: %0h - len: %0d", data[15:0], num_of_frames);
+          test_fail("RX buffer descriptor status is not correct");
+          fail = fail + 1;
+        end
+      end
+      else if (num_of_frames > 2)
+      begin
+        if ( (data[15:0] !== 16'h6006) && // wrap bit
+             (data[15:0] !== 16'h4006) ) // without wrap bit
+        begin
+          `TIME; $display("*E RX buffer descriptor status is not correct: %0h - len: %0d", data[15:0], num_of_frames);
+          test_fail("RX buffer descriptor status is not correct");
+          fail = fail + 1;
+        end
+      end
+      else
+      begin
+        if (data[15] !== 1'b1)
+        begin
+          `TIME; $display("*E RX buffer descriptor status is not correct: %0h - len: %0d", data[15:0], num_of_frames);
+          test_fail("RX buffer descriptor status is not correct");
+          fail = fail + 1;
+        end
+      end
+      // check interrupts
+      wait (wbm_working == 0);
+      wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      if (num_of_frames >= 5)
+      begin
+        if ((data & `ETH_INT_RXB) !== `ETH_INT_RXB)
+        begin
+          `TIME; $display("*E Interrupt Receive Buffer was not set, interrupt reg: %0h", data);
+          test_fail("Interrupt Receive Buffer was not set");
+          fail = fail + 1;
+        end
+        if ((data & (~`ETH_INT_RXB)) !== 0)
+        begin
+          `TIME; $display("*E Other interrupts (except Receive Buffer) were set, interrupt reg: %0h", data);
+          test_fail("Other interrupts (except Receive Buffer) were set");
+          fail = fail + 1;
+        end
+      end
+      else if ((num_of_frames < 3)) // Frames smaller than 3 are not received.
+      begin
+        if (data) // Checking if any interrupt is pending)
+        begin
+          `TIME; $display("*E Interrupt(s) is(are) pending although frame was ignored, interrupt reg: %0h", data);
+          test_fail("Interrupts were set");
+          fail = fail + 1;
+        end
+      end
+      else
+      begin
+        if ((data & `ETH_INT_RXE) !== `ETH_INT_RXE)
+        begin
+          `TIME; $display("*E Interrupt Receive Buffer Error was not set, interrupt reg: %0h", data);
+          test_fail("Interrupt Receive Buffer Error was not set");
+          fail = fail + 1;
+        end
+        if ((data & (~`ETH_INT_RXE)) !== 0)
+        begin
+          `TIME; $display("*E Other interrupts (except Receive Buffer Error) were set, interrupt reg: %0h", data);
+          test_fail("Other interrupts (except Receive Buffer Error) were set");
+          fail = fail + 1;
+        end
+      end
+      // clear interrupts
+      wait (wbm_working == 0);
+      wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      // check WB INT signal
+      if (wb_int !== 1'b0)
+      begin
+        test_fail("WB INT signal should not be set");
+        fail = fail + 1;
+      end
+      // INTERMEDIATE DISPLAYS
+      if (num_of_frames == 3)
+      begin
+        $display("    using 1 BD out of 8 BDs (120..127) assigned to RX (wrap at 1st BD - RX BD 120)");
+        $display("    ->packets with lengths from %0d to %0d are not received (length increasing by 1 byte)",
+                 0, 3);
+      end
+      else if (num_of_frames == 9)
+      begin
+        $display("    using 1 BD out of 8 BDs (120..127) assigned to RX (wrap at 1st BD - RX BD 120)");
+        $display("    ->packet with length 4 is not received (length increasing by 1 byte)");
+        $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 1 byte)",
+                 5, 9);
+      end
+      else if (num_of_frames == 17)
+      begin
+        $display("    using 4 BDs out of 8 BDs (120..127) assigned to RX (wrap at 4th BD - RX BD 123)");
+        $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 1 byte)",
+                 10, 17);
+      end
+      else if (num_of_frames == 27)
+      begin
+        $display("    using 5 BDs out of 8 BDs (120..127) assigned to RX (wrap at 5th BD - RX BD 124)");
+        $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 1 byte)",
+                 18, 27);
+      end
+      else if (num_of_frames == 40)
+      begin
+        $display("    using 6 BDs out of 8 BDs (120..127) assigned to RX (wrap at 6th BD - RX BD 125)");
+        $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 1 byte)",
+                 28, 40);
+      end
+      else if (num_of_frames == 54)
+      begin
+        $display("    using 7 BDs out of 8 BDs (120..127) assigned to RX (wrap at 7th BD - RX BD 126)");
+        $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 1 byte)",
+                 41, 54);
+      end
+      else if (num_of_frames == 69)
+      begin
+        $display("    using 8 BDs out of 8 BDs (120..127) assigned to RX (wrap at 8th BD - RX BD 127)");
+        $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 1 byte)",
+                 55, 69);
+      end
+      else if (num_of_frames == 69)
+      begin
+        $display("    using 8 BDs out of 8 BDs (120..127) assigned to RX (wrap at 8th BD - RX BD 127)");
+        $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 1 byte)",
+                 55, 69);
+      end
+      else if (num_of_frames == 77)
+      begin
+        $display("    using 8 BDs out of 8 BDs (120..127) assigned to RX (wrap at 8th BD - RX BD 127)");
+        $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 1 byte)",
+                 70, 77);
+      end
+      // set length (loop variable)
+      i_length = i_length + 1;
+      // the number of frame transmitted
+      num_of_frames = num_of_frames + 1;
+      if (/*(num_of_frames == 2) || (num_of_frames == 4) || (num_of_frames == 7) ||*/ (num_of_frames <= 10) || 
+          (num_of_frames == 14) || (num_of_frames == 18) || (num_of_frames == 23) || (num_of_frames == 28) ||
+          (num_of_frames == 34) || (num_of_frames == 40) || (num_of_frames == 47) ||
+          (num_of_frames == 54) || (num_of_frames == 62) || (num_of_frames == 70))
+        num_of_bd = 120;
+      else
+        num_of_bd = num_of_bd + 1;
+    end
+    // disable RX
+    wait (wbm_working == 0);
+    wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_PAD | `ETH_MODER_CRCEN,
+              4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    @(posedge wb_clk);
+    if(fail == 0)
+      test_ok;
+    else
+      fail = 0;
+  end
+
+
+  ////////////////////////////////////////////////////////////////////
+  ////                                                            ////
+  ////  Receive control frames with PASSALL option turned off     ////
+  ////  Using only one RX buffer decriptor ( 10Mbps ).            ////
+  ////                                                            ////
+  ////////////////////////////////////////////////////////////////////
+  if (test_num == 1) // 
+  begin
+    // TEST 1: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED OFF AT ONE RX BD ( 10Mbps )
+    test_name   = "TEST 1: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED OFF AT ONE RX BD ( 10Mbps )";
+    `TIME; $display("  TEST 1: RECEIVE CONTROL FRAMES WITH PASSALL OPTION TURNED OFF AT ONE RX BD ( 10Mbps )");
+
+    // unmask interrupts
+    wait (wbm_working == 0);
+    wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
+                             `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // set 1 RX buffer descriptor (8'h80 - 1) - must be set before RX enable
+    wait (wbm_working == 0);
+    wbm_write(`ETH_TX_BD_NUM, 32'h7F, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // enable RX, set full-duplex mode, NO receive small, NO correct IFG
+    wait (wbm_working == 0);
+    wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
+              `ETH_MODER_PRO | `ETH_MODER_BRO, 
+              4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+    // prepare one control (PAUSE)packet
+    st_data = 8'h00;
+    set_rx_packet(0, 60, 1'b0, 48'h0180_c200_0001, 48'h0708_090A_0B0C, 16'h8808, st_data); // length without CRC
+    // prepare one packet of 100 bytes long
+    st_data = 8'h1A;
+    set_rx_packet(64, 100, 1'b0, 48'h1234_5678_8765, 48'hA1B2_C3D4_E5F6, 16'hE77E, st_data); 
+    // check WB INT signal
+    if (wb_int !== 1'b0)
+    begin
+      test_fail("WB INT signal should not be set");
+      fail = fail + 1;
+    end
+  
+    // write to phy's control register for 10Mbps
+    #Tp eth_phy.control_bit14_10 = 5'b00000; // bit 13 reset - speed 10
+    #Tp eth_phy.control_bit8_0   = 9'h1_00;  // bit 6 reset  - (10/100), bit 8 set - FD
+    speed = 10;
+
+    for (i=0; i<4; i=i+1)
+    begin
+      // choose generating carrier sense and collision for first and last 64 lengths of frames
+      case (i)
+      0: // Interrupt is generated
+      begin
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b1, (`MEMORY_BASE + i));
+        // unmask interrupts
+        wait (wbm_working == 0);
+        wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
+                                 `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        // not detect carrier sense in FD and no collision
+        eth_phy.no_carrier_sense_rx_fd_detect(0);
+        eth_phy.collision(0);
+      end
+      1: // Interrupt is not generated
+      begin
+        // enable interrupt generation
+        set_rx_bd(127, 127, 1'b1, ((`MEMORY_BASE + i) + 64));
+        // mask interrupts
+        wait (wbm_working == 0);
+        wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        // detect carrier sense in FD and no collision
+        eth_phy.no_carrier_sense_rx_fd_detect(1);
+        eth_phy.collision(0);
+      end
+      2: // Interrupt is not generated
+      begin
+        // disable interrupt generation
+        set_rx_bd(127, 127, 1'b0, (`MEMORY_BASE + i));
+        // unmask interrupts
+        wait (wbm_working == 0);
+        wbm_write(`ETH_INT_MASK, `ETH_INT_TXB | `ETH_INT_TXE | `ETH_INT_RXB | `ETH_INT_RXE | `ETH_INT_BUSY |
+                                 `ETH_INT_TXC | `ETH_INT_RXC, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        // not detect carrier sense in FD and set collision
+        eth_phy.no_carrier_sense_rx_fd_detect(0);
+        eth_phy.collision(1);
+      end
+      default: // 3: // Interrupt is not generated
+      begin
+        // disable interrupt generation
+        set_rx_bd(127, 127, 1'b0, ((`MEMORY_BASE + i) + 64));
+        // mask interrupts
+        wait (wbm_working == 0);
+        wbm_write(`ETH_INT_MASK, 32'h0, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        // detect carrier sense in FD and set collision
+        eth_phy.no_carrier_sense_rx_fd_detect(1);
+        eth_phy.collision(1);
+      end
+      endcase
+
+      append_rx_crc (64, 100, 1'b0, 1'b0); // To the second (data) packet
+      // set wrap bit
+      set_rx_bd_wrap(127);
+      set_rx_bd_empty(127, 127);
+      fork
+        begin
+          if (i[0] == 1'b0)
+            #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h7, 8'hD5, 0, 64, 1'b0);
+          else
+            #1 eth_phy.send_rx_packet(64'h0055_5555_5555_5555, 4'h7, 8'hD5, 64, 104, 1'b0);
+          repeat(10) @(posedge mrx_clk);
+$display("1111");
+        end
+        begin
+          #1 check_rx_bd(127, data);
+$display("aaaa");
+          wait (MRxDV === 1'b1); // start transmit
+$display("bbbb");
+          #1 check_rx_bd(127, data);
+          if (data[15] !== 1)
+          begin
+            test_fail("Wrong buffer descriptor's ready bit read out from MAC");
+            fail = fail + 1;
+          end
+          wait (MRxDV === 1'b0); // end transmit
+$display("cccc");
+          while (data[15] === 1)
+          begin
+            #1 check_rx_bd(127, data);
+            @(posedge wb_clk);
+          end
+          repeat (1) @(posedge wb_clk);
+$display("2222");
+        end
+      join
+$display("dddd");
+      // check length of a PACKET
+      if (data[31:16] != (i_length + 4))
+      begin
+        `TIME; $display("*E Wrong length of the packet out from PHY (%0d instead of %0d)", 
+                        data[31:16], (i_length + 4));
+        test_fail("Wrong length of the packet out from PHY");
+        fail = fail + 1;
+      end
+      // checking in the following if statement is performed only for first and last 64 lengths
+      // check received RX packet data and CRC
+      if (i_length[0] == 1'b0)
+      begin
+        check_rx_packet(0, (`MEMORY_BASE + i_length[1:0]), (i_length + 4), 1'b0, 1'b0, tmp);
+      end
+      else
+      begin
+        check_rx_packet(max_tmp, ((`MEMORY_BASE + i_length[1:0]) + max_tmp), (i_length + 4), 1'b0, 1'b0, tmp);
+      end
+      if (tmp > 0)
+      begin
+        `TIME; $display("*E Wrong data of the received packet");
+        test_fail("Wrong data of the received packet");
+        fail = fail + 1;
+      end
+      // check WB INT signal
+      if (i_length[1:0] == 2'h0)
+      begin
+        if (wb_int !== 1'b1)
+        begin
+          `TIME; $display("*E WB INT signal should be set");
+          test_fail("WB INT signal should be set");
+          fail = fail + 1;
+        end
+      end
+      else
+      begin
+        if (wb_int !== 1'b0)
+        begin
+          `TIME; $display("*E WB INT signal should not be set");
+          test_fail("WB INT signal should not be set");
+          fail = fail + 1;
+        end
+      end
+      // check RX buffer descriptor of a packet
+      check_rx_bd(127, data);
+      if (i_length[1] == 1'b0) // interrupt enabled no_carrier_sense_rx_fd_detect
+      begin
+        if ( ((data[15:0] !== 16'h6000) && (i_length[0] == 1'b0)) ||
+             ((data[15:0] !== 16'h6000) && (i_length[0] == 1'b1)) )
+        begin
+          `TIME; $display("*E RX buffer descriptor status is not correct: %0h", data[15:0]);
+          test_fail("RX buffer descriptor status is not correct");
+          fail = fail + 1;
+        end
+      end
+      else // interrupt not enabled
+      begin
+        if ( ((data[15:0] !== 16'h2000) && (i_length[0] == 1'b0)) ||
+             ((data[15:0] !== 16'h2000) && (i_length[0] == 1'b1)) )
+        begin
+          `TIME; $display("*E RX buffer descriptor status is not correct: %0h", data[15:0]);
+          test_fail("RX buffer descriptor status is not correct");
+          fail = fail + 1;
+        end
+      end
+      // clear RX buffer descriptor for first 4 frames
+      if (i_length < min_tmp)
+        clear_rx_bd(127, 127);
+      // check interrupts
+      wait (wbm_working == 0);
+      wbm_read(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      if ((i_length[1:0] == 2'h0) || (i_length[1:0] == 2'h1))
+      begin
+        if ((data & `ETH_INT_RXB) !== `ETH_INT_RXB)
+        begin
+          `TIME; $display("*E Interrupt Receive Buffer was not set, interrupt reg: %0h", data);
+          test_fail("Interrupt Receive Buffer was not set");
+          fail = fail + 1;
+        end
+        if ((data & (~`ETH_INT_RXB)) !== 0)
+        begin
+          `TIME; $display("*E Other interrupts (except Receive Buffer) were set, interrupt reg: %0h", data);
+          test_fail("Other interrupts (except Receive Buffer) were set");
+          fail = fail + 1;
+        end
+      end
+      else
+      begin
+        if (data !== 0)
+        begin
+          `TIME; $display("*E Any of interrupts (except Receive Buffer) was set, interrupt reg: %0h, len: %0h", data, i_length[1:0]);
+          test_fail("Any of interrupts (except Receive Buffer) was set");
+          fail = fail + 1;
+        end
+      end
+      // clear interrupts
+      wait (wbm_working == 0);
+      wbm_write(`ETH_INT, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      // check WB INT signal
+      if (wb_int !== 1'b0)
+      begin
+        test_fail("WB INT signal should not be set");
+        fail = fail + 1;
+      end
+      // INTERMEDIATE DISPLAYS
+      if ((i_length + 4) == (min_tmp + 64))
+      begin
+        // starting length is min_tmp, ending length is (min_tmp + 64)
+        $display("    receive small packets is NOT selected");
+        $display("    ->packets with lengths from %0d (MINFL) to %0d are checked (length increasing by 1 byte)",
+                 min_tmp, (min_tmp + 64));
+        // set receive small, remain the rest
+        wait (wbm_working == 0);
+        wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
+                  `ETH_MODER_PRO | `ETH_MODER_BRO, 
+                  4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      else if ((i_length + 4) == (max_tmp - 16))
+      begin
+        // starting length is for +128 longer than previous ending length, while ending length is tmp_data
+        $display("    receive small packets is selected");
+        $display("    ->packets with lengths from %0d to %0d are checked (length increasing by 128 bytes)",
+                 (min_tmp + 64 + 128), tmp_data); 
+        // reset receive small, remain the rest
+        wait (wbm_working == 0);
+        wbm_write(`ETH_MODER, `ETH_MODER_RXEN | `ETH_MODER_FULLD | `ETH_MODER_IFG | 
+                  `ETH_MODER_PRO | `ETH_MODER_BRO, 
+                  4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+      end
+      else if ((i_length + 4) == max_tmp)
+      begin
+        $display("    receive small packets is NOT selected");
+        $display("    ->packets with lengths from %0d to %0d (MAXFL) are checked (length increasing by 1 byte)",
+                 (max_tmp - (4 + 16)), max_tmp);
+      end
+      // set length (loop variable)
+      if ((i_length + 4) < (min_tmp + 64))
+        i_length = i_length + 1;
+      else if ( ((i_length + 4) >= (min_tmp + 64)) && ((i_length + 4) <= (max_tmp - 256)) )
+      begin
+        i_length = i_length + 128;
+        tmp_data = i_length + 4; // last tmp_data is ending length
+      end
+      else if ( ((i_length + 4) > (max_tmp - 256)) && ((i_length + 4) < (max_tmp - 16)) )
+        i_length = max_tmp - (4 + 16);
+      else if ((i_length + 4) >= (max_tmp - 16))
+        i_length = i_length + 1;
+      else
+      begin
+        $display("*E TESTBENCH ERROR - WRONG PARAMETERS IN TESTBENCH");
+        #10 $stop;
+      end
+    end
+    // disable RX
+    wait (wbm_working == 0);
     wbm_write(`ETH_MODER, `ETH_MODER_FULLD | `ETH_MODER_RECSMALL | `ETH_MODER_IFG | 
               `ETH_MODER_PRO | `ETH_MODER_BRO,
               4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -15095,7 +17356,7 @@ end   //  for (test_num=start_task; test_num <= end_task; test_num=test_num+1)
 
 
 end
-endtask // test_mac_full_duplex_flow_control
+endtask // test_mac_half_duplex_flow
 
 
 //////////////////////////////////////////////////////////////
@@ -15115,6 +17376,8 @@ task wbm_write;
   reg `WRITE_RETURN_TYPE write_status;
   integer i;
 begin
+  wbm_working = 1;
+  
   write_status = 0;
 
   flags                    = 0;
@@ -15142,6 +17405,11 @@ begin
     `TIME;
     $display("*E WISHBONE Master was unable to complete the requested write operation to MAC!");
   end
+
+  @(posedge wb_clk);
+  #3;
+  wbm_working = 0;
+  #1;
 end
 endtask // wbm_write
 
@@ -15158,6 +17426,8 @@ task wbm_read;
   reg `READ_RETURN_TYPE read_status;
   integer i;
 begin
+  wbm_working = 1;
+
   read_status = 0;
   data_o      = 0;
 
@@ -15190,6 +17460,11 @@ begin
     read_data    = wb_master.blk_read_data_out[(size_i - 1) - i]; // [31 - i];
     data_o[31:0] = read_data`READ_DATA;
   end
+
+  @(posedge wb_clk);
+  #3;
+  wbm_working = 0;
+  #1;
 end
 endtask // wbm_read
 
@@ -15242,11 +17517,9 @@ begin
     bd_status_addr = `TX_BD_BASE + i * 8;
     bd_ptr_addr = bd_status_addr + 4;
     // initialize BD - status
-//    wbm_write(bd_status_addr, 32'h00005800, 4'hF, 1, wbm_init_waits, wbm_subseq_waits); // IRQ + PAD + CRC
     wbm_write(bd_status_addr, {len, 1'b0, irq, 1'b0, pad, crc, 11'h0}, 
               4'hF, 1, wbm_init_waits, wbm_subseq_waits); // IRQ + PAD + CRC
     // initialize BD - pointer
-//    wbm_write(bd_ptr_addr, buf_addr, 4'hF, 1, wbm_init_waits, wbm_subseq_waits); // Initializing BD-pointer
     wbm_write(bd_ptr_addr, txpnt, 4'hF, 1, wbm_init_waits, wbm_subseq_waits); // Initializing BD-pointer
   end
 end
@@ -15286,8 +17559,7 @@ task check_tx_bd;
 begin
   bd_status_addr = `TX_BD_BASE + tx_bd_num_end * 8;
   wbm_read(bd_status_addr, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-  #1 tx_bd_status = tmp;
-  #1;
+  tx_bd_status = tmp;
 end
 endtask // check_tx_bd
 
@@ -15375,8 +17647,7 @@ begin
 //  bd_status_addr = `RX_BD_BASE + rx_bd_num_end * 8;
   bd_status_addr = `TX_BD_BASE + rx_bd_num_end * 8;
   wbm_read(bd_status_addr, tmp, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-  #1 rx_bd_status = tmp;
-  #1;
+  rx_bd_status = tmp;
 end
 endtask // check_rx_bd
 
@@ -16993,13 +19264,11 @@ task clear_memories;
   reg    [22:0]  adr_i;
   reg            delta_t;
 begin
-  delta_t = 0;
   for (adr_i = 0; adr_i < 4194304; adr_i = adr_i + 1)
   begin
     eth_phy.rx_mem[adr_i[21:0]] = 0;
     eth_phy.tx_mem[adr_i[21:0]] = 0;
     wb_slave.wb_memory[adr_i[21:2]] = 0;
-    delta_t = !delta_t;
   end
 end
 endtask // clear_memories
