@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2002/09/13 18:44:29  mohor
+// Beautiful tests merget together
+//
 // Revision 1.9  2002/09/13 18:41:45  mohor
 // Rearanged testcases
 //
@@ -392,9 +395,8 @@ begin
 
   //  Call tests
   //  ----------
-    test_access_to_mac_reg(0, 3);          // 0 - 3
+//    test_access_to_mac_reg(0, 3);          // 0 - 3
 //    test_mii(0, 17);                        // 0 - 17
-    test_mii(0, 1);                        // 0 - 17
   test_note("PHY generates ideal Carrier sense and Collision signals for following tests");
   eth_phy.carrier_sense_real_delay(0);
     test_mac_full_duplex_transmit(0, 3);   // 0 - (3)
@@ -4262,12 +4264,12 @@ begin
       tmp_data = min_tmp;
     if (i_length == (max_tmp - 4))
     begin
-      $display("    packets with lengths (including FCS) from %d to %d are checked",
+      $display("    packets with lengths (including FCS) from %0d to %0d are checked",
                tmp_data, (i_length + 4));
     end
-    else if (i_length[7:0] == 8'h7C) // 8'h7C + 8'h04 = 8'h80 (128), because i_length has length - 4 value
+    else if (!((i_length + 4) % 128)) // 8'h7C + 8'h04 = 8'h80 (128), because i_length has length - 4 value
     begin
-      $display("    packets with lengths (including FCS) from %d to %d are checked",
+      $display("    packets with lengths (including FCS) from %0d to %0d are checked",
                tmp_data, (i_length + 4));
       tmp_data = i_length + 4 + 1; // next starting length is for +1 longer
     end
