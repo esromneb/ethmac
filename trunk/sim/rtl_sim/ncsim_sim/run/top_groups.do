@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 5.84
-define waveform window namepane 16.26
+define waveform window listpane 11
+define waveform window namepane 16
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -160,6 +160,8 @@ add group \
 
 add group \
     "WISHBONE slave signals" \
+      tb_ethernet.eth_sl_wb_dat_i[31:0]'h \
+      tb_ethernet.eth_sl_wb_dat_o[31:0]'h \
       tb_ethernet.eth_top.wb_adr_i[11:2]'h \
       tb_ethernet.eth_top.wb_sel_i[3:0]'h \
       tb_ethernet.eth_top.wb_we_i \
@@ -178,6 +180,104 @@ add group \
       tb_ethernet.eth_top.m_wb_stb_o \
       tb_ethernet.eth_top.m_wb_ack_i \
       tb_ethernet.eth_top.m_wb_err_i \
+
+add group \
+    "WISHBONE RX memory" \
+      tb_ethernet.eth_top.wishbone.TxLength[15:0]'h \
+      tb_ethernet.eth_top.wishbone.TxLengthEq0 \
+      tb_ethernet.eth_top.wishbone.TxLengthLt4 \
+      tb_ethernet.eth_top.wishbone.TxPointerLSB[1:0]'h \
+      tb_ethernet.eth_top.wishbone.TxPointerLSB_rst[1:0]'h \
+      tb_ethernet.eth_top.wishbone.TxPointerMSB[31:2]'h \
+      tb_ethernet.eth_top.wishbone.TxPointerRead \
+      tb_ethernet.eth_top.wishbone.TxBDReady \
+      tb_ethernet.eth_top.wishbone.TxBufferAlmostEmpty \
+      tb_ethernet.eth_top.wishbone.TxBufferAlmostFull \
+      tb_ethernet.eth_top.wishbone.TxBufferEmpty \
+      tb_ethernet.eth_top.wishbone.TxBufferFull \
+      tb_ethernet.eth_top.wishbone.TxData_wb[31:0]'h \
+      tb_ethernet.eth_top.wishbone.TxData[7:0]'h \
+      tb_ethernet.eth_top.wishbone.TxDataLatched[31:0]'h \
+      tb_ethernet.eth_top.wishbone.TxByteCnt[1:0]'h \
+      tb_ethernet.eth_top.wishbone.TxStatus[14:11]'h \
+      tb_ethernet.eth_top.wishbone.TxStatusInLatched[8:0]'h \
+      tb_ethernet.test_mac_full_duplex_transmit.max_tmp[15:0]'h \
+      tb_ethernet.test_mac_full_duplex_transmit.min_tmp[15:0]'h \
+      tb_ethernet.test_mac_full_duplex_transmit.i_length'h \
+      tb_ethernet.eth_phy.tx_len[31:0]'h \
+      tb_ethernet.eth_phy.tx_len_err[31:0]'h \
+      tb_ethernet.eth_phy.tx_cnt[31:0]'h \
+      tb_ethernet.eth_phy.tx_byte_aligned_ok \
+      tb_ethernet.wb_slave.CYC_I \
+      tb_ethernet.wb_slave.STB_I \
+      tb_ethernet.wb_slave.WE_I \
+      tb_ethernet.wb_slave.ADR_I[31:0]'h \
+      tb_ethernet.wb_slave.DAT_I[31:0]'h \
+      tb_ethernet.wb_slave.SEL_I[3:0]'h \
+      tb_ethernet.wb_slave.ACK_O \
+      tb_ethernet.wb_slave.ERR_O \
+      tb_ethernet.wb_slave.RTY_O \
+      tb_ethernet.wb_slave.mem_wr_data_out[31:0]'h \
+      tb_ethernet.test_mac_full_duplex_receive.num_of_frames's \
+      tb_ethernet.test_mac_full_duplex_receive.first_fr_received \
+      tb_ethernet.test_mac_full_duplex_receive.bit_end_1's \
+      tb_ethernet.test_mac_full_duplex_receive.bit_end_2's \
+      tb_ethernet.test_mac_full_duplex_receive.bit_start_1's \
+      tb_ethernet.test_mac_full_duplex_receive.bit_start_2's \
+      tb_ethernet.test_mac_full_duplex_receive.burst_data[32767:0]'h \
+      tb_ethernet.test_mac_full_duplex_receive.burst_tmp_data[32767:0]'h \
+      tb_ethernet.test_mac_full_duplex_receive.check_frame \
+      tb_ethernet.test_mac_full_duplex_receive.data[31:0]'h \
+      tb_ethernet.test_mac_full_duplex_receive.end_task[31:0]'h \
+      tb_ethernet.test_mac_full_duplex_receive.fail's \
+      tb_ethernet.test_mac_full_duplex_receive.first_fr_received \
+      tb_ethernet.test_mac_full_duplex_receive.frame_ended \
+      tb_ethernet.test_mac_full_duplex_receive.frame_started \
+      tb_ethernet.test_mac_full_duplex_receive.i's \
+      tb_ethernet.test_mac_full_duplex_receive.i1's \
+      tb_ethernet.test_mac_full_duplex_receive.i2's \
+      tb_ethernet.test_mac_full_duplex_receive.i3's \
+      tb_ethernet.test_mac_full_duplex_receive.i_addr's \
+      tb_ethernet.test_mac_full_duplex_receive.i_data's \
+      tb_ethernet.test_mac_full_duplex_receive.i_length's \
+      tb_ethernet.test_mac_full_duplex_receive.max_tmp[15:0]'h \
+      tb_ethernet.test_mac_full_duplex_receive.min_tmp[15:0]'h \
+      tb_ethernet.test_mac_full_duplex_receive.num_of_bd's \
+      tb_ethernet.test_mac_full_duplex_receive.num_of_frames's \
+      tb_ethernet.test_mac_full_duplex_receive.num_of_reg's \
+      tb_ethernet.test_mac_full_duplex_receive.speed's \
+      tb_ethernet.test_mac_full_duplex_receive.st_data[7:0]'h \
+      tb_ethernet.test_mac_full_duplex_receive.start_task[31:0]'h \
+      tb_ethernet.test_mac_full_duplex_receive.stop_checking_frame \
+      tb_ethernet.test_mac_full_duplex_receive.test_num's \
+      tb_ethernet.test_mac_full_duplex_receive.tmp[31:0]'h \
+      tb_ethernet.test_mac_full_duplex_receive.tmp_bd'h \
+      tb_ethernet.test_mac_full_duplex_receive.tmp_bd_num's \
+      tb_ethernet.test_mac_full_duplex_receive.tmp_data's \
+      tb_ethernet.test_mac_full_duplex_receive.tmp_ipgt's \
+      tb_ethernet.test_mac_full_duplex_receive.tmp_len's \
+      tb_ethernet.test_mac_full_duplex_receive.tx_bd_num[31:0]'h \
+      tb_ethernet.test_mac_full_duplex_receive.wait_for_frame \
+      tb_ethernet.wbm_working \
+      tb_ethernet.check_rx_packet.addr_phy[31:0]'h \
+      tb_ethernet.check_rx_packet.addr_wb[31:0]'h \
+      tb_ethernet.check_rx_packet.buffer[21:0]'h \
+      tb_ethernet.check_rx_packet.data_phy'h \
+      tb_ethernet.check_rx_packet.data_wb'h \
+      tb_ethernet.check_rx_packet.delta_t \
+      tb_ethernet.check_rx_packet.failure[31:0]'h \
+      tb_ethernet.check_rx_packet.i's \
+      tb_ethernet.check_rx_packet.len[15:0]'h \
+      tb_ethernet.check_rx_packet.plus_dribble_nibble \
+      tb_ethernet.check_rx_packet.rxpnt_phy[31:0]'h \
+      tb_ethernet.check_rx_packet.rxpnt_wb[31:0]'h \
+      tb_ethernet.check_rx_packet.successful_dribble_nibble \
+      tb_ethernet.wb_slave.rd_mem.adr_i[31:0]'h \
+      tb_ethernet.wb_slave.rd_mem.dat_o[31:0]'h \
+      tb_ethernet.wb_slave.rd_mem.sel_i[3:0]'h \
+      tb_ethernet.wb_slave.ADR_I[31:0]'h \
+      tb_ethernet.wb_slave.mem_wr_data_out[31:0]'h \
+      tb_ethernet.wb_slave.SEL_I[3:0]'h \
 
 add group \
     "MAC FIFO" \
@@ -338,6 +438,4 @@ add group \
 
 
 deselect all
-open window designbrowser 1 geometry 56 119 855 550
-open window waveform 1 geometry 10 59 1592 1094
-zoom at 0(0)ns 0.00000403 0.00000000
+open window designbrowser 1 geometry 56 121 855 550

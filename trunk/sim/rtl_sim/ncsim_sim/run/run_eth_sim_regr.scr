@@ -11,70 +11,93 @@ set all_iterations = 3;
 set ok = 1;
 
 # Process argument
+set i = 1;
 set arg_waves = 0;
 set arg_regression = 0;
+
 
 if ($arg_num == 0) then
             echo "    Verification without any parameter !"
 else
-  if ($arg_num == 1) then
-    if (("$1" == "waves") | ("$1" == "-w")) then
+  while ($i <= $arg_num);
+    if (("$argv[$i]" == "waves") | ("$argv[$i]" == "-w")) then
             @ arg_waves = 1;
             echo "    Verification with parameter : waves !"
-    else
-      if (("$1" == "regression") | ("$1" == "-r")) then
+    else 
+      if (("$argv[$i]" == "regression") | ("$argv[$i]" == "-r")) then
             @ arg_regression = 1;
             echo "    Verification with parameter : regression !"
       else
-            echo "    Not correct parameter ( $1 )"
+            echo "    Not correct parameter ( $i )"
             echo "    Correct parameters are:"
             echo "      'waves' or '-w'"
             echo "      'regression' or '-r'"
             exit
       endif
     endif
-  else
-    if ($arg_num == 2) then
-      if (("$1" == "waves") | ("$1" == "-w")) then
-            @ arg_waves = 1;
-        if (("$2" == "regression") | ("$2" == "-r")) then
-            @ arg_regression = 1;
-            echo "    Verification with parameter : waves, regression !"
-        else
-            echo "    Not correct parameter ( $2 )"
-            echo "    Correct 2. parameter is:"
-            echo "      'regression' or '-r'"
-            exit
-        endif
-      else
-        if (("$1" == "regression") | ("$1" == "-r")) then
-            @ arg_regression = 1;
-          if (("$2" == "waves") | ("$2" == "-w")) then 
-            @ arg_waves = 1;
-            echo "    Verification with parameter : waves, regression !"
-          else
-            echo "    Not correct parameter ( $2 )"
-            echo "    Correct 2. parameter is:"
-            echo "      'waves' or '-w'"
-            exit
-          endif
-        else
-            echo "    Not correct parameter ( $1 )"
-            echo "    Correct parameters are:"
-            echo "      'waves' or '-w'"
-            echo "      'regression' or '-r'"
-            exit
-        endif
-      endif
-    else
-            echo "    Too many parameters ( $arg_num )"
-            echo "    Maximum number of parameters is 2:"
-            echo "      'waves' or '-w'"
-            echo "      'regression' or '-r'"
-            exit
-    endif
-  endif
+    @ i = $i + 1;
+  end
 endif
+
+
+#   if ($arg_num == 1) then
+#     if (("$1" == "waves") | ("$1" == "-w")) then
+#             @ arg_waves = 1;
+#             echo "    Verification with parameter : waves !"
+#     else
+#       if (("$1" == "regression") | ("$1" == "-r")) then
+#             @ arg_regression = 1;
+#             echo "    Verification with parameter : regression !"
+#       else
+#             echo "    Not correct parameter ( $1 )"
+#             echo "    Correct parameters are:"
+#             echo "      'waves' or '-w'"
+#             echo "      'regression' or '-r'"
+#             exit
+#       endif
+#     endif
+#   else
+#     if ($arg_num == 2) then
+#       if (("$1" == "waves") | ("$1" == "-w")) then
+#             @ arg_waves = 1;
+#         if (("$2" == "regression") | ("$2" == "-r")) then
+#             @ arg_regression = 1;
+#             echo "    Verification with parameter : waves, regression !"
+#         else
+#             echo "    Not correct parameter ( $2 )"
+#             echo "    Correct 2. parameter is:"
+#             echo "      'regression' or '-r'"
+#             exit
+#         endif
+#       else
+#         if (("$1" == "regression") | ("$1" == "-r")) then
+#             @ arg_regression = 1;
+#           if (("$2" == "waves") | ("$2" == "-w")) then 
+#             @ arg_waves = 1;
+#             echo "    Verification with parameter : waves, regression !"
+#           else
+#             echo "    Not correct parameter ( $2 )"
+#             echo "    Correct 2. parameter is:"
+#             echo "      'waves' or '-w'"
+#             exit
+#           endif
+#         else
+#             echo "    Not correct parameter ( $1 )"
+#             echo "    Correct parameters are:"
+#             echo "      'waves' or '-w'"
+#             echo "      'regression' or '-r'"
+#             exit
+#         endif
+#       endif
+#     else
+#             echo "    Too many parameters ( $arg_num )"
+#             echo "    Maximum number of parameters is 2:"
+#             echo "      'waves' or '-w'"
+#             echo "      'regression' or '-r'"
+#             exit
+#     endif
+#   endif
+# endif
 
 echo ""
 echo "<<<"
@@ -166,7 +189,7 @@ else
 endif
 echo "worklib.ethernet:fun" >> ./ncsim.args
 
-ncsim -file ./ncsim.args# > /dev/null
+ncsim -file ./ncsim.args > ../log/tb_eth_display.log #| tee ../log/tb_eth_display.log
 if ($status != 0) then
   echo ""
   echo "TESTS couldn't start due to Errors!"
