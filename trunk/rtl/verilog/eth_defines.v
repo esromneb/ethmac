@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.27  2002/11/01 18:19:34  mohor
+// Defines fixed to use generic RAM by default.
+//
 // Revision 1.26  2002/10/24 18:53:03  mohor
 // fpga define added.
 //
@@ -189,7 +192,7 @@
 `define ETH_RX_CTRL_ADR       8'h15   // 0x54
 
 
-`define ETH_MODER_DEF         17'h0A800
+`define ETH_MODER_DEF         17'h0A000
 `define ETH_INT_MASK_DEF      7'h0
 `define ETH_IPGT_DEF          7'h12
 `define ETH_IPGR1_DEF         7'h0C
