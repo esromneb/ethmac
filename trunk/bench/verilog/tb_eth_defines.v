@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2002/09/13 18:41:45  mohor
+// Rearanged testcases
+//
 // Revision 1.7  2002/09/13 12:29:14  mohor
 // Headers changed.
 //
@@ -163,7 +166,7 @@
 /* Interrupt Source Register */
 `define ETH_INT_TXB        32'h00000001 /* Transmit Buffer IRQ */
 `define ETH_INT_TXE        32'h00000002 /* Transmit Error IRQ */
-`define ETH_INT_RXF        32'h00000004 /* Receive Frame IRQ */
+`define ETH_INT_RXB        32'h00000004 /* Receive Buffer IRQ */
 `define ETH_INT_RXE        32'h00000008 /* Receive Error IRQ */
 `define ETH_INT_BUSY       32'h00000010 /* Busy IRQ */
 `define ETH_INT_TXC        32'h00000020 /* Transmit Control Frame IRQ */

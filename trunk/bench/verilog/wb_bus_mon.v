@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2002/09/13 12:29:14  mohor
+// Headers changed.
+//
 // Revision 1.1  2002/09/13 11:57:20  mohor
 // New testbench. Thanks to Tadej M - "The Spammer".
 //
@@ -53,6 +56,7 @@
 //
 //
 
+`include "timescale.v"
 `include "wb_model_defines.v"
 // WISHBONE bus monitor module - it connects to WISHBONE master signals and
 // monitors for any illegal combinations appearing on the bus.

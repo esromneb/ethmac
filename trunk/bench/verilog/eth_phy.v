@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/09/18 17:55:08  tadej
+// Bug repaired in eth_phy device
+//
 // Revision 1.3  2002/09/13 14:50:15  mohor
 // Bug in MIIM fixed.
 //
@@ -1123,9 +1126,9 @@ begin
 end
 
 task send_rx_packet;
-  input  [(8*32)-1:0] preamble_data; // preamble data to be sent
-  input   [3:0] preamble_len; // length of preamble - max is 8
-  input   [7:0] sfd_data; // SFD data to be sent
+  input  [(8*8)-1:0] preamble_data; // preamble data to be sent - correct is 64'h0055_5555_5555_5555
+  input   [3:0] preamble_len; // length of preamble in bytes - max is 4'h8, correct is 4'h7 
+  input   [7:0] sfd_data; // SFD data to be sent - correct is 8'hD5
   input  [31:0] start_addr; // start address
   input  [31:0] len; // length of frame in Bytes (without preamble and SFD)
   input         plus_drible_nibble; // if length is longer for one nibble
@@ -1133,68 +1136,67 @@ task send_rx_packet;
   reg    [31:0] rx_mem_addr_in; // address for reading from RX memory       
   reg     [7:0] rx_mem_data_out; // data for reading from RX memory
 begin
-  @(posedge mrx_clk_o);
-  // generating CARRIER SENSE for TX with or without delay
-  if (real_carrier_sense)
-    #1 mcrs_rx = 1;
-  else
-    #1 mcrs_rx = 0;
-  @(posedge mrx_clk_o);
-  #1 mcrs_rx = 1;
-  #1 mrxdv_o = 1;
-  `ifdef VERBOSE
-  $fdisplay(phy_log, "   (%0t)(%m) RX frame started with rx_dv set!", $time);
-  `endif
-  // set initial rx memory address
-  rx_mem_addr_in = start_addr;
-
-  // send preamble
-  for (rx_cnt = 0; (rx_cnt < preamble_len) || (rx_cnt < 8); rx_cnt = rx_cnt + 1)
-  begin
-    #1 mrxd_o = preamble_data[3:0];
-    #1 preamble_data = preamble_data >> 4;
-    @(posedge mrx_clk_o);
-  end
-
-  // send SFD
-  for (rx_cnt = 0; rx_cnt < 2; rx_cnt = rx_cnt + 1)
-  begin
-    #1 mrxd_o = sfd_data[3:0];
-    #1 sfd_data = sfd_data >> 4;
-    @(posedge mrx_clk_o);
-  end
-  `ifdef VERBOSE
-  $fdisplay(phy_log, "   (%0t)(%m) RX frame preamble and SFD sent!", $time);
-  `endif
-  // send packet's addresses, type/length, data and FCS
-  for (rx_cnt = 0; rx_cnt < len; rx_cnt = rx_cnt + 1)
-  begin
-    @(posedge mrx_clk_o);
-    #1;
-    rx_mem_data_out = rx_mem[rx_mem_addr_in[21:0]];
-    mrxd_o = rx_mem_data_out[3:0];
-    @(posedge mrx_clk_o);
-    #1;
-    mrxd_o = rx_mem_data_out[7:4];
-    rx_mem_addr_in = rx_mem_addr_in + 1;
-    #1;
-  end
-  if (plus_drible_nibble)
-  begin
-    @(posedge mrx_clk_o);
-    #1;
-    rx_mem_data_out = rx_mem[rx_mem_addr_in[21:0]];
-    mrxd_o = rx_mem_data_out[3:0];
-  end
-  `ifdef VERBOSE
-  $fdisplay(phy_log, "   (%0t)(%m) RX frame addresses, type/length, data and FCS sent!", $time);
-  `endif
-  @(posedge mrx_clk_o);
-  #1 mcrs_rx = 0;
-  #1 mrxdv_o = 0;
-  `ifdef VERBOSE
-  $fdisplay(phy_log, "   (%0t)(%m) RX frame ended with rx_dv reset!", $time);
-  `endif
+      @(posedge mrx_clk_o);
+      // generating CARRIER SENSE for TX with or without delay
+      if (real_carrier_sense)
+        #1 mcrs_rx = 1;
+      else
+        #1 mcrs_rx = 0;
+      @(posedge mrx_clk_o);
+      #1 mcrs_rx = 1;
+      #1 mrxdv_o = 1;
+      `ifdef VERBOSE
+      $fdisplay(phy_log, "   (%0t)(%m) RX frame started with rx_dv set!", $time);
+      `endif
+      // set initial rx memory address
+      rx_mem_addr_in = start_addr;
+    
+      // send preamble
+      for (rx_cnt = 0; (rx_cnt < (preamble_len << 1)) && (rx_cnt < 16); rx_cnt = rx_cnt + 1)
+      begin
+        #1 mrxd_o = preamble_data[3:0];
+        #1 preamble_data = preamble_data >> 4;
+        @(posedge mrx_clk_o);
+      end
+    
+      // send SFD
+      for (rx_cnt = 0; rx_cnt < 2; rx_cnt = rx_cnt + 1)
+      begin
+        #1 mrxd_o = sfd_data[3:0];
+        #1 sfd_data = sfd_data >> 4;
+        @(posedge mrx_clk_o);
+      end
+      `ifdef VERBOSE
+      $fdisplay(phy_log, "   (%0t)(%m) RX frame preamble and SFD sent!", $time);
+      `endif
+      // send packet's addresses, type/length, data and FCS
+      for (rx_cnt = 0; rx_cnt < len; rx_cnt = rx_cnt + 1)
+      begin
+        #1;
+        rx_mem_data_out = rx_mem[rx_mem_addr_in[21:0]];
+        mrxd_o = rx_mem_data_out[3:0];
+        @(posedge mrx_clk_o);
+        #1;
+        mrxd_o = rx_mem_data_out[7:4];
+        rx_mem_addr_in = rx_mem_addr_in + 1;
+        @(posedge mrx_clk_o);
+        #1;
+      end
+      if (plus_drible_nibble)
+      begin
+        rx_mem_data_out = rx_mem[rx_mem_addr_in[21:0]];
+        mrxd_o = rx_mem_data_out[3:0];
+        @(posedge mrx_clk_o);
+      end
+      `ifdef VERBOSE
+      $fdisplay(phy_log, "   (%0t)(%m) RX frame addresses, type/length, data and FCS sent!", $time);
+      `endif
+      #1 mcrs_rx = 0;
+      #1 mrxdv_o = 0;
+      @(posedge mrx_clk_o);
+      `ifdef VERBOSE
+      $fdisplay(phy_log, "   (%0t)(%m) RX frame ended with rx_dv reset!", $time);
+      `endif
 end
 endtask // send_rx_packet
 
