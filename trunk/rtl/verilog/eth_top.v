@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.26  2002/07/17 18:51:50  mohor
+// EXTERNAL_DMA removed. External DMA not supported.
+//
 // Revision 1.25  2002/05/03 10:15:50  mohor
 // Outputs registered. Reset changed for eth_wishbone module.
 //
@@ -656,7 +659,7 @@ eth_wishbone wishbone
   .TxE_IRQ(TxE_IRQ),                  .TxB_IRQ(TxB_IRQ),                        .TxC_IRQ(TxC_IRQ), 
   .RxC_IRQ(RxC_IRQ), 
 
-  .RxAbort(RxAbort | (ShortFrame & ~r_RecSmall)), 
+  .RxAbort(RxAbort | (ShortFrame & ~r_RecSmall) | LatchedMRxErr & ~InvalidSymbol), 
 
   .InvalidSymbol(InvalidSymbol),      .LatchedCrcError(LatchedCrcError),        .RxLength(RxByteCnt),
   .RxLateCollision(RxLateCollision),  .ShortFrame(ShortFrame),                  .DribbleNibble(DribbleNibble),
@@ -689,7 +692,8 @@ eth_macstatus macstatus1
   .MaxCollisionOccured(MaxCollisionOccured), .RetryLimit(RetryLimit),              .LateCollision(LateCollision),
   .LateCollLatched(LateCollLatched),  .StartDefer(StartDefer),                     .DeferLatched(DeferLatched),
   .TxStartFrm(TxStartFrmOut),         .StatePreamble(StatePreamble),               .StateData(StateData),
-  .CarrierSense(CarrierSense_Tx2),    .CarrierSenseLost(CarrierSenseLost),         .TxUsedData(TxUsedDataIn)
+  .CarrierSense(CarrierSense_Tx2),    .CarrierSenseLost(CarrierSenseLost),         .TxUsedData(TxUsedDataIn),
+  .LatchedMRxErr(LatchedMRxErr)
 );
 
 
