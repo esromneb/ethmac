@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.9  2002/10/09 13:16:51  tadejm
+// Just back-up; not completed testbench and some testcases are not
+// wotking properly yet.
+//
 // Revision 1.8  2002/09/13 18:41:45  mohor
 // Rearanged testcases
 //
@@ -204,6 +208,9 @@
 `define ETH_MIISTATUS_LINKFAIL    0 /* Link Fail bit */
 `define ETH_MIISTATUS_BUSY        1 /* MII Busy bit */
 `define ETH_MIISTATUS_NVALID      2 /* Data in MII Status Register is invalid bit */
+
+/* TX Control Register */
+`define ETH_TX_CTRL_TXPAUSERQ     32'h10000 /* Send PAUSE request */
 
 
 `define TIME $display("  Time: %0t", $time)
