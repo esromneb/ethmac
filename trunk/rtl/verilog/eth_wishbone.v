@@ -41,6 +41,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.39  2002/10/11 15:35:20  mohor
+// txfifo_cnt and rxfifo_cnt counters width is defined in the eth_define.v file,
+// TxDone and TxRetry are generated after the current WISHBONE access is
+// finished.
+//
 // Revision 1.38  2002/10/10 16:29:30  mohor
 // BIST added.
 //
@@ -358,8 +363,11 @@ reg             TxDone_wb_q;
 reg             TxAbort_wb_q;
 reg             TxRetry_wb_q;
 reg             TxRetryPacket;
-reg             TxDonePulse_q;
+reg             TxRetryPacket_NotCleared;
+reg             TxDonePacket;
+reg             TxDonePacket_NotCleared;
 reg             TxAbortPacket;
+reg             TxAbortPacket_NotCleared;
 reg             RxBDReady;
 reg             RxReady;
 reg             TxBDReady;
@@ -622,7 +630,7 @@ end
 
 
 // Reading the Tx buffer descriptor
-assign StartTxBDRead = (TxRetry_wb | TxStatusWrite) & ~BlockingTxBDRead & ~TxBDReady;
+assign StartTxBDRead = (TxRetryPacket_NotCleared | TxStatusWrite) & ~BlockingTxBDRead & ~TxBDReady;
 
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
@@ -655,7 +663,7 @@ end
 
 
 // Writing status back to the Tx buffer descriptor
-assign TxStatusWrite = (TxDone_wb | TxAbort_wb) & TxEn & TxEn_q & ~BlockingTxStatusWrite;
+assign TxStatusWrite = (TxDonePacket_NotCleared | TxAbortPacket_NotCleared) & TxEn & TxEn_q & ~BlockingTxStatusWrite;
 
 
 
@@ -879,7 +887,10 @@ begin
     ReadTxDataFromMemory <=#Tp 1'b1;
 end
 
-wire ReadTxDataFromMemory_2 = ReadTxDataFromMemory & ~BlockReadTxDataFromMemory;
+reg BlockingLastReadOn_Abort_Retry;
+
+wire ReadTxDataFromMemory_2 = ReadTxDataFromMemory & ~BlockReadTxDataFromMemory & ~BlockingLastReadOn_Abort_Retry;
+
 wire [31:0] TxData_wb;
 wire ReadTxDataFromFifo_wb;
 
@@ -888,12 +899,26 @@ begin
   if(Reset)
     BlockReadTxDataFromMemory <=#Tp 1'b0;
   else
-  if((TxBufferAlmostFull | TxLength <= 4)& MasterWbTX)
+  if((TxBufferAlmostFull | TxLength <= 4)& MasterWbTX & (!(TxAbortPacket | TxRetryPacket)))
     BlockReadTxDataFromMemory <=#Tp 1'b1;
   else
-  if(ReadTxDataFromFifo_wb | TxDonePulse_q | TxAbortPacket | TxRetryPacket)
+  if(ReadTxDataFromFifo_wb | TxDonePacket | TxAbortPacket | TxRetryPacket)
     BlockReadTxDataFromMemory <=#Tp 1'b0;
 end
+
+
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    BlockingLastReadOn_Abort_Retry <=#Tp 1'b0;
+  else
+  if(TxAbortPacket | TxRetryPacket)
+    BlockingLastReadOn_Abort_Retry <=#Tp 1'b0;
+  else
+  if(((TxAbort_wb & !TxAbortPacket_NotCleared) | (TxRetry_wb & !TxRetryPacket_NotCleared)) & !TxBDReady)
+    BlockingLastReadOn_Abort_Retry <=#Tp 1'b1;
+end
+
 
 
 
@@ -1011,6 +1036,7 @@ begin
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b0;
             m_wb_stb_o <=#Tp 1'b0;
+            cyc_cleared<=#Tp 1'b0;
             IncrTxPointer<=#Tp 1'b0;
           end
         default:                            // Don't touch
@@ -1128,7 +1154,7 @@ begin
   if(Reset)
     TxEndFrm_wb <=#Tp 1'b0;
   else
-  if(TxLengthLt4 & TxBufferAlmostEmpty & TxUsedData)
+  if(TxLengthEq0 & TxBufferAlmostEmpty & TxUsedData)
     TxEndFrm_wb <=#Tp 1'b1;
   else
   if(TxRetryPulse | TxDonePulse | TxAbortPulse)
@@ -1254,14 +1280,12 @@ begin
       TxDone_wb_q   <=#Tp 1'b0;
       TxAbort_wb_q  <=#Tp 1'b0;
       TxRetry_wb_q  <=#Tp 1'b0;
-      TxDonePulse_q  <=#Tp 1'b0;
     end
   else
     begin
       TxDone_wb_q   <=#Tp TxDone_wb;
       TxAbort_wb_q  <=#Tp TxAbort_wb;
       TxRetry_wb_q  <=#Tp TxRetry_wb;
-      TxDonePulse_q  <=#Tp TxDonePulse;
     end
 end
 
@@ -1276,6 +1300,18 @@ begin
     TxAbortPacket <=#Tp 1'b1;
   else
     TxAbortPacket <=#Tp 1'b0;
+end
+
+
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    TxAbortPacket_NotCleared <=#Tp 1'b0;
+  else
+  if(TxAbort_wb & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+    TxAbortPacket_NotCleared <=#Tp 1'b1;
+  else
+    TxAbortPacket_NotCleared <=#Tp 1'b0;
 end
 
 
@@ -1308,6 +1344,18 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
+    TxRetryPacket_NotCleared <=#Tp 1'b0;
+  else
+  if(TxRetry_wb & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+    TxRetryPacket_NotCleared <=#Tp 1'b1;
+  else
+    TxRetryPacket_NotCleared <=#Tp 1'b0;
+end
+
+
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
     TxRetryPacketBlocked <=#Tp 1'b0;
   else
   if(TxRetryPacket)
@@ -1315,6 +1363,44 @@ begin
   else
   if(!TxRetry_wb & TxRetry_wb_q)
     TxRetryPacketBlocked <=#Tp 1'b0;
+end
+
+
+reg TxDonePacketBlocked;
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    TxDonePacket <=#Tp 1'b0;
+  else
+  if(TxDone_wb & (!TxDonePacketBlocked) & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+    TxDonePacket <=#Tp 1'b1;
+  else
+    TxDonePacket <=#Tp 1'b0;
+end
+
+
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    TxDonePacket_NotCleared <=#Tp 1'b0;
+  else
+  if(TxDone_wb & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+    TxDonePacket_NotCleared <=#Tp 1'b1;
+  else
+    TxDonePacket_NotCleared <=#Tp 1'b0;
+end
+
+
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    TxDonePacketBlocked <=#Tp 1'b0;
+  else
+  if(TxDonePacket)
+    TxDonePacketBlocked <=#Tp 1'b1;
+  else
+  if(!TxDone_wb & TxDone_wb_q)
+    TxDonePacketBlocked <=#Tp 1'b0;
 end
 
 
@@ -2007,7 +2093,6 @@ rx_fifo (.data_in(RxDataLatched2),                      .data_out(m_wb_dat_o),
         );
 
 assign WriteRxDataToMemory = ~RxBufferEmpty;
-
 
 
 // Generation of the end-of-frame signal
