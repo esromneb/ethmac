@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.4  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -122,16 +125,15 @@ wire          StartSFD;
 
 
 // Defining the next state
-assign StartIdle = ~MRxDV & (StateDrop | StatePreamble | StateSFD | (|StateData) & (ByteCntEq0 | ByteCntGreat2));
+assign StartIdle = ~MRxDV & (StateDrop | StatePreamble | StateSFD | (|StateData));
 
 assign StartPreamble = MRxDV & ~MRxDEq5 & (StateIdle & ~Transmitting);
 
-//assign StartSFD = MRxDV & MRxDEq5 & (StateIdle & ~Transmitting);
 assign StartSFD = MRxDV & MRxDEq5 & (StateIdle & ~Transmitting | StatePreamble);
 
 assign StartData0 = MRxDV & (StateSFD & MRxDEqD & IFGCounterEq24 | StateData1);
 
-assign StartData1 = MRxDV & StateData0;
+assign StartData1 = MRxDV & StateData0 & (~ByteCntMaxFrame);
 
 assign StartDrop = MRxDV & (StateIdle & Transmitting | StateSFD & ~IFGCounterEq24 &  MRxDEqD 
                          |  StateData0 &  ByteCntMaxFrame
