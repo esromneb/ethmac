@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2001/10/19 08:46:53  mohor
+// eth_timescale.v changed to timescale.v This is done because of the
+// simulation of the few cores in a one joined project.
+//
 // Revision 1.3  2001/09/24 14:55:49  mohor
 // Defines changed (All precede with ETH_). Small changes because some
 // tools generate warnings when two operands are together. Synchronization
@@ -133,7 +137,7 @@ eth_top ethtop
   .wb_clk_i(WB_CLK_I), .wb_rst_i(WB_RST_I), .wb_dat_i(WB_DAT_I), .wb_dat_o(WB_DAT_O), 
 
   // WISHBONE slave
- 	.wb_adr_i(WB_ADR_I), .wb_sel_i(WB_SEL_I), .wb_we_i(WB_WE_I),   .wb_cyc_i(WB_CYC_I), 
+ 	.wb_adr_i(WB_ADR_I[11:2]), .wb_sel_i(WB_SEL_I), .wb_we_i(WB_WE_I),   .wb_cyc_i(WB_CYC_I), 
  	.wb_stb_i(WB_STB_I), .wb_ack_o(WB_ACK_O), .wb_err_o(WB_ERR_O), .wb_req_o(WB_REQ_O), 
  	.wb_ack_i(WB_ACK_I), .wb_nd_o(WB_ND_O),   .wb_rd_o(WB_RD_O), 
 
@@ -253,17 +257,17 @@ begin
 
   WishboneRead({26'h0, `ETH_MODER_ADR});   // Read from MODER register
 
-  WishboneRead({24'h100, (8'h0<<2)});       // Read from TxBD register
-  WishboneRead({24'h100, (8'h1<<2)});       // Read from TxBD register
-  WishboneRead({24'h100, (8'h2<<2)});       // Read from TxBD register
-  WishboneRead({24'h100, (8'h3<<2)});       // Read from TxBD register
-  WishboneRead({24'h100, (8'h4<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h0<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h1<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h2<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h3<<2)});       // Read from TxBD register
+  WishboneRead({24'h04, (8'h4<<2)});       // Read from TxBD register
     
-  WishboneRead({22'h40, (10'h80<<2)});       // Read from RxBD register
-  WishboneRead({22'h40, (10'h81<<2)});       // Read from RxBD register
-  WishboneRead({22'h40, (10'h82<<2)});       // Read from RxBD register
-  WishboneRead({22'h40, (10'h83<<2)});       // Read from RxBD register
-  WishboneRead({22'h40, (10'h84<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h80<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h81<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h82<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h83<<2)});       // Read from RxBD register
+  WishboneRead({22'h01, (10'h84<<2)});       // Read from RxBD register
 
   #10000 $stop;
 end
@@ -307,14 +311,14 @@ task WishboneWrite;
 
     // Writing information about the access to the screen
     @ (posedge WB_CLK_I);
-      if(~Address[17] & ~Address[16])
+      if(~Address[11] & ~Address[10])
         $write("\nWrite to register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address);
       else
-      if(~Address[17] & Address[16])
+      if(~Address[11] & Address[10])
         if(Address[9:2] < tb_eth_top.ethtop.r_RxBDAddress)
           begin
             $write("\nWrite to TxBD (Data: 0x%x, TxBD Addr: 0x%0x)\n", Data, Address);
-            if(Data[13])
+            if(Data[9])
               $write("Send Control packet (PAUSE = 0x%0h)\n", Data[31:16]);
           end
         else
@@ -363,10 +367,10 @@ task WishboneRead;
       end
 
     @ (posedge WB_CLK_I);
-      if(~Address[17] & ~Address[16])
+      if(~Address[11] & ~Address[10])
         $write("\nRead from register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address);
       else
-      if(~Address[17] & Address[16])
+      if(~Address[11] & Address[10])
         if(Address[9:2] < tb_eth_top.ethtop.r_RxBDAddress)
           begin
             $write("\nRead from TxBD (Data: 0x%x, TxBD Addr: 0x%0x)", Data, Address);
@@ -401,7 +405,7 @@ task SendPacket;
     else
       Wrap = 1'b0;
 
-    TempAddr = {22'h40, (TxBDIndex<<2)};
+    TempAddr = {22'h01, (TxBDIndex<<2)};
     TempData = {Length[15:0], 1'b1, 1'b0, Wrap, 3'h0, ControlFrame, 1'b0, TxBDIndex[7:0]};  // Ready and Wrap = 1
 
     #1;
@@ -438,7 +442,7 @@ task ReceivePacket;    // Initializes RxBD and then generates traffic on the MRx
     else
       WrapRx = 1'b0;
 
-    TempRxAddr = {22'h40, ((tb_eth_top.ethtop.r_RxBDAddress + RxBDIndex)<<2)};
+    TempRxAddr = {22'h01, ((tb_eth_top.ethtop.r_RxBDAddress + RxBDIndex)<<2)};
 
     TempRxData = {LengthRx[15:0], 1'b1, 1'b0, WrapRx, 5'h0, RxBDIndex[7:0]};  // Ready and WrapRx = 1 or 0
 
@@ -491,7 +495,8 @@ task WaitingForTxDMARequest;
     WishboneBusy = 1;
     #1;
     WB_DAT_I = {a, b, c, d};
-    WB_ADR_I = {20'h20, pp[11:0]};
+//    WB_ADR_I = {20'h20, pp[11:0]};
+    WB_ADR_I = {22'h02, pp[9:0]};
     $display("task WaitingForTxDMARequest: pp=%0d, WB_ADR_I=0x%0h, WB_DAT_I=0x%0h", pp, WB_ADR_I, WB_DAT_I);
 
     WB_WE_I  = 1'b1;
@@ -527,7 +532,8 @@ task WaitingForRxDMARequest;
     wait (~WishboneBusy);
     WishboneBusy = 1;
     #1;
-    WB_ADR_I = {20'h20, rr[11:0]};
+//    WB_ADR_I = {20'h20, rr[11:0]};
+    WB_ADR_I = {22'h02, rr[9:0]};
     $display("task WaitingForRxDMARequest: rr=%0d, WB_ADR_I=0x%0h, WB_DAT_O=0x%0h", rr, WB_ADR_I, WB_DAT_O);
 
     WB_WE_I  = 1'b1;

@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2001/10/19 08:43:51  mohor
+// eth_timescale.v changed to timescale.v This is done because of the
+// simulation of the few cores in a one joined project.
+//
 // Revision 1.4  2001/10/18 12:07:11  mohor
 // Status signals changed, Adress decoding changed, interrupt controller
 // added.
@@ -115,7 +119,7 @@ input  [31:0]   WB_DAT_I;       // WISHBONE data input
 output [31:0]   WB_DAT_O;       // WISHBONE data output
 
 // WISHBONE slave
-input  [31:0]   WB_ADR_I;       // WISHBONE address input
+input   [9:2]   WB_ADR_I;       // WISHBONE address input
 input   [3:0]   WB_SEL_I;       // WISHBONE byte select input
 input           WB_WE_I;        // WISHBONE write enable input
 input           BDCs;           // Buffer descriptors are selected

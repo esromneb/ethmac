@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2001/10/19 08:43:51  mohor
+// eth_timescale.v changed to timescale.v This is done because of the
+// simulation of the few cores in a one joined project.
+//
 // Revision 1.4  2001/10/18 12:07:11  mohor
 // Status signals changed, Adress decoding changed, interrupt controller
 // added.
@@ -114,7 +118,7 @@ output  [31:0]  wb_dat_o;     // WISHBONE data output
 output          wb_err_o;     // WISHBONE error output
 
 // WISHBONE slave
-input   [31:0]  wb_adr_i;     // WISHBONE address input
+input   [11:2]  wb_adr_i;     // WISHBONE address input
 input    [3:0]  wb_sel_i;     // WISHBONE byte select input
 input           wb_we_i;      // WISHBONE write enable input
 input           wb_cyc_i;     // WISHBONE cycle input
@@ -187,7 +191,7 @@ eth_miim miim1
   .NoPre(r_MiiNoPre),                     .CtrlData(r_CtrlData),              .Rgad(r_RGAD), 
   .Fiad(r_FIAD),                          .WCtrlData(r_WCtrlData),            .RStat(r_RStat), 
   .ScanStat(r_ScanStat),                  .Mdi(md_pad_i),                     .Mdo(md_pad_o), 
-  .MdoEn(md_padoen_o),                      .Mdc(mdc_pad_o),                    .Busy(Busy_stat), 
+  .MdoEn(md_padoen_o),                    .Mdc(mdc_pad_o),                    .Busy(Busy_stat), 
   .Prsd(Prsd),                            .LinkFail(LinkFail),                .Nvalid(NValid_stat), 
   .WCtrlDataStart(WCtrlDataStart),        .RStatStart(RStatStart),            .UpdateMIIRX_DATAReg(UpdateMIIRX_DATAReg)
 );
@@ -243,8 +247,8 @@ wire        BDCs;           // Buffer descriptor CS
 
 
 assign DWord = &wb_sel_i;
-assign RegCs = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[17] & ~wb_adr_i[16];
-assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[17] &  wb_adr_i[16];
+assign RegCs = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] & ~wb_adr_i[10];
+assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] &  wb_adr_i[10];
 assign wb_ack_o = RegCs | BDAck;
 assign wb_err_o = wb_stb_i & wb_cyc_i & ~DWord;
 
@@ -487,7 +491,7 @@ eth_wishbonedma wbdma
   .WB_DAT_O(DMA_WB_DAT_O), 
 
   // WISHBONE slave
-  .WB_ADR_I(wb_adr_i),                .WB_SEL_I(wb_sel_i),                      .WB_WE_I(wb_we_i), 
+  .WB_ADR_I(wb_adr_i[9:2]),           .WB_SEL_I(wb_sel_i),                      .WB_WE_I(wb_we_i), 
   .BDCs(BDCs),                        .WB_ACK_O(BDAck), 
   .WB_REQ_O(wb_req_o),                .WB_ACK_I(wb_ack_i),                      .WB_ND_O(wb_nd_o), 
   .WB_RD_O(wb_rd_o), 
