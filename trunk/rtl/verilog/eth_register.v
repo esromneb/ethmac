@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.2  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -65,16 +68,16 @@
 `include "timescale.v"
 
 
-module eth_register(DataIn, DataOut, Write, Clk, Reset, Default);
+module eth_register(DataIn, DataOut, Write, Clk, Reset);
 
 parameter WIDTH = 8; // default parameter of the register width
+parameter ResetValue = 0;
 
 input [WIDTH-1:0] DataIn;
 
 input Write;
 input Clk;
 input Reset;
-input [WIDTH-1:0] Default;
 
 output [WIDTH-1:0] DataOut;
 reg    [WIDTH-1:0] DataOut;
@@ -84,7 +87,7 @@ reg    [WIDTH-1:0] DataOut;
 always @ (posedge Clk or posedge Reset)
 begin
   if(Reset)
-    DataOut<=#1 Default;
+    DataOut<=#1 ResetValue;
   else
   if(Write)                         // write
     DataOut<=#1 DataIn;

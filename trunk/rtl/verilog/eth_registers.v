@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2002/02/17 13:23:42  mohor
+// Define missmatch fixed.
+//
 // Revision 1.11  2002/02/16 14:03:44  mohor
 // Registered trimmed. Unused registers removed.
 //
@@ -108,7 +111,7 @@ module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut,
                       r_RecSmall, r_Pad, r_HugEn, r_CrcEn, r_DlyCrcEn, 
                       r_Rst, r_FullD, r_ExDfrEn, r_NoBckof, r_LoopBck, r_IFG, 
                       r_Pro, r_Iam, r_Bro, r_NoPre, r_TxEn, r_RxEn, 
-                      TxB_IRQ, TxE_IRQ, RxB_IRQ, RxF_IRQ, Busy_IRQ, 
+                      TxB_IRQ, TxE_IRQ, RxB_IRQ, RxE_IRQ, Busy_IRQ, TxC_IRQ, RxC_IRQ, 
                       r_IPGT, r_IPGR1, r_IPGR2, r_MinFL, r_MaxFL, r_MaxRet, 
                       r_CollValid, r_TxFlow, r_RxFlow, r_PassAll, 
                       r_MiiMRst, r_MiiNoPre, r_ClkDiv, r_WCtrlData, r_RStat, r_ScanStat, 
@@ -160,8 +163,10 @@ output [31:0] r_HASH1;
 input TxB_IRQ;
 input TxE_IRQ;
 input RxB_IRQ;
-input RxF_IRQ;
+input RxE_IRQ;
 input Busy_IRQ;
+input TxC_IRQ;
+input RxC_IRQ;
 
 output [6:0] r_IPGT;
 
@@ -205,8 +210,10 @@ output       int_o;
 reg          irq_txb;
 reg          irq_txe;
 reg          irq_rxb;
-reg          irq_rxf;
+reg          irq_rxe;
 reg          irq_busy;
+reg          irq_txc;
+reg          irq_rxc;
 
 wire Write = Cs &  Rw;
 wire Read  = Cs & ~Rw;
@@ -257,61 +264,60 @@ wire [31:0] HASH0Out;
 wire [31:0] HASH1Out;
 
 
-
-eth_register #(17) MODER       (.DataIn(DataIn[16:0]), .DataOut(MODEROut[16:0]),     .Write(MODER_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_MODER_DEF));
+eth_register #(17, `ETH_MODER_DEF)      MODER        (.DataIn(DataIn[16:0]), .DataOut(MODEROut[16:0]),     .Write(MODER_Wr),      .Clk(Clk), .Reset(Reset));
 assign MODEROut[31:17] = 0;
 
-eth_register #(5) INT_MASK     (.DataIn(DataIn[4:0]),  .DataOut(INT_MASKOut[4:0]),   .Write(INT_MASK_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_INT_MASK_DEF));
-assign INT_MASKOut[31:5] = 0;
+eth_register #(7, `ETH_INT_MASK_DEF)     INT_MASK    (.DataIn(DataIn[6:0]),  .DataOut(INT_MASKOut[6:0]),   .Write(INT_MASK_Wr),   .Clk(Clk), .Reset(Reset));
+assign INT_MASKOut[31:7] = 0;
 
-eth_register #(7)  IPGT        (.DataIn(DataIn[6:0]),  .DataOut(IPGTOut[6:0]),       .Write(IPGT_Wr),       .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGT_DEF));
+eth_register #(7, `ETH_IPGT_DEF)         IPGT        (.DataIn(DataIn[6:0]),  .DataOut(IPGTOut[6:0]),       .Write(IPGT_Wr),       .Clk(Clk), .Reset(Reset));
 assign IPGTOut[31:7] = 0;
 
-eth_register #(7)  IPGR1       (.DataIn(DataIn[6:0]),  .DataOut(IPGR1Out[6:0]),      .Write(IPGR1_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGR1_DEF));
+eth_register #(7, `ETH_IPGR1_DEF)        IPGR1       (.DataIn(DataIn[6:0]),  .DataOut(IPGR1Out[6:0]),      .Write(IPGR1_Wr),      .Clk(Clk), .Reset(Reset));
 assign IPGR1Out[31:7] = 0;
 
-eth_register #(7)  IPGR2       (.DataIn(DataIn[6:0]),  .DataOut(IPGR2Out[6:0]),      .Write(IPGR2_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_IPGR2_DEF));
+eth_register #(7, `ETH_IPGR2_DEF)        IPGR2       (.DataIn(DataIn[6:0]),  .DataOut(IPGR2Out[6:0]),      .Write(IPGR2_Wr),      .Clk(Clk), .Reset(Reset));
 assign IPGR2Out[31:7] = 0;
 
-eth_register #(32) PACKETLEN   (.DataIn(DataIn),       .DataOut(PACKETLENOut),       .Write(PACKETLEN_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_PACKETLEN_DEF));
+eth_register #(32, `ETH_PACKETLEN_DEF)   PACKETLEN   (.DataIn(DataIn),       .DataOut(PACKETLENOut),       .Write(PACKETLEN_Wr),  .Clk(Clk), .Reset(Reset));
 
-eth_register #(6) COLLCONF0    (.DataIn(DataIn[5:0]),  .DataOut(COLLCONFOut[5:0]),   .Write(COLLCONF_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_COLLCONF0_DEF));
-eth_register #(4) COLLCONF1    (.DataIn(DataIn[19:16]),.DataOut(COLLCONFOut[19:16]), .Write(COLLCONF_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_COLLCONF1_DEF));
+eth_register #(6, `ETH_COLLCONF0_DEF)    COLLCONF0   (.DataIn(DataIn[5:0]),  .DataOut(COLLCONFOut[5:0]),   .Write(COLLCONF_Wr),   .Clk(Clk), .Reset(Reset));
+eth_register #(4, `ETH_COLLCONF1_DEF)    COLLCONF1   (.DataIn(DataIn[19:16]),.DataOut(COLLCONFOut[19:16]), .Write(COLLCONF_Wr),   .Clk(Clk), .Reset(Reset));
 assign COLLCONFOut[15:6] = 0;
 assign COLLCONFOut[31:20] = 0;
 
-eth_register #(8) TX_BD_NUM    (.DataIn(DataIn[7:0]),  .DataOut(TX_BD_NUMOut[7:0]), .Write(TX_BD_NUM_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_TX_BD_NUM_DEF));
+eth_register #(8, `ETH_TX_BD_NUM_DEF)    TX_BD_NUM   (.DataIn(DataIn[7:0]),  .DataOut(TX_BD_NUMOut[7:0]), .Write(TX_BD_NUM_Wr),  .Clk(Clk), .Reset(Reset));
 assign TX_BD_NUMOut[31:8] = 24'h0;
 
-eth_register #(3)  CTRLMODER2  (.DataIn(DataIn[2:0]),  .DataOut(CTRLMODEROut[2:0]),  .Write(CTRLMODER_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_CTRLMODER_DEF));
+eth_register #(3, `ETH_CTRLMODER_DEF)    CTRLMODER2  (.DataIn(DataIn[2:0]),  .DataOut(CTRLMODEROut[2:0]),  .Write(CTRLMODER_Wr),  .Clk(Clk), .Reset(Reset));
 assign CTRLMODEROut[31:3] = 29'h0;
 
-eth_register #(11) MIIMODER    (.DataIn(DataIn[10:0]), .DataOut(MIIMODEROut[10:0]),  .Write(MIIMODER_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIMODER_DEF));
+eth_register #(11, `ETH_MIIMODER_DEF)    MIIMODER    (.DataIn(DataIn[10:0]), .DataOut(MIIMODEROut[10:0]),  .Write(MIIMODER_Wr),   .Clk(Clk), .Reset(Reset));
 assign MIIMODEROut[31:11] = 0;
 
-eth_register #(1)  MIICOMMAND2 (.DataIn(DataIn[2]),    .DataOut(MIICOMMANDOut[2]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset | WCtrlDataStart), .Default(1'b0));
-eth_register #(1)  MIICOMMAND1 (.DataIn(DataIn[1]),    .DataOut(MIICOMMANDOut[1]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset | RStatStart),     .Default(1'b0));
-eth_register #(1)  MIICOMMAND0 (.DataIn(DataIn[0]),    .DataOut(MIICOMMANDOut[0]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset),                  .Default(1'b0));
+eth_register #(1, 0)                     MIICOMMAND2 (.DataIn(DataIn[2]),    .DataOut(MIICOMMANDOut[2]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset | WCtrlDataStart));
+eth_register #(1, 0)                     MIICOMMAND1 (.DataIn(DataIn[1]),    .DataOut(MIICOMMANDOut[1]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset | RStatStart));
+eth_register #(1, 0)                     MIICOMMAND0 (.DataIn(DataIn[0]),    .DataOut(MIICOMMANDOut[0]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset));
 assign MIICOMMANDOut[31:3] = 29'h0;
 
-eth_register #(5)  MIIADDRESS0 (.DataIn(DataIn[4:0]),  .DataOut(MIIADDRESSOut[4:0]), .Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIADDRESS0_DEF));
-eth_register #(5)  MIIADDRESS1 (.DataIn(DataIn[12:8]), .DataOut(MIIADDRESSOut[12:8]),.Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIADDRESS1_DEF));
+eth_register #(5, `ETH_MIIADDRESS0_DEF)  MIIADDRESS0 (.DataIn(DataIn[4:0]),  .DataOut(MIIADDRESSOut[4:0]), .Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset));
+eth_register #(5, `ETH_MIIADDRESS1_DEF)  MIIADDRESS1 (.DataIn(DataIn[12:8]), .DataOut(MIIADDRESSOut[12:8]),.Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset));
 assign MIIADDRESSOut[7:5] = 0;
 assign MIIADDRESSOut[31:13] = 0;
 
-eth_register #(16) MIITX_DATA  (.DataIn(DataIn[15:0]), .DataOut(MIITX_DATAOut[15:0]),.Write(MIITX_DATA_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIITX_DATA_DEF));
+eth_register #(16, `ETH_MIITX_DATA_DEF)  MIITX_DATA  (.DataIn(DataIn[15:0]), .DataOut(MIITX_DATAOut[15:0]),.Write(MIITX_DATA_Wr), .Clk(Clk), .Reset(Reset));
 assign MIITX_DATAOut[31:16] = 0;
 
-eth_register #(16) MIIRX_DATA  (.DataIn(Prsd[15:0]),   .DataOut(MIIRX_DATAOut[15:0]),.Write(MIIRX_DATA_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIRX_DATA_DEF));
+eth_register #(16, `ETH_MIIRX_DATA_DEF)  MIIRX_DATA  (.DataIn(Prsd[15:0]),   .DataOut(MIIRX_DATAOut[15:0]),.Write(MIIRX_DATA_Wr), .Clk(Clk), .Reset(Reset));
 assign MIIRX_DATAOut[31:16] = 0;
 
-eth_register #(32) MAC_ADDR0   (.DataIn(DataIn),       .DataOut(MAC_ADDR0Out),       .Write(MAC_ADDR0_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_MAC_ADDR0_DEF));
-eth_register #(16) MAC_ADDR1   (.DataIn(DataIn[15:0]), .DataOut(MAC_ADDR1Out[15:0]), .Write(MAC_ADDR1_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_MAC_ADDR1_DEF));
+eth_register #(32, `ETH_MAC_ADDR0_DEF)   MAC_ADDR0   (.DataIn(DataIn),       .DataOut(MAC_ADDR0Out),       .Write(MAC_ADDR0_Wr),  .Clk(Clk), .Reset(Reset));
+eth_register #(16, `ETH_MAC_ADDR1_DEF)   MAC_ADDR1   (.DataIn(DataIn[15:0]), .DataOut(MAC_ADDR1Out[15:0]), .Write(MAC_ADDR1_Wr),  .Clk(Clk), .Reset(Reset));
 assign MAC_ADDR1Out[31:16] = 0;
 
 
-eth_register #(32) RXHASH0     (.DataIn(DataIn),       .DataOut(HASH0Out),           .Write(HASH0_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH0_DEF));
-eth_register #(32) RXHASH1     (.DataIn(DataIn),       .DataOut(HASH1Out),           .Write(HASH1_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_HASH1_DEF));
+eth_register #(32, `ETH_HASH0_DEF)       RXHASH0     (.DataIn(DataIn),       .DataOut(HASH0Out),           .Write(HASH0_Wr),      .Clk(Clk), .Reset(Reset));
+eth_register #(32, `ETH_HASH1_DEF)       RXHASH1     (.DataIn(DataIn),       .DataOut(HASH1Out),           .Write(HASH1_Wr),      .Clk(Clk), .Reset(Reset));
 
 
 reg LinkFailRegister;
@@ -478,13 +484,13 @@ end
 always @ (posedge Clk or posedge Reset)
 begin
   if(Reset)
-    irq_rxf <= 1'b0;
+    irq_rxe <= 1'b0;
   else
-  if(RxF_IRQ & INT_MASKOut[3])
-    irq_rxf <= #Tp 1'b1;
+  if(RxE_IRQ & INT_MASKOut[3])
+    irq_rxe <= #Tp 1'b1;
   else
   if(INT_SOURCE_Wr & DataIn[3])
-    irq_rxf <= #Tp 1'b0;
+    irq_rxe <= #Tp 1'b0;
 end
 
 always @ (posedge Clk or posedge Reset)
@@ -499,11 +505,35 @@ begin
     irq_busy <= #Tp 1'b0;
 end
 
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    irq_txc <= 1'b0;
+  else
+  if(TxC_IRQ & INT_MASKOut[5])
+    irq_txc <= #Tp 1'b1;
+  else
+  if(INT_SOURCE_Wr & DataIn[5])
+    irq_txc <= #Tp 1'b0;
+end
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    irq_rxc <= 1'b0;
+  else
+  if(RxC_IRQ & INT_MASKOut[6])
+    irq_rxc <= #Tp 1'b1;
+  else
+  if(INT_SOURCE_Wr & DataIn[6])
+    irq_rxc <= #Tp 1'b0;
+end
+
 // Generating interrupt signal
-assign int_o = irq_txb | irq_txe | irq_rxb | irq_rxf | irq_busy;
+assign int_o = irq_txb | irq_txe | irq_rxb | irq_rxe | irq_busy | irq_txc | irq_rxc;
 
 // For reading interrupt status
-assign INT_SOURCEOut = {28'h0, irq_busy, irq_rxf, irq_rxb, irq_txe, irq_txb};
+assign INT_SOURCEOut = {26'h0, irq_rxc, irq_txc, irq_busy, irq_rxe, irq_rxb, irq_txe, irq_txb};
 
 
 
