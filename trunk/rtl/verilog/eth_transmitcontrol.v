@@ -41,6 +41,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/11/19 17:37:32  mohor
+// When control frame (PAUSE) was sent, status was written in the
+// eth_wishbone module and both TXB and TXC interrupts were set. Fixed.
+// Only TXC interrupt is set.
+//
 // Revision 1.4  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -126,6 +131,8 @@ wire          IncrementDlyCrcCnt;
 wire          ResetByteCnt;
 wire          IncrementByteCnt;
 wire          ControlEnd;
+wire          IncrementByteCntBy2;
+wire          EnableCnt;
 
 
 // A command for Sending the control frame is active (latched)
@@ -220,7 +227,7 @@ begin
   if(TxCtrlStartFrm)
     BlockTxDone <= #Tp 1'b1;
   else
-  if(TxDoneIn)
+  if(TxStartFrmIn)
     BlockTxDone <= #Tp 1'b0;
 end
 
@@ -251,8 +258,9 @@ end
              
 assign ResetByteCnt = TxReset | (~TxCtrlStartFrm & (TxDoneIn | TxAbortIn));
 assign IncrementByteCnt = CtrlMux & (TxCtrlStartFrm & ~TxCtrlStartFrm_q & ~TxUsedDataIn | TxUsedDataIn & ~ControlEnd);
+assign IncrementByteCntBy2 = CtrlMux & TxCtrlStartFrm & (~TxCtrlStartFrm_q) & TxUsedDataIn;     // When TxUsedDataIn and CtrlMux are set at the same time
 
-
+assign EnableCnt = (~DlyCrcEn | DlyCrcEn & (&DlyCrcCnt[1:0]));
 // Byte counter
 always @ (posedge MTxClk or posedge TxReset)
 begin
@@ -262,7 +270,10 @@ begin
   if(ResetByteCnt)
     ByteCnt <= #Tp 6'h0;
   else
-  if(IncrementByteCnt & (~DlyCrcEn | DlyCrcEn & (&DlyCrcCnt[1:0])))
+  if(IncrementByteCntBy2 & EnableCnt)
+    ByteCnt <= #Tp (ByteCnt[5:0] ) + 2'h2;
+  else
+  if(IncrementByteCnt & EnableCnt)
     ByteCnt <= #Tp (ByteCnt[5:0] ) + 1'b1;
 end
 
