@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/09/06 11:03:24  mohor
+// Valid testbench.
+//
 // Revision 1.3  2002/07/23 16:34:31  mohor
 // gsr added for use when ETH_XILINX_RAMB4 define is set.
 //
@@ -311,7 +314,7 @@ begin
   eth_host.wb_write(`ETH_TX_CTRL, 4'hf, 32'h10013); // Send Control frame with PAUSE_TV=0x0013
 */
   send_packet;
-*/
+
 
   GetDataOnMRxD(100, `UNICAST_XFR); // LengthRx bytes is comming on MRxD[3:0] signals
 
