@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.41  2002/11/19 18:13:49  mohor
+// r_MiiMRst is not used for resetting the MIIM module. wb_rst used instead.
+//
 // Revision 1.40  2002/11/19 17:34:25  mohor
 // AddressMiss status is connecting to the Rx BD. AddressMiss is identifying
 // that a frame was received because of the promiscous mode.
@@ -339,6 +342,11 @@ reg             WillSendControlFrame_sync2;
 reg             WillSendControlFrame_sync3;
 reg             RstTxPauseRq;
 
+reg             TxPauseRq_sync1;
+reg             TxPauseRq_sync2;
+reg             TxPauseRq_sync3;
+reg             TPauseRq;
+
 
 // Connecting Miim module
 eth_miim miim1
@@ -515,7 +523,7 @@ wire  [1:0] StateData;
 // Connecting MACControl
 eth_maccontrol maccontrol1
 (
-  .MTxClk(mtx_clk_pad_i),                       .TPauseRq(r_TxPauseRq), 
+  .MTxClk(mtx_clk_pad_i),                       .TPauseRq(TPauseRq), 
   .TxPauseTV(r_TxPauseTV),                      .TxDataIn(TxData), 
   .TxStartFrmIn(TxStartFrm),                    .TxEndFrmIn(TxEndFrm), 
   .TxUsedDataIn(TxUsedDataIn),                  .TxDoneIn(TxDoneIn), 
@@ -731,6 +739,37 @@ begin
   else
     RstTxPauseRq <=#Tp WillSendControlFrame_sync2 & ~WillSendControlFrame_sync3;
 end
+
+
+
+
+// TX Pause request Synchronization
+always @ (posedge mtx_clk_pad_i or posedge wb_rst_i)
+begin
+  if(wb_rst_i)
+    begin
+      TxPauseRq_sync1 <= #Tp 1'b0;
+      TxPauseRq_sync2 <= #Tp 1'b0;
+      TxPauseRq_sync3 <= #Tp 1'b0;
+    end
+  else
+    begin
+      TxPauseRq_sync1 <= #Tp (r_TxPauseRq & r_TxFlow);
+      TxPauseRq_sync2 <= #Tp TxPauseRq_sync1;
+      TxPauseRq_sync3 <= #Tp TxPauseRq_sync2;
+    end
+end
+
+
+always @ (posedge mtx_clk_pad_i or posedge wb_rst_i)
+begin
+  if(wb_rst_i)
+    TPauseRq <= #Tp 1'b0;
+  else
+    TPauseRq <= #Tp TxPauseRq_sync2 & (~TxPauseRq_sync3);
+end
+
+
 
 
 // Connecting Wishbone module
