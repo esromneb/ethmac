@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2002/11/19 20:27:46  mohor
+// Temp version.
+//
 // Revision 1.9  2002/10/09 13:16:51  tadejm
 // Just back-up; not completed testbench and some testcases are not
 // wotking properly yet.
@@ -86,13 +89,6 @@
 `define RX_BUF_BASE           `MEMORY_BASE + 32'h8000
 `define TX_BD_BASE            `ETH_BASE + 32'h00000400
 `define RX_BD_BASE            `ETH_BASE + 32'h00000600
-
-`define M1_ADDRESSED_S1 ( (m1_wb_adr_i >= `ETH_BASE)    & (m1_wb_adr_i < (`ETH_BASE    + `ETH_WIDTH   )) )
-`define M1_ADDRESSED_S2 ( (m1_wb_adr_i >= `MEMORY_BASE) & (m1_wb_adr_i < (`MEMORY_BASE + `MEMORY_WIDTH)) )
-`define M2_ADDRESSED_S1 ( (m2_wb_adr_i >= `ETH_BASE)    & (m2_wb_adr_i < (`ETH_BASE    + `ETH_WIDTH   )) )
-`define M2_ADDRESSED_S2 ( (m2_wb_adr_i >= `MEMORY_BASE) & (m2_wb_adr_i < (`MEMORY_BASE + `MEMORY_WIDTH)) )
-
-
 
 /* Tx BD */
 `define ETH_TX_BD_READY    32'h8000 /* Tx BD Ready */

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/10/10 16:43:59  mohor
+// Minor $display change.
+//
 // Revision 1.2  2002/09/09 12:54:13  mohor
 // error acknowledge cycle termination added to display.
 //
@@ -58,7 +61,7 @@
 //
 //
 
-`include "tb_eth_defines.v"
+`include "eth_defines.v"
 `include "timescale.v"
 
 module eth_cop

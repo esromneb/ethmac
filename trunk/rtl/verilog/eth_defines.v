@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.29  2002/11/19 18:13:49  mohor
+// r_MiiMRst is not used for resetting the MIIM module. wb_rst used instead.
+//
 // Revision 1.28  2002/11/15 14:27:15  mohor
 // Since r_Rst bit is not used any more, default value is changed to 0xa000.
 //
@@ -258,4 +261,17 @@
 
 // WISHBONE interface is Revision B3 compliant (uncomment when needed)
 //`define ETH_WISHBONE_B3
+
+
+// Following defines are needed when eth_cop.v is used. Otherwise they may be deleted.
+`define ETH_BASE              32'hd0000000
+`define ETH_WIDTH             32'h800
+`define MEMORY_BASE           32'h2000
+`define MEMORY_WIDTH          32'h10000
+
+`define M1_ADDRESSED_S1 ( (m1_wb_adr_i >= `ETH_BASE)    & (m1_wb_adr_i < (`ETH_BASE    + `ETH_WIDTH   )) )
+`define M1_ADDRESSED_S2 ( (m1_wb_adr_i >= `MEMORY_BASE) & (m1_wb_adr_i < (`MEMORY_BASE + `MEMORY_WIDTH)) )
+`define M2_ADDRESSED_S1 ( (m2_wb_adr_i >= `ETH_BASE)    & (m2_wb_adr_i < (`ETH_BASE    + `ETH_WIDTH   )) )
+`define M2_ADDRESSED_S2 ( (m2_wb_adr_i >= `MEMORY_BASE) & (m2_wb_adr_i < (`MEMORY_BASE + `MEMORY_WIDTH)) )
+// Previous defines are only needed for eth_cop.v
 
