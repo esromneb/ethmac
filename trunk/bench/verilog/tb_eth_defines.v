@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/09/13 12:29:14  mohor
+// Headers changed.
+//
 // Revision 1.6  2002/09/13 11:57:20  mohor
 // New testbench. Thanks to Tadej M - "The Spammer".
 //
@@ -198,3 +201,6 @@
 `define ETH_MIISTATUS_LINKFAIL    0 /* Link Fail bit */
 `define ETH_MIISTATUS_BUSY        1 /* MII Busy bit */
 `define ETH_MIISTATUS_NVALID      2 /* Data in MII Status Register is invalid bit */
+
+
+`define TIME $display("  Time: %0t", $time)

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2002/09/13 14:50:15  mohor
+// Bug in MIIM fixed.
+//
 // Revision 1.7  2002/09/13 12:29:14  mohor
 // Headers changed.
 //
@@ -60,8 +63,6 @@
 //
 //
 
-
-`define TIME $display("  Time: %0t", $time)
 
 `include "eth_phy_defines.v"
 `include "wb_model_defines.v"
@@ -388,7 +389,7 @@ begin
 
   //  Call tests
   //  ----------
-//    test_access_to_mac_reg(0, 3);          // 0 - 3
+    test_access_to_mac_reg(0, 3);          // 0 - 3
 //    test_mii(0, 17);                        // 0 - 17
     test_mii(0, 1);                        // 0 - 17
   test_note("PHY generates ideal Carrier sense and Collision signals for following tests");
@@ -434,6 +435,7 @@ task test_access_to_mac_reg;
   integer        i2;
   integer        i3;
   integer        fail;
+  integer        test_num;
   reg    [31:0]  addr;
   reg    [31:0]  data;
   reg    [31:0]  data_max;
@@ -444,194 +446,298 @@ $display(" ");
 $display("ACCESS TO MAC REGISTERS TEST");
 fail = 0;
 
-  /* Register space
-     --------------
-  `define ETH_MODER      `ETH_BASE + 32'h00      Mode Register 
-  `define ETH_INT        `ETH_BASE + 32'h04      Interrupt Source Register 
-  `define ETH_INT_MASK   `ETH_BASE + 32'h08      Interrupt Mask Register 
-  `define ETH_IPGT       `ETH_BASE + 32'h0C      Back to Bak Inter Packet Gap Register 
-  `define ETH_IPGR1      `ETH_BASE + 32'h10      Non Back to Back Inter Packet Gap Register 1 
-  `define ETH_IPGR2      `ETH_BASE + 32'h14      Non Back to Back Inter Packet Gap Register 2 
-  `define ETH_PACKETLEN  `ETH_BASE + 32'h18      Packet Length Register (min. and max.) 
-  `define ETH_COLLCONF   `ETH_BASE + 32'h1C      Collision and Retry Configuration Register 
-  `define ETH_TX_BD_NUM  `ETH_BASE + 32'h20      Transmit Buffer Descriptor Number Register 
-  `define ETH_CTRLMODER  `ETH_BASE + 32'h24      Control Module Mode Register 
-  `define ETH_MIIMODER   `ETH_BASE + 32'h28      MII Mode Register 
-  `define ETH_MIICOMMAND `ETH_BASE + 32'h2C      MII Command Register 
-  `define ETH_MIIADDRESS `ETH_BASE + 32'h30      MII Address Register 
-  `define ETH_MIITX_DATA `ETH_BASE + 32'h34      MII Transmit Data Register 
-  `define ETH_MIIRX_DATA `ETH_BASE + 32'h38      MII Receive Data Register 
-  `define ETH_MIISTATUS  `ETH_BASE + 32'h3C      MII Status Register 
-  `define ETH_MAC_ADDR0  `ETH_BASE + 32'h40      MAC Individual Address Register 0 
-  `define ETH_MAC_ADDR1  `ETH_BASE + 32'h44      MAC Individual Address Register 1 
-  `define ETH_HASH_ADDR0 `ETH_BASE + 32'h48      Hash Register 0 
-  `define ETH_HASH_ADDR1 `ETH_BASE + 32'h4C      Hash Register 1 
-  */
 
-
-if ((start_task <= 0) && (end_task >= 0))
+//////////////////////////////////////////////////////////////////////
+////                                                              ////
+////  test_access_to_mac_reg:                                     ////
+////                                                              ////
+////  0: Walking 1 with single cycles across MAC regs.            ////
+////  1: Walking 1 with single cycles across MAC buffer descript. ////
+////  2: Test max reg. values and reg. values after writing       ////
+////     inverse reset values and hard reset of the MAC           ////
+////  3: Test buffer desc. RAM preserving values after hard reset ////
+////     of the MAC and resetting the logic                       ////
+////                                                              ////
+//////////////////////////////////////////////////////////////////////
+for (test_num=start_task; test_num <= end_task; test_num=test_num+1)
 begin
-  // TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )
-  test_name   = "TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )";
-  `TIME; $display("  TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )");
 
-  data = 0;
-  for (i = 0; i <= 4; i = i + 1) // for initial wait cycles on WB bus
+  ////////////////////////////////////////////////////////////////////
+  ////                                                            ////
+  ////  Walking 1 with single cycles across MAC regs.             ////
+  ////                                                            ////
+  ////////////////////////////////////////////////////////////////////
+  if (test_num == 0) // Walking 1 with single cycles across MAC regs.
+    begin
+      // TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )
+      test_name   = "TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )";
+      `TIME; $display("  TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )");
+    
+      data = 0;
+      for (i = 0; i <= 4; i = i + 1) // for initial wait cycles on WB bus
+        begin
+          wbm_init_waits = i;
+          wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
+          for (i_addr = 0; i_addr <= 32'h4C; i_addr = i_addr + 4) // register address
+            begin
+              addr = `ETH_BASE + i_addr;
+              // set ranges of R/W bits
+              case (addr)
+                `ETH_MODER:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 16;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_INT: // READONLY - tested within INT test
+                  begin
+                    bit_start_1 = 32; // not used
+                    bit_end_1   = 32; // not used
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_INT_MASK:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 6;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_IPGT:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 6;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_IPGR1:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 6;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_IPGR2:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 6;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_PACKETLEN:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 31;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_COLLCONF:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 5;
+                    bit_start_2 = 16; 
+                    bit_end_2   = 19; 
+                  end
+                `ETH_TX_BD_NUM: 
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 7;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_CTRLMODER:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 2;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_MIIMODER:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 9;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_MIICOMMAND: // "WRITEONLY" - tested within MIIM test - 3 LSBits are not written here!!!
+                  begin
+                    bit_start_1 = 32; // not used
+                    bit_end_1   = 32; // not used
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_MIIADDRESS:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 4;
+                    bit_start_2 = 8; 
+                    bit_end_2   = 12;
+                  end
+                `ETH_MIITX_DATA:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 15;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_MIIRX_DATA: // READONLY - tested within MIIM test
+                  begin
+                    bit_start_1 = 32; // not used
+                    bit_end_1   = 32; // not used
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_MIISTATUS: // READONLY - tested within MIIM test
+                  begin
+                    bit_start_1 = 32; // not used
+                    bit_end_1   = 32; // not used
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_MAC_ADDR0:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 31;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                    end
+                `ETH_MAC_ADDR1:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 15;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                `ETH_HASH_ADDR0:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 31;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+                default: // `ETH_HASH_ADDR1:
+                  begin
+                    bit_start_1 = 0;
+                    bit_end_1   = 31;
+                    bit_start_2 = 32; // not used
+                    bit_end_2   = 32; // not used
+                  end
+              endcase
+              
+              for (i_data = 0; i_data <= 31; i_data = i_data + 1) // the position of walking one
+                begin
+                  data = 1'b1 << i_data;
+                  if ( (addr == `ETH_MIICOMMAND) && (i_data <= 2) ) // DO NOT WRITE to 3 LSBits of MIICOMMAND !!!
+                    ;
+                  else
+                    begin
+                      wbm_write(addr, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+                      wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+                      if ( ((i_data >= bit_start_1) && (i_data <= bit_end_1)) ||
+                           ((i_data >= bit_start_2) && (i_data <= bit_end_2)) ) // data should be equal to tmp_data
+                        begin
+                          if (tmp_data !== data)
+                          begin
+                            fail = fail + 1;
+                            test_fail("RW bit of the MAC register was not written or not read");
+                            `TIME;
+                            $display("wbm_init_waits %d, addr %h, data %h, tmp_data %h", 
+                                      wbm_init_waits, addr, data, tmp_data);
+                          end
+                        end
+                      else // data should not be equal to tmp_data
+                        begin
+                          if (tmp_data === data)
+                            begin
+                              fail = fail + 1;
+                              test_fail("NON RW bit of the MAC register was written, but it shouldn't be");
+                              `TIME;
+                              $display("wbm_init_waits %d, addr %h, data %h, tmp_data %h",
+                                        wbm_init_waits, addr, data, tmp_data);
+                            end
+                        end
+                    end
+                end
+            end
+        end
+      
+      if(fail == 0)
+        test_ok;
+      else
+        fail = 0;    // Errors were reported previously
+    end
+        
+        
+        
+  ////////////////////////////////////////////////////////////////////
+  ////                                                            ////
+  ////  Walking 1 with single cycles across MAC buffer descript.  ////
+  ////                                                            ////
+  ////////////////////////////////////////////////////////////////////
+  if (test_num == 1) // Start Walking 1 with single cycles across MAC buffer descript.
   begin
+    // TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )
+    test_name   = "TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )";
+    `TIME; $display("  TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )");
+        
+    data = 0;
+    // set TX and RX buffer descriptors
+    tx_bd_num = 32'h40;
+    wbm_write(`ETH_TX_BD_NUM, tx_bd_num, 4'hF, 1, 0, 0);
+    for (i = 0; i <= 4; i = i + 1) // for initial wait cycles on WB bus
+    begin
       wbm_init_waits = i;
       wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
-      for (i_addr = 0; i_addr <= 32'h4C; i_addr = i_addr + 4) // register address
+      for (i_addr = 32'h400; i_addr <= 32'h7FC; i_addr = i_addr + 4) // buffer descriptor address
       begin
         addr = `ETH_BASE + i_addr;
-        // set ranges of R/W bits
-        case (addr)
-        `ETH_MODER:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 16;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_INT: // READONLY - tested within INT test
-          begin
-            bit_start_1 = 32; // not used
-            bit_end_1   = 32; // not used
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_INT_MASK:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 6;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_IPGT:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 6;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_IPGR1:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 6;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_IPGR2:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 6;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_PACKETLEN:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 31;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_COLLCONF:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 5;
-            bit_start_2 = 16; 
-            bit_end_2   = 19; 
-          end
-        `ETH_TX_BD_NUM: 
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 7;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_CTRLMODER:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 2;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_MIIMODER:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 9;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_MIICOMMAND: // "WRITEONLY" - tested within MIIM test - 3 LSBits are not written here!!!
-          begin
-            bit_start_1 = 32; // not used
-            bit_end_1   = 32; // not used
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_MIIADDRESS:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 4;
-            bit_start_2 = 8; 
-            bit_end_2   = 12;
-          end
-        `ETH_MIITX_DATA:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 15;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_MIIRX_DATA: // READONLY - tested within MIIM test
-          begin
-            bit_start_1 = 32; // not used
-            bit_end_1   = 32; // not used
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_MIISTATUS: // READONLY - tested within MIIM test
-          begin
-            bit_start_1 = 32; // not used
-            bit_end_1   = 32; // not used
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_MAC_ADDR0:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 31;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_MAC_ADDR1:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 15;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        `ETH_HASH_ADDR0:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 31;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        default: // `ETH_HASH_ADDR1:
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 31;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        endcase
+        if (i_addr < (32'h400 + (tx_bd_num << 3))) // TX buffer descriptors
+        begin
+          // set ranges of R/W bits
+          case (addr[3])
+            1'b0: // buffer control bits
+            begin
+              bit_start_1 = 0;
+              bit_end_1   = 31; // 8;
+              bit_start_2 = 11;
+              bit_end_2   = 31;
+            end
+            default: // 1'b1: // buffer pointer
+            begin
+              bit_start_1 = 0;
+              bit_end_1   = 31;
+              bit_start_2 = 32; // not used
+              bit_end_2   = 32; // not used
+            end
+          endcase
+        end
+        else // RX buffer descriptors
+        begin
+          // set ranges of R/W bits
+          case (addr[3])
+            1'b0: // buffer control bits
+            begin
+              bit_start_1 = 0;
+              bit_end_1   = 31; // 7;
+              bit_start_2 = 13;
+              bit_end_2   = 31;
+            end
+            default: // 1'b1: // buffer pointer
+            begin
+              bit_start_1 = 0;
+              bit_end_1   = 31;
+              bit_start_2 = 32; // not used
+              bit_end_2   = 32; // not used
+            end
+          endcase
+        end
+        
         for (i_data = 0; i_data <= 31; i_data = i_data + 1) // the position of walking one
         begin
           data = 1'b1 << i_data;
-          if ( (addr == `ETH_MIICOMMAND) && (i_data <= 2) ) // DO NOT WRITE to 3 LSBits of MIICOMMAND !!!
-          begin
-          end
+          if ( (addr[3] == 0) && (i_data == 15) ) // DO NOT WRITE to this bit !!!
+            ;
           else
           begin
             wbm_write(addr, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -642,7 +748,7 @@ begin
               if (tmp_data !== data)
               begin
                 fail = fail + 1;
-                test_fail("RW bit of the MAC register was not written or not read");
+                test_fail("RW bit of the MAC buffer descriptors was not written or not read");
                 `TIME;
                 $display("wbm_init_waits %d, addr %h, data %h, tmp_data %h", 
                           wbm_init_waits, addr, data, tmp_data);
@@ -653,7 +759,7 @@ begin
               if (tmp_data === data)
               begin
                 fail = fail + 1;
-                test_fail("NON RW bit of the MAC register was written, but it shouldn't be");
+                test_fail("NON RW bit of the MAC buffer descriptors was written, but it shouldn't be");
                 `TIME;
                 $display("wbm_init_waits %d, addr %h, data %h, tmp_data %h",
                           wbm_init_waits, addr, data, tmp_data);
@@ -662,656 +768,536 @@ begin
           end
         end
       end
-  end
-  if(fail == 0)
-    test_ok;
-  else
-    fail = 0;    // Errors were reported previously
-end
-
-
-if ((start_task <= 4) && (end_task >= 4)) // not used, since burst access to reg. is not supported
-begin
-/*  // TEST 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )
-  test_name   = "TEST 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )";
-  `TIME; $display("  TEST 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )");
-
-  data = 0;
-  burst_data = 0;
-  burst_tmp_data = 0;
-  i_length = 10; // two bursts for length 20
-  for (i = 0; i <= 4; i = i + 1) // for initial wait cycles on WB bus
-  begin
-    for (i1 = 0; i1 <= 4; i1 = i1 + 1) // for initial wait cycles on WB bus
-    begin
-      wbm_init_waits = i;
-      wbm_subseq_waits = i1; 
-      #1;
-      for (i_data = 0; i_data <= 31; i_data = i_data + 1) // the position of walking one
-      begin
-        data = 1'b1 << i_data;
-        #1;
-        for (i2 = 32'h4C; i2 >= 0; i2 = i2 - 4)
-        begin
-          burst_data = burst_data << 32;
-          // DO NOT WRITE to 3 LSBits of MIICOMMAND !!!
-          if ( ((`ETH_BASE + i2) == `ETH_MIICOMMAND) && (i_data <= 2) ) 
-          begin
-            #1 burst_data[31:0] = 0;
-          end
-          else
-          begin
-            #1 burst_data[31:0] = data;
-          end
-        end
-        #1;
-        // 2 burst writes
-        addr = `ETH_BASE; // address of a first burst
-        wbm_write(addr, burst_data[(32 * 10 - 1):0], 4'hF, i_length, wbm_init_waits, wbm_subseq_waits);
-        burst_tmp_data = burst_data >> (32 * i_length);
-        addr = addr + 32'h28; // address of a second burst
-        wbm_write(addr, burst_tmp_data[(32 * 10 - 1):0], 4'hF, i_length, wbm_init_waits, wbm_subseq_waits);
-        #1;
-        // 2 burst reads
-        addr = `ETH_BASE; // address of a first burst
-        wbm_read(addr, burst_tmp_data[(32 * 10 - 1):0], 4'hF, i_length, 
-                 wbm_init_waits, wbm_subseq_waits); // first burst
-        burst_tmp_data = burst_tmp_data << (32 * i_length);
-        addr = addr + 32'h28; // address of a second burst
-        wbm_read(addr, burst_tmp_data[(32 * 10 - 1):0], 4'hF, i_length,
-                 wbm_init_waits, wbm_subseq_waits); // second burst
-        #1;
-        for (i2 = 0; i2 <= 32'h4C; i2 = i2 + 4)
-        begin
-          // set ranges of R/W bits
-          case (`ETH_BASE + i2)
-          `ETH_MODER:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 16;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_INT: // READONLY - tested within INT test
-            begin
-              bit_start_1 = 32; // not used
-              bit_end_1   = 32; // not used
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_INT_MASK:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 6;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_IPGT:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 6;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_IPGR1:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 6;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_IPGR2:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 6;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_PACKETLEN:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 31;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_COLLCONF:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 5;
-              bit_start_2 = 16; 
-              bit_end_2   = 19; 
-            end
-          `ETH_TX_BD_NUM: 
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 7;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_CTRLMODER:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 2;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_MIIMODER:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 9;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_MIICOMMAND: // "WRITEONLY" - tested within MIIM test - 3 LSBits are not written here!!!
-            begin
-              bit_start_1 = 32; // not used
-              bit_end_1   = 32; // not used
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_MIIADDRESS:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 4;
-              bit_start_2 = 8; 
-              bit_end_2   = 12;
-            end
-          `ETH_MIITX_DATA:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 15;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_MIIRX_DATA: // READONLY - tested within MIIM test
-            begin
-              bit_start_1 = 32; // not used
-              bit_end_1   = 32; // not used
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_MIISTATUS: // READONLY - tested within MIIM test
-            begin
-              bit_start_1 = 32; // not used
-              bit_end_1   = 32; // not used
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_MAC_ADDR0:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 31;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_MAC_ADDR1:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 15;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          `ETH_HASH_ADDR0:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 31;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          default: // `ETH_HASH_ADDR1:
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 31;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          endcase
-          #1;
-          // 3 LSBits of MIICOMMAND are NOT written !!!
-          if ( ((`ETH_BASE + i2) == `ETH_MIICOMMAND) && (i_data <= 2) )
-          begin
-            if (burst_tmp_data[31:0] !== burst_data[31:0])
-            begin
-              fail = fail + 1;
-              test_fail("NON WR bit of the MAC MIICOMMAND register was wrong written or read");
-              `TIME;
-              $display("wbm_init_waits %d, wbm_subseq_waits %d, addr %h, data %h, tmp_data %h",
-                        wbm_init_waits, wbm_subseq_waits, i2, burst_data[31:0], burst_tmp_data[31:0]);
-            end
-          end
-          else
-          begin
-            if ( ((i_data >= bit_start_1) && (i_data <= bit_end_1)) ||
-                 ((i_data >= bit_start_2) && (i_data <= bit_end_2)) ) // data should be equal to tmp_data
-            begin
-              if (burst_tmp_data[31:0] !== burst_data[31:0])
-              begin
-                fail = fail + 1;
-                test_fail("RW bit of the MAC register was not written or not read");
-                `TIME;
-                $display("wbm_init_waits %d, wbm_subseq_waits %d, addr %h, data %h, tmp_data %h", 
-                          wbm_init_waits, wbm_subseq_waits, i2, burst_data[31:0], burst_tmp_data[31:0]);
-              end
-            end
-            else // data should not be equal to tmp_data
-            begin
-              if (burst_tmp_data[31:0] === burst_data[31:0])
-              begin
-                fail = fail + 1;
-                test_fail("NON RW bit of the MAC register was written, but it shouldn't be");
-                `TIME;
-                $display("wbm_init_waits %d, wbm_subseq_waits %d, addr %h, data %h, tmp_data %h", 
-                          wbm_init_waits, wbm_subseq_waits, i2, burst_data[31:0], burst_tmp_data[31:0]);
-              end
-            end
-          end
-          burst_tmp_data = burst_tmp_data >> 32;
-          burst_data = burst_data >> 32;
-        end
-      end
+      // INTERMEDIATE DISPLAYS
+      case (i)
+        0:       $display("    buffer descriptors tested with 0 bus delay");
+        1:       $display("    buffer descriptors tested with 1 bus delay cycle");
+        2:       $display("    buffer descriptors tested with 2 bus delay cycles");
+        3:       $display("    buffer descriptors tested with 3 bus delay cycles");
+        default: $display("    buffer descriptors tested with 4 bus delay cycles");
+      endcase
     end
+    if(fail == 0)
+      test_ok;
+    else
+      fail = 0;
   end
-  if(fail == 0)
-    test_ok;
-  else
-    fail = 0;*/
-end
-
-
-if ((start_task <= 1) && (end_task >= 1))
-begin
-  // TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )
-  test_name   = "TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )";
-  `TIME; $display("  TEST 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )");
-
-  data = 0;
-  // set TX and RX buffer descriptors
-  tx_bd_num = 32'h40;
-  wbm_write(`ETH_TX_BD_NUM, tx_bd_num, 4'hF, 1, 0, 0);
-  for (i = 0; i <= 4; i = i + 1) // for initial wait cycles on WB bus
+        
+        
+  ////////////////////////////////////////////////////////////////////
+  ////                                                            ////
+  ////  Test max reg. values and reg. values after writing        ////
+  ////  inverse reset values and hard reset of the MAC            ////
+  ////                                                            ////
+  ////////////////////////////////////////////////////////////////////
+  if (test_num == 2) // Start this task
   begin
-    wbm_init_waits = i;
-    wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
-    for (i_addr = 32'h400; i_addr <= 32'h7FC; i_addr = i_addr + 4) // buffer descriptor address
+    // TEST MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC
+    test_name   = 
+      "TEST MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC";
+    `TIME; $display(
+      "  TEST MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC");
+        
+    // reset MAC registers
+    hard_reset;
+    for (i = 0; i <= 4; i = i + 1) // 0, 2 - WRITE; 1, 3, 4 - READ
     begin
-      addr = `ETH_BASE + i_addr;
-      if (i_addr < (32'h400 + (tx_bd_num << 3))) // TX buffer descriptors
+      for (i_addr = 0; i_addr <= 32'h4C; i_addr = i_addr + 4) // register address
       begin
+        addr = `ETH_BASE + i_addr;
         // set ranges of R/W bits
-        case (addr[3])
-        1'b0: // buffer control bits
+        case (addr)
+          `ETH_MODER:
           begin
-            bit_start_1 = 0;
-            bit_end_1   = 31; // 8;
-            bit_start_2 = 11;
-            bit_end_2   = 31;
+            data = 32'h0000_A800;
+            data_max = 32'h0001_FFFF;
           end
-        default: // 1'b1: // buffer pointer
+          `ETH_INT: // READONLY - tested within INT test
           begin
-            bit_start_1 = 0;
-            bit_end_1   = 31;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
+            data = 32'h0000_0000;
+            data_max = 32'h0000_0000;
+          end
+          `ETH_INT_MASK:
+          begin
+            data = 32'h0000_0000;
+            data_max = 32'h0000_007F;
+          end
+          `ETH_IPGT:
+          begin
+            data = 32'h0000_0012;
+            data_max = 32'h0000_007F;
+          end
+          `ETH_IPGR1:
+          begin
+            data = 32'h0000_000C;
+            data_max = 32'h0000_007F;
+          end
+          `ETH_IPGR2:
+          begin
+            data = 32'h0000_0012;
+            data_max = 32'h0000_007F;
+          end
+          `ETH_PACKETLEN:
+          begin
+            data = 32'h0040_0600;
+            data_max = 32'hFFFF_FFFF;
+          end
+          `ETH_COLLCONF:
+          begin
+            data = 32'h000F_003F;
+            data_max = 32'h000F_003F;
+          end
+          `ETH_TX_BD_NUM: 
+          begin
+            data = 32'h0000_0040;
+            data_max = 32'h0000_0080;
+          end
+          `ETH_CTRLMODER:
+          begin
+            data = 32'h0000_0000;
+            data_max = 32'h0000_0007;
+          end
+          `ETH_MIIMODER:
+          begin
+            data = 32'h0000_0064;
+            data_max = 32'h0000_03FF;
+          end
+          `ETH_MIICOMMAND: // "WRITEONLY" - tested within MIIM test - 3 LSBits are not written here!!!
+          begin
+            data = 32'h0000_0000;
+            data_max = 32'h0000_0007;
+          end
+          `ETH_MIIADDRESS:
+          begin
+            data = 32'h0000_0000;
+            data_max = 32'h0000_1F1F;
+          end
+          `ETH_MIITX_DATA:
+          begin
+            data = 32'h0000_0000;
+            data_max = 32'h0000_FFFF;
+          end
+          `ETH_MIIRX_DATA: // READONLY - tested within MIIM test
+          begin
+            data = 32'h0000_0000;
+            data_max = 32'h0000_0000;
+          end
+          `ETH_MIISTATUS: // READONLY - tested within MIIM test
+          begin
+            data = 32'h0000_0000;
+            data_max = 32'h0000_0000;
+          end
+          `ETH_MAC_ADDR0:
+          begin
+            data = 32'h0000_0000;
+            data_max = 32'hFFFF_FFFF;
+          end
+          `ETH_MAC_ADDR1:
+          begin
+            data = 32'h0000_0000;
+            data_max = 32'h0000_FFFF;
+          end
+          `ETH_HASH_ADDR0:
+          begin
+            data = 32'h0000_0000;
+            data_max = 32'hFFFF_FFFF;
+          end
+          default: // `ETH_HASH_ADDR1:
+          begin
+            data = 32'h0000_0000;
+            data_max = 32'hFFFF_FFFF;
           end
         endcase
-      end
-      else // RX buffer descriptors
-      begin
-        // set ranges of R/W bits
-        case (addr[3])
-        1'b0: // buffer control bits
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 31; // 7;
-            bit_start_2 = 13;
-            bit_end_2   = 31;
-          end
-        default: // 1'b1: // buffer pointer
-          begin
-            bit_start_1 = 0;
-            bit_end_1   = 31;
-            bit_start_2 = 32; // not used
-            bit_end_2   = 32; // not used
-          end
-        endcase
-      end
-
-      for (i_data = 0; i_data <= 31; i_data = i_data + 1) // the position of walking one
-      begin
-        data = 1'b1 << i_data;
-        if ( (addr[3] == 0) && (i_data == 15) ) // DO NOT WRITE to this bit !!!
+        
+        wbm_init_waits = {$random} % 3;
+        wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
+        if (i == 0)
+          wbm_write(addr, ~data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        else if (i == 2)
+          wbm_write(addr, 32'hFFFFFFFF, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        else if ((i == 1) || (i == 4))
         begin
-        end
-        else
-        begin
-          wbm_write(addr, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
           wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-          if ( ((i_data >= bit_start_1) && (i_data <= bit_end_1)) ||
-               ((i_data >= bit_start_2) && (i_data <= bit_end_2)) ) // data should be equal to tmp_data
+          if (tmp_data !== data)
+          begin
+            fail = fail + 1;
+            test_fail("RESET value of the MAC register is not correct");
+            `TIME;
+            $display("  addr %h, data %h, tmp_data %h", addr, data, tmp_data);
+          end
+        end
+        else // check maximum values
+        begin
+          wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+          if (addr == `ETH_TX_BD_NUM) // previous data should remain in this register
           begin
             if (tmp_data !== data)
             begin
               fail = fail + 1;
-              test_fail("RW bit of the MAC buffer descriptors was not written or not read");
+              test_fail("Previous value of the TX_BD_NUM register did not remain");
               `TIME;
-              $display("wbm_init_waits %d, addr %h, data %h, tmp_data %h", 
-                        wbm_init_waits, addr, data, tmp_data);
+              $display("  addr %h, data_max %h, tmp_data %h", addr, data_max, tmp_data);
             end
-          end
-          else // data should not be equal to tmp_data
-          begin
-            if (tmp_data === data)
+            // try maximum (80)
+            wbm_write(addr, data_max, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            if (tmp_data !== data_max)
             begin
               fail = fail + 1;
-              test_fail("NON RW bit of the MAC buffer descriptors was written, but it shouldn't be");
+              test_fail("MAX value of the TX_BD_NUM register is not correct");
               `TIME;
-              $display("wbm_init_waits %d, addr %h, data %h, tmp_data %h",
-                        wbm_init_waits, addr, data, tmp_data);
+              $display("  addr %h, data_max %h, tmp_data %h", addr, data_max, tmp_data);
+            end
+            // try one less than maximum (80)
+            wbm_write(addr, (data_max - 1), 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            if (tmp_data !== (data_max - 1))
+            begin
+              fail = fail + 1;
+              test_fail("ONE less than MAX value of the TX_BD_NUM register is not correct");
+              `TIME;
+              $display("  addr %h, data_max %h, tmp_data %h", addr, data_max, tmp_data);
+            end
+            // try one more than maximum (80)
+            wbm_write(addr, (data_max + 1), 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+            if (tmp_data !== (data_max - 1)) // previous data should remain in this register
+            begin
+              fail = fail + 1;
+              test_fail("Previous value of the TX_BD_NUM register did not remain");
+              `TIME;
+              $display("  addr %h, data_max %h, tmp_data %h", addr, data_max, tmp_data);
+            end
+          end
+          else
+          begin
+            if (tmp_data !== data_max)
+            begin
+              fail = fail + 1;
+              test_fail("MAX value of the MAC register is not correct");
+              `TIME;
+              $display("  addr %h, data_max %h, tmp_data %h", addr, data_max, tmp_data);
             end
           end
         end
       end
+      // reset MAC registers
+      if ((i == 0) || (i == 3))
+        hard_reset;
     end
-    case (i)
-    0:       $display("    buffer descriptors tested with 0 bus delay");
-    1:       $display("    buffer descriptors tested with 1 bus delay cycle");
-    2:       $display("    buffer descriptors tested with 2 bus delay cycles");
-    3:       $display("    buffer descriptors tested with 3 bus delay cycles");
-    default: $display("    buffer descriptors tested with 4 bus delay cycles");
-    endcase
+    if(fail == 0)
+      test_ok;
+    else
+      fail = 0;
   end
-  if(fail == 0)
-    test_ok;
-  else
-    fail = 0;
-end
-
-  /* Register      RESET values    MAX. values
-     -----------------------------------------
-   ETH_MODER       32'h0000_A800   32'h0000_A800   Mode Register
-   ETH_INT         32'h0000_0000   32'h0000_0000   Interrupt Source Register
-   ETH_INT_MASK    32'h0000_0000   32'h0000_0000   Interrupt Mask Register
-   ETH_IPGT        32'h0000_0012   32'h0000_0012   Back to Bak Inter Packet Gap Register
-   ETH_IPGR1       32'h0000_000C   32'h0000_000C   Non Back to Back Inter Packet Gap Register 1
-   ETH_IPGR2       32'h0000_0012   32'h0000_0012   Non Back to Back Inter Packet Gap Register 2
-   ETH_PACKETLEN   32'h0040_0600   32'h0040_0600   Packet Length Register (min. and max.)
-   ETH_COLLCONF    32'h000F_003F   32'h000F_003F   Collision and Retry Configuration Register
-   ETH_TX_BD_NUM   32'h0000_0040   32'h0000_0080   Transmit Buffer Descriptor Number Register
-   ETH_CTRLMODER   32'h0000_0000   32'h0000_0000   Control Module Mode Register
-   ETH_MIIMODER    32'h0000_0064   32'h0000_0064   MII Mode Register
-   ETH_MIICOMMAND  32'h0000_0000   32'h0000_0000   MII Command Register
-   ETH_MIIADDRESS  32'h0000_0000   32'h0000_0000   MII Address Register
-   ETH_MIITX_DATA  32'h0000_0000   32'h0000_0000   MII Transmit Data Register
-   ETH_MIIRX_DATA  32'h0000_0000   32'h0000_0000   MII Receive Data Register
-   ETH_MIISTATUS   32'h0000_0000   32'h0000_0000   MII Status Register
-   ETH_MAC_ADDR0   32'h0000_0000   32'h0000_0000   MAC Individual Address Register 0
-   ETH_MAC_ADDR1   32'h0000_0000   32'h0000_0000   MAC Individual Address Register 1
-   ETH_HASH_ADDR0  32'h0000_0000   32'h0000_0000   Hash Register 0
-   ETH_HASH_ADDR1  32'h0000_0000   32'h0000_0000   Hash Register 1
-  */
 
 
-if ((start_task <= 2) && (end_task >= 2))
-begin
-  // TEST MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC
-  test_name   = 
-  "TEST MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC";
-  `TIME; $display(
-  "  TEST MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC");
-
-  // reset MAC registers
-  hard_reset;
-  for (i = 0; i <= 4; i = i + 1) // 0, 2 - WRITE; 1, 3, 4 - READ
+  if (test_num == 3) // Start this task
   begin
-    for (i_addr = 0; i_addr <= 32'h4C; i_addr = i_addr + 4) // register address
+    // TEST BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC
+    test_name   = "TEST BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC";
+    `TIME; 
+    $display("  TEST BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC");
+        
+    // reset MAC registers
+    hard_reset;
+    // reset LOGIC with soft reset
+    reset_mac;
+    reset_mii;
+    for (i = 0; i <= 3; i = i + 1) // 0, 2 - WRITE; 1, 3 - READ
     begin
-      addr = `ETH_BASE + i_addr;
-      // set ranges of R/W bits
-      case (addr)
-      `ETH_MODER:
+      for (i_addr = 32'h400; i_addr <= 32'h7FC; i_addr = i_addr + 4) // buffer descriptor address
       begin
-        data = 32'h0000_A800;
-        data_max = 32'h0001_FFFF;
-      end
-      `ETH_INT: // READONLY - tested within INT test
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'h0000_0000;
-      end
-      `ETH_INT_MASK:
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'h0000_007F;
-      end
-      `ETH_IPGT:
-      begin
-        data = 32'h0000_0012;
-        data_max = 32'h0000_007F;
-      end
-      `ETH_IPGR1:
-      begin
-        data = 32'h0000_000C;
-        data_max = 32'h0000_007F;
-      end
-      `ETH_IPGR2:
-      begin
-        data = 32'h0000_0012;
-        data_max = 32'h0000_007F;
-      end
-      `ETH_PACKETLEN:
-      begin
-        data = 32'h0040_0600;
-        data_max = 32'hFFFF_FFFF;
-      end
-      `ETH_COLLCONF:
-      begin
-        data = 32'h000F_003F;
-        data_max = 32'h000F_003F;
-      end
-      `ETH_TX_BD_NUM: 
-      begin
-        data = 32'h0000_0040;
-        data_max = 32'h0000_0080;
-      end
-      `ETH_CTRLMODER:
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'h0000_0007;
-      end
-      `ETH_MIIMODER:
-      begin
-        data = 32'h0000_0064;
-        data_max = 32'h0000_03FF;
-      end
-      `ETH_MIICOMMAND: // "WRITEONLY" - tested within MIIM test - 3 LSBits are not written here!!!
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'h0000_0007;
-      end
-      `ETH_MIIADDRESS:
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'h0000_1F1F;
-      end
-      `ETH_MIITX_DATA:
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'h0000_FFFF;
-      end
-      `ETH_MIIRX_DATA: // READONLY - tested within MIIM test
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'h0000_0000;
-      end
-      `ETH_MIISTATUS: // READONLY - tested within MIIM test
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'h0000_0000;
-      end
-      `ETH_MAC_ADDR0:
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'hFFFF_FFFF;
-      end
-      `ETH_MAC_ADDR1:
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'h0000_FFFF;
-      end
-      `ETH_HASH_ADDR0:
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'hFFFF_FFFF;
-      end
-      default: // `ETH_HASH_ADDR1:
-      begin
-        data = 32'h0000_0000;
-        data_max = 32'hFFFF_FFFF;
-      end
-      endcase
-
-      wbm_init_waits = {$random} % 3;
-      wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
-      if (i == 0)
-        wbm_write(addr, ~data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-      else if (i == 2)
-        wbm_write(addr, 32'hFFFFFFFF, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-      else if ((i == 1) || (i == 4))
-      begin
-        wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-        if (tmp_data !== data)
+        addr = `ETH_BASE + i_addr;
+        
+        wbm_init_waits = {$random} % 3;
+        wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
+        if (i == 0)
         begin
-          fail = fail + 1;
-          test_fail("RESET value of the MAC register is not correct");
-          `TIME;
-          $display("  addr %h, data %h, tmp_data %h", addr, data, tmp_data);
+          data = 32'hFFFFFFFF;
+          wbm_write(addr, 32'hFFFFFFFF, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         end
-      end
-      else // check maximum values
-      begin
-        wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-        if (addr == `ETH_TX_BD_NUM) // previous data should remain in this register
+        else if (i == 2)
         begin
-          if (tmp_data !== data)
-          begin
-            fail = fail + 1;
-            test_fail("Previous value of the TX_BD_NUM register did not remain");
-            `TIME;
-            $display("  addr %h, data_max %h, tmp_data %h", addr, data_max, tmp_data);
-          end
-          // try maximum (80)
-          wbm_write(addr, data_max, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-          wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-          if (tmp_data !== data_max)
-          begin
-            fail = fail + 1;
-            test_fail("MAX value of the TX_BD_NUM register is not correct");
-            `TIME;
-            $display("  addr %h, data_max %h, tmp_data %h", addr, data_max, tmp_data);
-          end
-          // try one less than maximum (80)
-          wbm_write(addr, (data_max - 1), 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-          wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-          if (tmp_data !== (data_max - 1))
-          begin
-            fail = fail + 1;
-            test_fail("ONE less than MAX value of the TX_BD_NUM register is not correct");
-            `TIME;
-            $display("  addr %h, data_max %h, tmp_data %h", addr, data_max, tmp_data);
-          end
-          // try one more than maximum (80)
-          wbm_write(addr, (data_max + 1), 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-          wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-          if (tmp_data !== (data_max - 1)) // previous data should remain in this register
-          begin
-            fail = fail + 1;
-            test_fail("Previous value of the TX_BD_NUM register did not remain");
-            `TIME;
-            $display("  addr %h, data_max %h, tmp_data %h", addr, data_max, tmp_data);
-          end
+          data = 32'h00000000;
+          wbm_write(addr, 32'h00000000, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         end
         else
         begin
-          if (tmp_data !== data_max)
+          wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+          if (tmp_data !== data)
           begin
             fail = fail + 1;
-            test_fail("MAX value of the MAC register is not correct");
+            test_fail("PRESERVED value of the MAC buffer descriptors is not correct");
             `TIME;
-            $display("  addr %h, data_max %h, tmp_data %h", addr, data_max, tmp_data);
+            $display("  addr %h, data %h, tmp_data %h", addr, data, tmp_data);
           end
         end
       end
+      if ((i == 0) || (i == 2))
+      begin
+        // reset MAC registers
+        hard_reset;
+        // reset LOGIC with soft reset
+        reset_mac;
+        reset_mii;
+      end
     end
-    // reset MAC registers
-    if ((i == 0) || (i == 3))
-    begin
-      hard_reset;
-    end
-  end
-  if(fail == 0)
-    test_ok;
-  else
+    if(fail == 0)
+      test_ok;
+    else
     fail = 0;
-end
+  end
 
 
-if ((start_task <= 3) && (end_task >= 3))
-begin
-  // TEST BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC
-  test_name   = "TEST BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC";
-  `TIME; 
-  $display("  TEST BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC");
-
-  // reset MAC registers
-  hard_reset;
-  // reset LOGIC with soft reset
-  reset_mac;
-  reset_mii;
-  for (i = 0; i <= 3; i = i + 1) // 0, 2 - WRITE; 1, 3 - READ
+  if (test_num == 4) // Start this task
   begin
-    for (i_addr = 32'h400; i_addr <= 32'h7FC; i_addr = i_addr + 4) // buffer descriptor address
-    begin
-      addr = `ETH_BASE + i_addr;
-
-      wbm_init_waits = {$random} % 3;
-      wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
-      if (i == 0)
-      begin
-        data = 32'hFFFFFFFF;
-        wbm_write(addr, 32'hFFFFFFFF, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-      end
-      else if (i == 2)
-      begin
-        data = 32'h00000000;
-        wbm_write(addr, 32'h00000000, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-      end
-      else
-      begin
-        wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-        if (tmp_data !== data)
-        begin
-          fail = fail + 1;
-          test_fail("PRESERVED value of the MAC buffer descriptors is not correct");
-          `TIME;
-          $display("  addr %h, data %h, tmp_data %h", addr, data, tmp_data);
-        end
-      end
-    end
-    if ((i == 0) || (i == 2))
-    begin
-      // reset MAC registers
-      hard_reset;
-      // reset LOGIC with soft reset
-      reset_mac;
-      reset_mii;
-    end
+        /*  // TEST 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )
+          test_name   = "TEST 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )";
+          `TIME; $display("  TEST 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )");
+        
+          data = 0;
+          burst_data = 0;
+          burst_tmp_data = 0;
+          i_length = 10; // two bursts for length 20
+          for (i = 0; i <= 4; i = i + 1) // for initial wait cycles on WB bus
+          begin
+            for (i1 = 0; i1 <= 4; i1 = i1 + 1) // for initial wait cycles on WB bus
+            begin
+              wbm_init_waits = i;
+              wbm_subseq_waits = i1; 
+              #1;
+              for (i_data = 0; i_data <= 31; i_data = i_data + 1) // the position of walking one
+              begin
+                data = 1'b1 << i_data;
+                #1;
+                for (i2 = 32'h4C; i2 >= 0; i2 = i2 - 4)
+                begin
+                  burst_data = burst_data << 32;
+                  // DO NOT WRITE to 3 LSBits of MIICOMMAND !!!
+                  if ( ((`ETH_BASE + i2) == `ETH_MIICOMMAND) && (i_data <= 2) ) 
+                  begin
+                    #1 burst_data[31:0] = 0;
+                  end
+                  else
+                  begin
+                    #1 burst_data[31:0] = data;
+                  end
+                end
+                #1;
+                // 2 burst writes
+                addr = `ETH_BASE; // address of a first burst
+                wbm_write(addr, burst_data[(32 * 10 - 1):0], 4'hF, i_length, wbm_init_waits, wbm_subseq_waits);
+                burst_tmp_data = burst_data >> (32 * i_length);
+                addr = addr + 32'h28; // address of a second burst
+                wbm_write(addr, burst_tmp_data[(32 * 10 - 1):0], 4'hF, i_length, wbm_init_waits, wbm_subseq_waits);
+                #1;
+                // 2 burst reads
+                addr = `ETH_BASE; // address of a first burst
+                wbm_read(addr, burst_tmp_data[(32 * 10 - 1):0], 4'hF, i_length, 
+                         wbm_init_waits, wbm_subseq_waits); // first burst
+                burst_tmp_data = burst_tmp_data << (32 * i_length);
+                addr = addr + 32'h28; // address of a second burst
+                wbm_read(addr, burst_tmp_data[(32 * 10 - 1):0], 4'hF, i_length,
+                         wbm_init_waits, wbm_subseq_waits); // second burst
+                #1;
+                for (i2 = 0; i2 <= 32'h4C; i2 = i2 + 4)
+                begin
+                  // set ranges of R/W bits
+                  case (`ETH_BASE + i2)
+                  `ETH_MODER:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 16;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_INT: // READONLY - tested within INT test
+                    begin
+                      bit_start_1 = 32; // not used
+                      bit_end_1   = 32; // not used
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_INT_MASK:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 6;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_IPGT:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 6;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_IPGR1:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 6;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_IPGR2:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 6;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_PACKETLEN:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 31;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_COLLCONF:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 5;
+                      bit_start_2 = 16; 
+                      bit_end_2   = 19; 
+                    end
+                  `ETH_TX_BD_NUM: 
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 7;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_CTRLMODER:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 2;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_MIIMODER:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 9;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_MIICOMMAND: // "WRITEONLY" - tested within MIIM test - 3 LSBits are not written here!!!
+                    begin
+                      bit_start_1 = 32; // not used
+                      bit_end_1   = 32; // not used
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_MIIADDRESS:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 4;
+                      bit_start_2 = 8; 
+                      bit_end_2   = 12;
+                    end
+                  `ETH_MIITX_DATA:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 15;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_MIIRX_DATA: // READONLY - tested within MIIM test
+                    begin
+                      bit_start_1 = 32; // not used
+                      bit_end_1   = 32; // not used
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_MIISTATUS: // READONLY - tested within MIIM test
+                    begin
+                      bit_start_1 = 32; // not used
+                      bit_end_1   = 32; // not used
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_MAC_ADDR0:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 31;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_MAC_ADDR1:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 15;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  `ETH_HASH_ADDR0:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 31;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  default: // `ETH_HASH_ADDR1:
+                    begin
+                      bit_start_1 = 0;
+                      bit_end_1   = 31;
+                      bit_start_2 = 32; // not used
+                      bit_end_2   = 32; // not used
+                    end
+                  endcase
+                  #1;
+                  // 3 LSBits of MIICOMMAND are NOT written !!!
+                  if ( ((`ETH_BASE + i2) == `ETH_MIICOMMAND) && (i_data <= 2) )
+                  begin
+                    if (burst_tmp_data[31:0] !== burst_data[31:0])
+                    begin
+                      fail = fail + 1;
+                      test_fail("NON WR bit of the MAC MIICOMMAND register was wrong written or read");
+                      `TIME;
+                      $display("wbm_init_waits %d, wbm_subseq_waits %d, addr %h, data %h, tmp_data %h",
+                                wbm_init_waits, wbm_subseq_waits, i2, burst_data[31:0], burst_tmp_data[31:0]);
+                    end
+                  end
+                  else
+                  begin
+                    if ( ((i_data >= bit_start_1) && (i_data <= bit_end_1)) ||
+                         ((i_data >= bit_start_2) && (i_data <= bit_end_2)) ) // data should be equal to tmp_data
+                    begin
+                      if (burst_tmp_data[31:0] !== burst_data[31:0])
+                      begin
+                        fail = fail + 1;
+                        test_fail("RW bit of the MAC register was not written or not read");
+                        `TIME;
+                        $display("wbm_init_waits %d, wbm_subseq_waits %d, addr %h, data %h, tmp_data %h", 
+                                  wbm_init_waits, wbm_subseq_waits, i2, burst_data[31:0], burst_tmp_data[31:0]);
+                      end
+                    end
+                    else // data should not be equal to tmp_data
+                    begin
+                      if (burst_tmp_data[31:0] === burst_data[31:0])
+                      begin
+                        fail = fail + 1;
+                        test_fail("NON RW bit of the MAC register was written, but it shouldn't be");
+                        `TIME;
+                        $display("wbm_init_waits %d, wbm_subseq_waits %d, addr %h, data %h, tmp_data %h", 
+                                  wbm_init_waits, wbm_subseq_waits, i2, burst_data[31:0], burst_tmp_data[31:0]);
+                      end
+                    end
+                  end
+                  burst_tmp_data = burst_tmp_data >> 32;
+                  burst_data = burst_data >> 32;
+                end
+              end
+            end
+          end
+          if(fail == 0)
+            test_ok;
+          else
+            fail = 0;*/
   end
-  if(fail == 0)
-    test_ok;
-  else
-    fail = 0;
-end
 
+end
 
 end
 endtask // test_access_to_mac_reg
