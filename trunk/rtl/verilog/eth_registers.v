@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2002/02/26 16:18:09  mohor
+// Reset values are passed to registers through parameters
+//
 // Revision 1.12  2002/02/17 13:23:42  mohor
 // Define missmatch fixed.
 //
@@ -450,7 +453,7 @@ begin
   if(Reset)
     irq_txb <= 1'b0;
   else
-  if(TxB_IRQ & INT_MASKOut[0])
+  if(TxB_IRQ)
     irq_txb <= #Tp 1'b1;
   else
   if(INT_SOURCE_Wr & DataIn[0])
@@ -462,7 +465,7 @@ begin
   if(Reset)
     irq_txe <= 1'b0;
   else
-  if(TxE_IRQ & INT_MASKOut[1])
+  if(TxE_IRQ)
     irq_txe <= #Tp 1'b1;
   else
   if(INT_SOURCE_Wr & DataIn[1])
@@ -474,7 +477,7 @@ begin
   if(Reset)
     irq_rxb <= 1'b0;
   else
-  if(RxB_IRQ & INT_MASKOut[2])
+  if(RxB_IRQ)
     irq_rxb <= #Tp 1'b1;
   else
   if(INT_SOURCE_Wr & DataIn[2])
@@ -486,7 +489,7 @@ begin
   if(Reset)
     irq_rxe <= 1'b0;
   else
-  if(RxE_IRQ & INT_MASKOut[3])
+  if(RxE_IRQ)
     irq_rxe <= #Tp 1'b1;
   else
   if(INT_SOURCE_Wr & DataIn[3])
@@ -498,7 +501,7 @@ begin
   if(Reset)
     irq_busy <= 1'b0;
   else
-  if(Busy_IRQ & INT_MASKOut[4])
+  if(Busy_IRQ)
     irq_busy <= #Tp 1'b1;
   else
   if(INT_SOURCE_Wr & DataIn[4])
@@ -510,7 +513,7 @@ begin
   if(Reset)
     irq_txc <= 1'b0;
   else
-  if(TxC_IRQ & INT_MASKOut[5])
+  if(TxC_IRQ)
     irq_txc <= #Tp 1'b1;
   else
   if(INT_SOURCE_Wr & DataIn[5])
@@ -522,7 +525,7 @@ begin
   if(Reset)
     irq_rxc <= 1'b0;
   else
-  if(RxC_IRQ & INT_MASKOut[6])
+  if(RxC_IRQ)
     irq_rxc <= #Tp 1'b1;
   else
   if(INT_SOURCE_Wr & DataIn[6])
@@ -530,7 +533,13 @@ begin
 end
 
 // Generating interrupt signal
-assign int_o = irq_txb | irq_txe | irq_rxb | irq_rxe | irq_busy | irq_txc | irq_rxc;
+assign int_o = irq_txb  & INT_MASKOut[0] | 
+               irq_txe  & INT_MASKOut[1] | 
+               irq_rxb  & INT_MASKOut[2] | 
+               irq_rxe  & INT_MASKOut[3] | 
+               irq_busy & INT_MASKOut[4] | 
+               irq_txc  & INT_MASKOut[5] | 
+               irq_rxc  & INT_MASKOut[6] ;
 
 // For reading interrupt status
 assign INT_SOURCEOut = {26'h0, irq_rxc, irq_txc, irq_busy, irq_rxe, irq_rxb, irq_txe, irq_txb};
