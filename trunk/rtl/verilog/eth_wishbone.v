@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2002/02/26 16:59:55  mohor
+// Small fixes for external/internal DMA missmatches.
+//
 // Revision 1.12  2002/02/26 16:22:07  mohor
 // Interrupts changed
 //
@@ -133,7 +136,6 @@ module eth_wishbone
     
     // Tx Status
     RetryCntLatched, RetryLimit, LateCollLatched, DeferLatched, CarrierSenseLost
-
 		);
 
 
@@ -283,7 +285,10 @@ reg             TxRetry_q;
 reg             TxUsedData_q;
 
 reg    [31:0]   RxDataLatched2;
-reg    [23:0]   RxDataLatched1;
+
+// reg    [23:0]   RxDataLatched1;
+reg    [31:8]   RxDataLatched1;     // Big Endian Byte Ordering
+
 reg     [1:0]   RxValidBytes;
 reg     [1:0]   RxByteCnt;
 reg             LastByteIn;
@@ -767,8 +772,8 @@ begin
   else
     begin
       // Switching between two stages depends on enable signals
-      casex ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished})  // synopsys parallel_case full_case
-        5'b00_x1_x :
+      case ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished})
+        5'b00_01_0, 5'b00_11_0 :
           begin
             MasterWbTX <=#Tp 1'b0;  // idle and master write is needed (data write to rx buffer)
             MasterWbRX <=#Tp 1'b1;
@@ -777,7 +782,7 @@ begin
             m_wb_stb_o <=#Tp 1'b1;
             m_wb_we_o  <=#Tp 1'b1;
           end
-        5'b00_10_x :
+        5'b00_10_0, 5'b00_10_1 :
           begin
             MasterWbTX <=#Tp 1'b1;  // idle and master read is needed (data read from tx buffer)
             MasterWbRX <=#Tp 1'b0;
@@ -802,26 +807,33 @@ begin
             m_wb_adr_o <=#Tp RxPointer;
             m_wb_we_o  <=#Tp 1'b1;
           end
-        5'b10_x1_1 :
+        5'b10_01_1, 5'b10_11_1 :
           begin
             MasterWbTX <=#Tp 1'b0;  // master read and master write is needed (data write to rx buffer)
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp RxPointer;
             m_wb_we_o  <=#Tp 1'b1;
           end
-        5'b01_1x_1 :
+        5'b01_10_1, 5'b01_11_1 :
           begin
             MasterWbTX <=#Tp 1'b1;  // master write and master read is needed (data read from tx buffer)
             MasterWbRX <=#Tp 1'b0;
             m_wb_adr_o <=#Tp TxPointer;
             m_wb_we_o  <=#Tp 1'b0;
           end
-        5'bxx_00_1 :
+        5'b10_00_1, 5'b01_00_1 :
           begin
             MasterWbTX <=#Tp 1'b0;  // whatever and no master read or write is needed (ack or err comes finishing previous access)
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b0;
             m_wb_stb_o <=#Tp 1'b0;
+          end
+        default:                            // Don't touch
+          begin
+            MasterWbTX <=#Tp MasterWbTX;
+            MasterWbRX <=#Tp MasterWbRX;
+            m_wb_cyc_o <=#Tp m_wb_cyc_o;
+            m_wb_stb_o <=#Tp m_wb_stb_o;
           end
       endcase
     end
@@ -1122,10 +1134,14 @@ begin
   if(TxUsedData & Flop)
     begin
       case(TxByteCnt)
-        0 : TxData <=#Tp TxDataLatched[7:0];
-        1 : TxData <=#Tp TxDataLatched[15:8];
-        2 : TxData <=#Tp TxDataLatched[23:16];
-        3 : TxData <=#Tp TxDataLatched[31:24];
+//        0 : TxData <=#Tp TxDataLatched[7:0];
+//        1 : TxData <=#Tp TxDataLatched[15:8];
+//        2 : TxData <=#Tp TxDataLatched[23:16];
+//        3 : TxData <=#Tp TxDataLatched[31:24];
+        0 : TxData <=#Tp TxDataLatched[31:24];      // Big Endian Byte Ordering
+        1 : TxData <=#Tp TxDataLatched[23:16];
+        2 : TxData <=#Tp TxDataLatched[15:8];
+        3 : TxData <=#Tp TxDataLatched[7:0];
       endcase
     end
 end
@@ -1511,9 +1527,13 @@ begin
   if(RxValid & RxBDReady & ~LastByteIn & (RxStartFrm | RxEnableWindow))
     begin
       case(RxByteCnt)     // synopsys parallel_case
-        2'h0:        RxDataLatched1[7:0]   <=#Tp RxData;
-        2'h1:        RxDataLatched1[15:8]  <=#Tp RxData;
-        2'h2:        RxDataLatched1[23:16] <=#Tp RxData;
+//        2'h0:        RxDataLatched1[7:0]   <=#Tp RxData;
+//        2'h1:        RxDataLatched1[15:8]  <=#Tp RxData;
+//        2'h2:        RxDataLatched1[23:16] <=#Tp RxData;
+//        2'h3:        RxDataLatched1        <=#Tp RxDataLatched1;
+        2'h0:        RxDataLatched1[31:24] <=#Tp RxData;            // Big Endian Byte Ordering
+        2'h1:        RxDataLatched1[23:16] <=#Tp RxData;
+        2'h2:        RxDataLatched1[15:8]  <=#Tp RxData;
         2'h3:        RxDataLatched1        <=#Tp RxDataLatched1;
       endcase
     end
@@ -1528,14 +1548,19 @@ begin
     RxDataLatched2 <=#Tp 32'h0;
   else
   if(SetWriteRxDataToFifo & ~ShiftWillEnd)
-    RxDataLatched2 <=#Tp {RxData, RxDataLatched1[23:0]};
+//    RxDataLatched2 <=#Tp {RxData, RxDataLatched1[23:0]};
+    RxDataLatched2 <=#Tp {RxDataLatched1[31:8], RxData};              // Big Endian Byte Ordering
   else
   if(SetWriteRxDataToFifo & ShiftWillEnd)
     case(RxValidBytes)
-      0 : RxDataLatched2 <=#Tp {RxData, RxDataLatched1[23:0]};
-      1 : RxDataLatched2 <=#Tp { 24'h0, RxDataLatched1[7:0]};
-      2 : RxDataLatched2 <=#Tp { 16'h0, RxDataLatched1[15:0]};
-      3 : RxDataLatched2 <=#Tp {  8'h0, RxDataLatched1[23:0]};
+//      0 : RxDataLatched2 <=#Tp {RxData, RxDataLatched1[23:0]};
+//      1 : RxDataLatched2 <=#Tp { 24'h0, RxDataLatched1[7:0]};
+//      2 : RxDataLatched2 <=#Tp { 16'h0, RxDataLatched1[15:0]};
+//      3 : RxDataLatched2 <=#Tp {  8'h0, RxDataLatched1[23:0]};
+      0 : RxDataLatched2 <=#Tp {RxDataLatched1[31:8],  RxData};       // Big Endian Byte Ordering
+      1 : RxDataLatched2 <=#Tp {RxDataLatched1[31:24], 24'h0};
+      2 : RxDataLatched2 <=#Tp {RxDataLatched1[31:16], 16'h0};
+      3 : RxDataLatched2 <=#Tp {RxDataLatched1[31:8],   8'h0};
     endcase
 end
 
