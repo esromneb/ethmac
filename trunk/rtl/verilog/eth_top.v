@@ -3,7 +3,7 @@
 ////  eth_top.v                                                   ////
 ////                                                              ////
 ////  This file is part of the Ethernet IP core project           ////
-////  http://www.opencores.org/cores/ethmac/                      ////
+////  http://www.opencores.org/projects/ethmac/                   ////
 ////                                                              ////
 ////  Author(s):                                                  ////
 ////      - Igor Mohor (igorM@opencores.org)                      ////
@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2001/12/05 15:00:16  mohor
+// RX_BD_NUM changed to TX_BD_NUM (holds number of TX descriptors
+// instead of the number of RX descriptors).
+//
 // Revision 1.7  2001/12/05 10:45:59  mohor
 // ETH_RX_BD_ADR register deleted. ETH_RX_BD_NUM is used instead.
 //
