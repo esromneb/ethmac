@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2002/10/30 12:54:50  mohor
+// State machine goes from idle to the defer state when CarrierSense is 1. FCS (CRC appending) fixed to check the CrcEn bit also when padding is necessery.
+//
 // Revision 1.4  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -90,7 +93,7 @@ module eth_txstatem  (MTxClk, Reset, ExcessiveDefer, CarrierSense, NibCnt, IPGT,
                       NibbleMinFl, RandomEq0, ColWindow, RetryMax, NoBckof, RandomEqByteCnt,
                       StateIdle, StateIPG, StatePreamble, StateData, StatePAD, StateFCS, 
                       StateJam, StateJam_q, StateBackOff, StateDefer, StartFCS, StartJam, 
-                      StartBackoff, StartDefer, StartPreamble, StartData, StartIPG
+                      StartBackoff, StartDefer, DeferIndication, StartPreamble, StartData, StartIPG
                      );
 
 parameter Tp = 1;
@@ -139,6 +142,7 @@ output StartFCS;          // FCS state will be activated in next clock
 output StartJam;          // Jam state will be activated in next clock
 output StartBackoff;      // Backoff state will be activated in next clock
 output StartDefer;        // Defer state will be activated in next clock
+output DeferIndication;
 output StartPreamble;     // Preamble state will be activated in next clock
 output [1:0] StartData;   // Data state will be activated in next clock
 output StartIPG;          // IPG state will be activated in next clock
@@ -186,7 +190,7 @@ assign StartDefer = StateIPG & ~Rule1 & CarrierSense & NibCnt[6:0] <= IPGR1 & Ni
                   | StateBackOff & (TxUnderRun | RandomEqByteCnt)
                   | StartTxDone | TooBig;
 
-
+assign DeferIndication = StateIdle & CarrierSense;
 
 // Tx State Machine
 always @ (posedge MTxClk or posedge Reset)

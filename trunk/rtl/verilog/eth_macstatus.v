@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.14  2002/11/22 01:57:06  mohor
+// Rx Flow control fixed. CF flag added to the RX buffer descriptor. RxAbort
+// synchronized.
+//
 // Revision 1.13  2002/11/13 22:30:58  tadejm
 // Late collision is reported only when not in the full duplex.
 // Sample is taken (for status) as soon as MRxDV is not valid (regardless
@@ -109,7 +113,7 @@ module eth_macstatus(
                       InvalidSymbol, MRxD, LatchedCrcError, Collision, CollValid, RxLateCollision,
                       r_RecSmall, r_MinFL, r_MaxFL, ShortFrame, DribbleNibble, ReceivedPacketTooBig, r_HugEn,
                       LoadRxStatus, StartTxDone, StartTxAbort, RetryCnt, RetryCntLatched, MTxClk, MaxCollisionOccured, 
-                      RetryLimit, LateCollision, LateCollLatched, StartDefer, DeferLatched, TxStartFrm,
+                      RetryLimit, LateCollision, LateCollLatched, DeferIndication, DeferLatched, TxStartFrm,
                       StatePreamble, StateData, CarrierSense, CarrierSenseLost, TxUsedData, LatchedMRxErr, Loopback, 
                       r_FullD
                     );
@@ -147,7 +151,7 @@ input   [3:0] RetryCnt;
 input         MTxClk;
 input         MaxCollisionOccured;
 input         LateCollision;
-input         StartDefer;
+input         DeferIndication;
 input         TxStartFrm;
 input         StatePreamble;
 input   [1:0] StateData;
@@ -389,7 +393,7 @@ begin
   if(Reset)
     DeferLatched <=#Tp 1'b0;
   else
-  if(StartDefer & TxUsedData)
+  if(DeferIndication & TxUsedData)
     DeferLatched <=#Tp 1'b1;
   else
   if(TxStartFrm)

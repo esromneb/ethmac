@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.45  2003/01/22 13:49:26  tadejm
+// When control packets were received, they were ignored in some cases.
+//
 // Revision 1.44  2003/01/21 12:09:40  mohor
 // When receiving normal data frame and RxFlow control was switched on, RXB
 // interrupt was not set.
@@ -601,7 +604,7 @@ eth_txethmac txethmac1
   .TxRetry(TxRetry),                  .TxAbort(TxAbortIn),                .WillTransmit(WillTransmit), 
   .ResetCollision(ResetCollision),    .RetryCnt(RetryCnt),                .StartTxDone(StartTxDone), 
   .StartTxAbort(StartTxAbort),        .MaxCollisionOccured(MaxCollisionOccured), .LateCollision(LateCollision),   
-  .StartDefer(StartDefer),            .StatePreamble(StatePreamble),      .StateData(StateData)   
+  .DeferIndication(DeferIndication),  .StatePreamble(StatePreamble),      .StateData(StateData)   
 );
 
 
@@ -910,7 +913,7 @@ eth_macstatus macstatus1
   .LoadRxStatus(LoadRxStatus),        .RetryCnt(RetryCnt),                         .StartTxDone(StartTxDone),
   .StartTxAbort(StartTxAbort),        .RetryCntLatched(RetryCntLatched),           .MTxClk(mtx_clk_pad_i),
   .MaxCollisionOccured(MaxCollisionOccured), .RetryLimit(RetryLimit),              .LateCollision(LateCollision),
-  .LateCollLatched(LateCollLatched),  .StartDefer(StartDefer),                     .DeferLatched(DeferLatched),
+  .LateCollLatched(LateCollLatched),  .DeferIndication(DeferIndication),           .DeferLatched(DeferLatched),
   .TxStartFrm(TxStartFrmOut),         .StatePreamble(StatePreamble),               .StateData(StateData),
   .CarrierSense(CarrierSense_Tx2),    .CarrierSenseLost(CarrierSenseLost),         .TxUsedData(TxUsedDataIn),
   .LatchedMRxErr(LatchedMRxErr),      .Loopback(r_LoopBck),                        .r_FullD(r_FullD)
