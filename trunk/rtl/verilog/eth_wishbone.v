@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.40  2002/10/14 16:07:02  mohor
+// TxStatus is written after last access to the TX fifo is finished (in case of abort
+// or retry). TxDone is fixed.
+//
 // Revision 1.39  2002/10/11 15:35:20  mohor
 // txfifo_cnt and rxfifo_cnt counters width is defined in the eth_define.v file,
 // TxDone and TxRetry are generated after the current WISHBONE access is
@@ -479,7 +483,7 @@ assign WB_DAT_O = ram_do;
 
 // Generic synchronous single-port RAM interface
 eth_spram_256x32 bd_ram (
-  .clk(WB_CLK_I), .rst(Reset), .ce(ram_ce), .we(ram_we), .oe(ram_oe), .addr(ram_addr), .di(ram_di), .do(ram_do)
+	.clk(WB_CLK_I), .rst(Reset), .ce(ram_ce), .we(ram_we), .oe(ram_oe), .addr(ram_addr), .di(ram_di), .do(ram_do)
 `ifdef ETH_BIST
   , .trst(trst), .SO(SO), .SI(SI), .shift_DR(shift_DR), .capture_DR(capture_DR), .extest(extest), .tck(tck)
 `endif
@@ -887,9 +891,12 @@ begin
     ReadTxDataFromMemory <=#Tp 1'b1;
 end
 
+reg tx_burst_en;
+reg rx_burst_en;
 reg BlockingLastReadOn_Abort_Retry;
 
 wire ReadTxDataFromMemory_2 = ReadTxDataFromMemory & ~BlockReadTxDataFromMemory & ~BlockingLastReadOn_Abort_Retry;
+wire tx_burst = ReadTxDataFromMemory_2 & tx_burst_en;
 
 wire [31:0] TxData_wb;
 wire ReadTxDataFromFifo_wb;
@@ -925,12 +932,19 @@ end
 assign MasterAccessFinished = m_wb_ack_i | m_wb_err_i;
 wire [`ETH_TX_FIFO_CNT_WIDTH-1:0] txfifo_cnt;
 wire [`ETH_RX_FIFO_CNT_WIDTH-1:0] rxfifo_cnt;
+reg  [`ETH_BURST_CNT_WIDTH-1:0] tx_burst_cnt;
+reg  [`ETH_BURST_CNT_WIDTH-1:0] rx_burst_cnt;
 
+wire rx_burst;
+wire enough_data_in_rxfifo_for_burst;
+wire enough_data_in_rxfifo_for_burst_plus1;
+reg [3:0] StateM;
 // Enabling master wishbone access to the memory for two devices TX and RX.
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
     begin
+StateM<=#Tp 4'h0;
       MasterWbTX <=#Tp 1'b0;
       MasterWbRX <=#Tp 1'b0;
       m_wb_adr_o <=#Tp 32'h0;
@@ -939,15 +953,123 @@ begin
       m_wb_we_o  <=#Tp 1'b0;
       m_wb_sel_o <=#Tp 4'h0;
       cyc_cleared<=#Tp 1'b0;
+      tx_burst_cnt<=#Tp 0;
+      rx_burst_cnt<=#Tp 0;
       IncrTxPointer<=#Tp 1'b0;
+      tx_burst_en<=#Tp 1'b1;
+      rx_burst_en<=#Tp 1'b0;
+      `ifdef ETH_WISHBONE_B3
+        m_wb_cti_o <=#Tp 3'b0;
+      `endif
     end
   else
     begin
       // Switching between two stages depends on enable signals
-      casex ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished, cyc_cleared})  // synopsys parallel_case
-        6'b00_01_0_x, 6'b00_11_0_x :
+//      casex ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished, cyc_cleared, tx_burst, rx_burst})  // synopsys parallel_case
+      case ({MasterWbTX, MasterWbRX, ReadTxDataFromMemory_2, WriteRxDataToMemory, MasterAccessFinished, cyc_cleared, tx_burst, rx_burst})  // synopsys parallel_case
+        8'b00_10_00_10,             // Idle and MRB needed
+
+//        8'b10_1x_10_1x,             // MRB continues
+        8'b10_10_10_10,             // MRB continues
+        8'b10_10_10_11,             // MRB continues
+        8'b10_11_10_10,             // MRB continues
+        8'b10_11_10_11,             // MRB continues
+
+        8'b10_10_01_10,             // Clear (previously MR) and MRB needed
+
+//        8'b01_1x_01_1x :            // Clear (previously MW) and MRB needed
+        8'b01_10_01_10 ,            // Clear (previously MW) and MRB needed
+        8'b01_10_01_11 ,            // Clear (previously MW) and MRB needed
+        8'b01_11_01_10 ,            // Clear (previously MW) and MRB needed
+        8'b01_11_01_11 :            // Clear (previously MW) and MRB needed
           begin
-            MasterWbTX <=#Tp 1'b0;  // idle and master write is needed (data write to rx buffer)
+StateM<=#Tp 4'h1;
+            MasterWbTX <=#Tp 1'b1;  // tx burst
+            MasterWbRX <=#Tp 1'b0;
+            m_wb_cyc_o <=#Tp 1'b1;
+            m_wb_stb_o <=#Tp 1'b1;
+            m_wb_we_o  <=#Tp 1'b0;
+            m_wb_sel_o <=#Tp 4'hf;
+            cyc_cleared<=#Tp 1'b0;
+            IncrTxPointer<=#Tp 1'b1;
+            tx_burst_cnt <=#Tp tx_burst_cnt+1;
+            if(tx_burst_cnt==0)
+              m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
+            else
+              m_wb_adr_o <=#Tp m_wb_adr_o+3'h4;
+
+            if(tx_burst_cnt==(`ETH_BURST_LENGTH-1))
+              begin
+                tx_burst_en<=#Tp 1'b0;
+              `ifdef ETH_WISHBONE_B3
+                m_wb_cti_o <=#Tp 3'b111;
+              `endif
+              end
+            else
+              begin
+              `ifdef ETH_WISHBONE_B3
+                m_wb_cti_o <=#Tp 3'b010;
+              `endif
+              end
+          end
+//        8'b00_x1_00_x1,             // Idle and MWB needed
+        8'b00_01_00_01,             // Idle and MWB needed
+        8'b00_01_00_11,             // Idle and MWB needed
+        8'b00_11_00_01,             // Idle and MWB needed
+        8'b00_11_00_11,             // Idle and MWB needed
+
+//        8'b01_x1_10_x1,             // MWB continues
+        8'b01_01_10_01,             // MWB continues
+        8'b01_01_10_11,             // MWB continues
+        8'b01_11_10_01,             // MWB continues
+        8'b01_11_10_11,             // MWB continues
+
+        8'b01_01_01_01,             // Clear (previously MW) and MWB needed
+
+//        8'b10_x1_01_x1 :            // Clear (previously MR) and MWB needed
+        8'b10_01_01_01 ,            // Clear (previously MR) and MWB needed
+        8'b10_01_01_11 ,            // Clear (previously MR) and MWB needed
+        8'b10_11_01_01 ,            // Clear (previously MR) and MWB needed
+        8'b10_11_01_11 :            // Clear (previously MR) and MWB needed
+          begin
+StateM<=#Tp 4'h2;
+            MasterWbTX <=#Tp 1'b0;  // rx burst
+            MasterWbRX <=#Tp 1'b1;
+            m_wb_cyc_o <=#Tp 1'b1;
+            m_wb_stb_o <=#Tp 1'b1;
+            m_wb_we_o  <=#Tp 1'b1;
+            m_wb_sel_o <=#Tp RxByteSel;
+            IncrTxPointer<=#Tp 1'b0;
+            cyc_cleared<=#Tp 1'b0;
+            rx_burst_cnt <=#Tp rx_burst_cnt+1;
+
+            if(rx_burst_cnt==0)
+              m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
+            else
+              m_wb_adr_o <=#Tp m_wb_adr_o+3'h4;
+
+            if(rx_burst_cnt==(`ETH_BURST_LENGTH-1))
+              begin
+                rx_burst_en<=#Tp 1'b0;
+              `ifdef ETH_WISHBONE_B3
+                m_wb_cti_o <=#Tp 3'b111;
+              `endif
+              end
+            else
+              begin
+              `ifdef ETH_WISHBONE_B3
+                m_wb_cti_o <=#Tp 3'b010;
+              `endif
+              end
+          end
+//        8'b00_x1_00_x0 :            // idle and MW is needed (data write to rx buffer)
+        8'b00_01_00_00 ,            // idle and MW is needed (data write to rx buffer)
+        8'b00_01_00_10 ,            // idle and MW is needed (data write to rx buffer)
+        8'b00_11_00_00 ,            // idle and MW is needed (data write to rx buffer)
+        8'b00_11_00_10 :            // idle and MW is needed (data write to rx buffer)
+          begin
+StateM<=#Tp 4'h3;
+            MasterWbTX <=#Tp 1'b0;
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
             m_wb_cyc_o <=#Tp 1'b1;
@@ -956,9 +1078,10 @@ begin
             m_wb_sel_o <=#Tp RxByteSel;
             IncrTxPointer<=#Tp 1'b0;
           end
-        6'b00_10_0_x, 6'b00_10_1_x :
+        8'b00_10_00_00 :            // idle and MR is needed (data read from tx buffer)
           begin
-            MasterWbTX <=#Tp 1'b1;  // idle and master read is needed (data read from tx buffer)
+StateM<=#Tp 4'h4;
+            MasterWbTX <=#Tp 1'b1;
             MasterWbRX <=#Tp 1'b0;
             m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
             m_wb_cyc_o <=#Tp 1'b1;
@@ -967,9 +1090,16 @@ begin
             m_wb_sel_o <=#Tp 4'hf;
             IncrTxPointer<=#Tp 1'b1;
           end
-        6'b10_10_0_1 :
+        8'b10_10_01_00,             // MR and MR is needed (data read from tx buffer)
+
+//        8'b01_1x_01_0x  :           // MW and MR is needed (data read from tx buffer)
+        8'b01_10_01_00  ,           // MW and MR is needed (data read from tx buffer)
+        8'b01_10_01_01  ,           // MW and MR is needed (data read from tx buffer)
+        8'b01_11_01_00  ,           // MW and MR is needed (data read from tx buffer)
+        8'b01_11_01_01  :           // MW and MR is needed (data read from tx buffer)
           begin
-            MasterWbTX <=#Tp 1'b1;  // master read and master read is needed (data read from tx buffer)
+StateM<=#Tp 4'h5;
+            MasterWbTX <=#Tp 1'b1;
             MasterWbRX <=#Tp 1'b0;
             m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
             m_wb_cyc_o <=#Tp 1'b1;
@@ -979,9 +1109,16 @@ begin
             cyc_cleared<=#Tp 1'b0;
             IncrTxPointer<=#Tp 1'b1;
           end
-        6'b01_01_0_1 :
+        8'b01_01_01_00,             // MW and MW needed (data write to rx buffer)
+
+//        8'b10_x1_01_x0  :           // MR and MW is needed (data write to rx buffer)
+        8'b10_01_01_00  ,           // MR and MW is needed (data write to rx buffer)
+        8'b10_01_01_10  ,           // MR and MW is needed (data write to rx buffer)
+        8'b10_11_01_00  ,           // MR and MW is needed (data write to rx buffer)
+        8'b10_11_01_10  :           // MR and MW is needed (data write to rx buffer)
           begin
-            MasterWbTX <=#Tp 1'b0;  // master write and master write is needed (data write to rx buffer)
+StateM<=#Tp 4'h6;
+            MasterWbTX <=#Tp 1'b0;
             MasterWbRX <=#Tp 1'b1;
             m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
             m_wb_cyc_o <=#Tp 1'b1;
@@ -991,55 +1128,67 @@ begin
             cyc_cleared<=#Tp 1'b0;
             IncrTxPointer<=#Tp 1'b0;
           end
-        6'b10_01_0_1, 6'b10_11_0_1 :
+        8'b01_01_10_00,             // MW and MW needed (cycle is cleared between previous and next access)
+
+//        8'b01_1x_10_x0,             // MW and MW or MR or MRB needed (cycle is cleared between previous and next access)
+        8'b01_10_10_00,             // MW and MW or MR or MRB needed (cycle is cleared between previous and next access)
+        8'b01_10_10_10,             // MW and MW or MR or MRB needed (cycle is cleared between previous and next access)
+        8'b01_11_10_00,             // MW and MW or MR or MRB needed (cycle is cleared between previous and next access)
+        8'b01_11_10_10,             // MW and MW or MR or MRB needed (cycle is cleared between previous and next access)
+
+        8'b10_10_10_00,             // MR and MR needed (cycle is cleared between previous and next access)
+
+//        8'b10_x1_10_0x :            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
+        8'b10_01_10_00 ,            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
+        8'b10_01_10_01 ,            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
+        8'b10_11_10_00 ,            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
+        8'b10_11_10_01 :            // MR and MR or MW or MWB (cycle is cleared between previous and next access)
           begin
-            MasterWbTX <=#Tp 1'b0;  // master read and master write is needed (data write to rx buffer)
-            MasterWbRX <=#Tp 1'b1;
-            m_wb_adr_o <=#Tp {RxPointerMSB, 2'h0};
-            m_wb_cyc_o <=#Tp 1'b1;
-            m_wb_stb_o <=#Tp 1'b1;
-            m_wb_we_o  <=#Tp 1'b1;
-            m_wb_sel_o <=#Tp RxByteSel;
-            cyc_cleared<=#Tp 1'b0;
-            IncrTxPointer<=#Tp 1'b0;
-          end
-        6'b01_10_0_1, 6'b01_11_0_1 :
-          begin
-            MasterWbTX <=#Tp 1'b1;  // master write and master read is needed (data read from tx buffer)
-            MasterWbRX <=#Tp 1'b0;
-            m_wb_adr_o <=#Tp {TxPointerMSB, 2'h0};
-            m_wb_cyc_o <=#Tp 1'b1;
-            m_wb_stb_o <=#Tp 1'b1;
-            m_wb_we_o  <=#Tp 1'b0;
-            m_wb_sel_o <=#Tp 4'hf;
-            cyc_cleared<=#Tp 1'b0;
-            IncrTxPointer<=#Tp 1'b1;
-          end
-        6'b10_10_1_0, 6'b01_01_1_0, 6'b10_01_1_0, 6'b10_11_1_0, 6'b01_10_1_0, 6'b01_11_1_0 :
-          begin
+StateM<=#Tp 4'h7;
             m_wb_cyc_o <=#Tp 1'b0;  // whatever and master read or write is needed. We need to clear m_wb_cyc_o before next access is started
             m_wb_stb_o <=#Tp 1'b0;
             cyc_cleared<=#Tp 1'b1;
             IncrTxPointer<=#Tp 1'b0;
+            tx_burst_cnt<=#Tp 0;
+            tx_burst_en<=#Tp txfifo_cnt<(`ETH_TX_FIFO_DEPTH-`ETH_BURST_LENGTH) & (TxLength>(`ETH_BURST_LENGTH*4+4));
+            rx_burst_cnt<=#Tp 0;
+            rx_burst_en<=#Tp MasterWbRX ? enough_data_in_rxfifo_for_burst_plus1 : enough_data_in_rxfifo_for_burst;  // Counter is not decremented, yet, so plus1 is used.
+            `ifdef ETH_WISHBONE_B3
+              m_wb_cti_o <=#Tp 3'b0;
+            `endif
           end
-        6'b10_00_1_x, 6'b01_00_1_x :
+//        8'bxx_00_10_00,             // whatever and no master read or write is needed (ack or err comes finishing previous access)
+        8'b00_00_10_00,             // whatever and no master read or write is needed (ack or err comes finishing previous access)
+        8'b01_00_10_00,             // whatever and no master read or write is needed (ack or err comes finishing previous access)
+        8'b10_00_10_00,             // whatever and no master read or write is needed (ack or err comes finishing previous access)
+        8'b11_00_10_00,             // whatever and no master read or write is needed (ack or err comes finishing previous access)
+
+//        8'bxx_00_01_00 :            // Between cyc_cleared request was cleared
+        8'b00_00_01_00 ,            // Between cyc_cleared request was cleared
+        8'b01_00_01_00 ,            // Between cyc_cleared request was cleared
+        8'b10_00_01_00 ,            // Between cyc_cleared request was cleared
+        8'b11_00_01_00 :            // Between cyc_cleared request was cleared
           begin
-            MasterWbTX <=#Tp 1'b0;  // whatever and no master read or write is needed (ack or err comes finishing previous access)
-            MasterWbRX <=#Tp 1'b0;
-            m_wb_cyc_o <=#Tp 1'b0;
-            m_wb_stb_o <=#Tp 1'b0;
-            IncrTxPointer<=#Tp 1'b0;
-          end
-        6'b10_00_0_1, 6'b01_00_0_1 :
-          begin
-            MasterWbTX <=#Tp 1'b0;  // Between cyc_cleared request was cleared
+StateM<=#Tp 4'h8;
+            MasterWbTX <=#Tp 1'b0;
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b0;
             m_wb_stb_o <=#Tp 1'b0;
             cyc_cleared<=#Tp 1'b0;
             IncrTxPointer<=#Tp 1'b0;
+            rx_burst_cnt<=#Tp 0;
+            rx_burst_en<=#Tp MasterWbRX ? enough_data_in_rxfifo_for_burst_plus1 : enough_data_in_rxfifo_for_burst;  // Counter is not decremented, yet, so plus1 is used.
+            `ifdef ETH_WISHBONE_B3
+              m_wb_cti_o <=#Tp 3'b0;
+            `endif
           end
-        default:                            // Don't touch
+        8'b00_00_00_00:             // whatever and no master read or write is needed (ack or err comes finishing previous access)
+          begin
+StateM<=#Tp 4'h9;
+            tx_burst_cnt<=#Tp 0;
+            tx_burst_en<=#Tp txfifo_cnt<(`ETH_TX_FIFO_DEPTH-`ETH_BURST_LENGTH) & (TxLength>(`ETH_BURST_LENGTH*4+4));
+          end
+        default:                    // Don't touch
           begin
             MasterWbTX <=#Tp MasterWbTX;
             MasterWbRX <=#Tp MasterWbRX;
@@ -1060,7 +1209,7 @@ assign TxFifoClear = (TxAbortPacket | TxRetryPacket);
 eth_fifo #(`ETH_TX_FIFO_DATA_WIDTH, `ETH_TX_FIFO_DEPTH, `ETH_TX_FIFO_CNT_WIDTH)
 tx_fifo ( .data_in(m_wb_dat_i),                             .data_out(TxData_wb), 
           .clk(WB_CLK_I),                                   .reset(Reset), 
-          .write(MasterWbTX & m_wb_ack_i),                  .read(ReadTxDataFromFifo_wb & ~TxBufferEmpty), 
+          .write(MasterWbTX & m_wb_ack_i),                  .read(ReadTxDataFromFifo_wb & ~TxBufferEmpty),
           .clear(TxFifoClear),                              .full(TxBufferFull), 
           .almost_full(TxBufferAlmostFull),                 .almost_empty(TxBufferAlmostEmpty), 
           .empty(TxBufferEmpty),                            .cnt(txfifo_cnt)
@@ -1296,7 +1445,8 @@ begin
   if(Reset)
     TxAbortPacket <=#Tp 1'b0;
   else
-  if(TxAbort_wb & (!TxAbortPacketBlocked) & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+  if(TxAbort_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished & !TxAbortPacketBlocked |
+     TxAbort_wb & !MasterWbTX & !TxAbortPacketBlocked)
     TxAbortPacket <=#Tp 1'b1;
   else
     TxAbortPacket <=#Tp 1'b0;
@@ -1308,7 +1458,8 @@ begin
   if(Reset)
     TxAbortPacket_NotCleared <=#Tp 1'b0;
   else
-  if(TxAbort_wb & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+  if(TxAbort_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished |
+     TxAbort_wb & !MasterWbTX)
     TxAbortPacket_NotCleared <=#Tp 1'b1;
   else
     TxAbortPacket_NotCleared <=#Tp 1'b0;
@@ -1334,7 +1485,8 @@ begin
   if(Reset)
     TxRetryPacket <=#Tp 1'b0;
   else
-  if(TxRetry_wb & (!TxRetryPacketBlocked) & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+  if(TxRetry_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished & !TxRetryPacketBlocked | 
+     TxRetry_wb & !MasterWbTX & !TxRetryPacketBlocked)
     TxRetryPacket <=#Tp 1'b1;
   else
     TxRetryPacket <=#Tp 1'b0;
@@ -1346,7 +1498,8 @@ begin
   if(Reset)
     TxRetryPacket_NotCleared <=#Tp 1'b0;
   else
-  if(TxRetry_wb & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+  if(TxRetry_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished | 
+     TxRetry_wb & !MasterWbTX)
     TxRetryPacket_NotCleared <=#Tp 1'b1;
   else
     TxRetryPacket_NotCleared <=#Tp 1'b0;
@@ -1372,7 +1525,8 @@ begin
   if(Reset)
     TxDonePacket <=#Tp 1'b0;
   else
-  if(TxDone_wb & (!TxDonePacketBlocked) & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+  if(TxDone_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished & !TxDonePacketBlocked | 
+     TxDone_wb & !MasterWbTX & !TxDonePacketBlocked)
     TxDonePacket <=#Tp 1'b1;
   else
     TxDonePacket <=#Tp 1'b0;
@@ -1384,7 +1538,8 @@ begin
   if(Reset)
     TxDonePacket_NotCleared <=#Tp 1'b0;
   else
-  if(TxDone_wb & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+  if(TxDone_wb & !tx_burst_en & MasterWbTX & MasterAccessFinished | 
+     TxDone_wb & !MasterWbTX)
     TxDonePacket_NotCleared <=#Tp 1'b1;
   else
     TxDonePacket_NotCleared <=#Tp 1'b0;
@@ -1469,7 +1624,7 @@ begin
   if(TxUsedData & Flop)
     begin
       case(TxByteCnt)  // synopsys parallel_case
-        0 : TxData <=#Tp TxDataLatched[31:24];      // Big Endian Byte Ordering
+        0 : TxData <=#Tp TxDataLatched[31:24];               // Big Endian Byte Ordering
         1 : TxData <=#Tp TxDataLatched[23:16];
         2 : TxData <=#Tp TxDataLatched[15:8];
         3 : TxData <=#Tp TxDataLatched[7:0];
@@ -2092,7 +2247,10 @@ rx_fifo (.data_in(RxDataLatched2),                      .data_out(m_wb_dat_o),
          .empty(RxBufferEmpty),                         .cnt(rxfifo_cnt)
         );
 
+assign enough_data_in_rxfifo_for_burst = rxfifo_cnt>=`ETH_BURST_LENGTH;
+assign enough_data_in_rxfifo_for_burst_plus1 = rxfifo_cnt>`ETH_BURST_LENGTH;
 assign WriteRxDataToMemory = ~RxBufferEmpty;
+assign rx_burst = rx_burst_en & WriteRxDataToMemory;
 
 
 // Generation of the end-of-frame signal
