@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.30  2003/10/17 07:45:17  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.29  2003/08/20 12:06:24  mohor
 // Artisan RAMs added.
 //
@@ -180,7 +183,8 @@ wire [31:0] eth_ma_wb_adr_o, eth_ma_wb_dat_i, eth_ma_wb_dat_o;
 wire  [3:0] eth_ma_wb_sel_o;
 wire        eth_ma_wb_we_o, eth_ma_wb_cyc_o, eth_ma_wb_stb_o, eth_ma_wb_ack_i, eth_ma_wb_err_i;
 
-
+wire  [2:0] eth_ma_wb_cti_o;
+wire  [1:0] eth_ma_wb_bte_o;
 
 
 // Connecting Ethernet top module
@@ -198,6 +202,10 @@ eth_top eth_top
   .m_wb_adr_o(eth_ma_wb_adr_o),     .m_wb_sel_o(eth_ma_wb_sel_o), .m_wb_we_o(eth_ma_wb_we_o), 
   .m_wb_dat_i(eth_ma_wb_dat_i),     .m_wb_dat_o(eth_ma_wb_dat_o), .m_wb_cyc_o(eth_ma_wb_cyc_o), 
   .m_wb_stb_o(eth_ma_wb_stb_o),     .m_wb_ack_i(eth_ma_wb_ack_i), .m_wb_err_i(eth_ma_wb_err_i), 
+
+`ifdef ETH_WISHBONE_B3
+  .m_wb_cti_o(eth_ma_wb_cti_o),     .m_wb_bte_o(eth_ma_wb_bte_o),
+`endif
 
   //TX
   .mtx_clk_pad_i(mtx_clk), .mtxd_pad_o(MTxD), .mtxen_pad_o(MTxEn), .mtxerr_pad_o(MTxErr),
@@ -291,7 +299,7 @@ WB_SLAVE_BEHAVIORAL wb_slave
     .SEL_I(eth_ma_wb_sel_o),
     .STB_I(eth_ma_wb_stb_o),
     .WE_I (eth_ma_wb_we_o),
-    .CAB_I(1'b0)   // inactive (1'b0)
+    .CAB_I(1'b0)
 );
 
 
@@ -318,8 +326,17 @@ WB_BUS_MON wb_eth_slave_bus_mon
   .STB_O(eth_sl_wb_stb_i),
   .WE_O (eth_sl_wb_we_i),
   .TAG_I({`WB_TAG_WIDTH{1'b0}}),
-  .TAG_O(),
+`ifdef ETH_WISHBONE_B3
+  .TAG_O({eth_ma_wb_cti_o, eth_ma_wb_bte_o}),
+`else
+  .TAG_O(5'h0),
+`endif
   .CAB_O(1'b0),
+`ifdef ETH_WISHBONE_B3
+  .check_CTI          (1'b1),
+`else
+  .check_CTI          (1'b0),
+`endif
   .log_file_desc (wb_s_mon_log_file_desc)
 );
 
@@ -341,8 +358,9 @@ WB_BUS_MON wb_eth_master_bus_mon
   .STB_O(eth_ma_wb_stb_o),
   .WE_O (eth_ma_wb_we_o),
   .TAG_I({`WB_TAG_WIDTH{1'b0}}),
-  .TAG_O(),
+  .TAG_O(5'h0),
   .CAB_O(1'b0),
+  .check_CTI(1'b0), // NO need
   .log_file_desc(wb_m_mon_log_file_desc)
 );
 
@@ -475,13 +493,15 @@ begin
 
   //  Call tests
   //  ----------
-//    test_access_to_mac_reg(0, 0);           // 0 - 3
-//    test_mii(0, 17);                        // 0 - 17
+    test_access_to_mac_reg(0, 4);           // 0 - 4
+    test_mii(0, 17);                        // 0 - 17
   test_note("PHY generates ideal Carrier sense and Collision signals for following tests");
   eth_phy.carrier_sense_real_delay(0);
-    test_mac_full_duplex_transmit(0, 21);    // 0 - (21)
-    test_mac_full_duplex_receive(0, 13);     // 0 - 13
-    test_mac_full_duplex_flow_control(0, 4);  // 0 - 4
+//    test_mac_full_duplex_transmit(0, 21);    // 0 - (21)
+
+
+//    test_mac_full_duplex_receive(2, 2);     // 0 - 13
+//    test_mac_full_duplex_flow_control(0, 4);  // 0 - 4
                                               // 4 is executed, everything is OK
 //    test_mac_half_duplex_flow(0, 0);
 
@@ -527,6 +547,8 @@ task test_access_to_mac_reg;
   integer        test_num;
   reg    [31:0]  addr;
   reg    [31:0]  data;
+  reg     [3:0]  sel;
+  reg     [3:0]  rand_sel;
   reg    [31:0]  data_max;
 begin
 // ACCESS TO MAC REGISTERS TEST
@@ -537,20 +559,18 @@ fail = 0;
 
 // reset MAC registers
 hard_reset;
-// reset MAC and MII LOGIC with soft reset
-//reset_mac;
-//reset_mii;
 
 
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
 ////  test_access_to_mac_reg:                                     ////
 ////                                                              ////
-////  0: Walking 1 with single cycles across MAC regs.            ////
-////  1: Walking 1 with single cycles across MAC buffer descript. ////
-////  2: Test max reg. values and reg. values after writing       ////
+////  0: Byte selects on 3 32-bit RW registers.                   ////
+////  1: Walking 1 with single cycles across MAC regs.            ////
+////  2: Walking 1 with single cycles across MAC buffer descript. ////
+////  3: Test max reg. values and reg. values after writing       ////
 ////     inverse reset values and hard reset of the MAC           ////
-////  3: Test buffer desc. RAM preserving values after hard reset ////
+////  4: Test buffer desc. RAM preserving values after hard reset ////
 ////     of the MAC and resetting the logic                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
@@ -559,206 +579,313 @@ begin
 
   ////////////////////////////////////////////////////////////////////
   ////                                                            ////
-  ////  Walking 1 with single cycles across MAC regs.             ////
+  ////  Byte selects on 4 32-bit RW registers.                    ////
   ////                                                            ////
   ////////////////////////////////////////////////////////////////////
   if (test_num == 0) // Walking 1 with single cycles across MAC regs.
   begin
-    // TEST 0: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )
-    test_name   = "TEST 0: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )";
-    `TIME; $display("  TEST 0: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )");
+    // TEST 0: BYTE SELECTS ON 3 32-BIT READ-WRITE REGISTERS ( VARIOUS BUS DELAYS )
+    test_name   = "TEST 0: BYTE SELECTS ON 3 32-BIT READ-WRITE REGISTERS ( VARIOUS BUS DELAYS )";
+    `TIME; $display("  TEST 0: BYTE SELECTS ON 3 32-BIT READ-WRITE REGISTERS ( VARIOUS BUS DELAYS )");
     
     data = 0;
-    for (i = 0; i <= 4; i = i + 1) // for initial wait cycles on WB bus
+    rand_sel = 0;
+    sel = 0;
+    for (i = 1; i <= 3; i = i + 1) // num of active byte selects at each register
+    begin
+      wbm_init_waits = 0;
+      wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
+      case (i)
+      1:       i_addr = `ETH_MAC_ADDR0;
+      2:       i_addr = `ETH_HASH_ADDR0;
+      default: i_addr = `ETH_HASH_ADDR1;
+      endcase
+      addr = `ETH_BASE + i_addr;
+      sel = 4'hF;
+      wbm_read(addr, tmp_data, sel, 1, wbm_init_waits, wbm_subseq_waits);
+      if (tmp_data !== 32'h0)
       begin
-        wbm_init_waits = i;
-        wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
-        for (i_addr = 0; i_addr <= 32'h4C; i_addr = i_addr + 4) // register address
-          begin
-            addr = `ETH_BASE + i_addr;
-            // set ranges of R/W bits
-            case (addr)
-              `ETH_MODER:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 16;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_INT: // READONLY - tested within INT test
-                begin
-                  bit_start_1 = 32; // not used
-                  bit_end_1   = 32; // not used
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_INT_MASK:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 6;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_IPGT:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 6;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_IPGR1:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 6;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_IPGR2:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 6;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_PACKETLEN:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 31;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_COLLCONF:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 5;
-                  bit_start_2 = 16; 
-                  bit_end_2   = 19; 
-                end
-              `ETH_TX_BD_NUM: 
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 7;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_CTRLMODER:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 2;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_MIIMODER:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 9;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_MIICOMMAND: // "WRITEONLY" - tested within MIIM test - 3 LSBits are not written here!!!
-                begin
-                  bit_start_1 = 32; // not used
-                  bit_end_1   = 32; // not used
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_MIIADDRESS:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 4;
-                  bit_start_2 = 8; 
-                  bit_end_2   = 12;
-                end
-              `ETH_MIITX_DATA:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 15;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_MIIRX_DATA: // READONLY - tested within MIIM test
-                begin
-                  bit_start_1 = 32; // not used
-                  bit_end_1   = 32; // not used
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_MIISTATUS: // READONLY - tested within MIIM test
-                begin
-                  bit_start_1 = 32; // not used
-                  bit_end_1   = 32; // not used
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_MAC_ADDR0:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 31;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                  end
-              `ETH_MAC_ADDR1:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 15;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              `ETH_HASH_ADDR0:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 31;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-              default: // `ETH_HASH_ADDR1:
-                begin
-                  bit_start_1 = 0;
-                  bit_end_1   = 31;
-                  bit_start_2 = 32; // not used
-                  bit_end_2   = 32; // not used
-                end
-            endcase
-            
-            for (i_data = 0; i_data <= 31; i_data = i_data + 1) // the position of walking one
-              begin
-                data = 1'b1 << i_data;
-                if ( (addr == `ETH_MIICOMMAND) && (i_data <= 2) ) // DO NOT WRITE to 3 LSBits of MIICOMMAND !!!
-                  ;
-                else
-                  begin
-                    wbm_write(addr, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-                    wait (wbm_working == 0);
-                    wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-                    if ( ((i_data >= bit_start_1) && (i_data <= bit_end_1)) ||
-                         ((i_data >= bit_start_2) && (i_data <= bit_end_2)) ) // data should be equal to tmp_data
-                      begin
-                        if (tmp_data !== data)
-                        begin
-                          fail = fail + 1;
-                          test_fail("RW bit of the MAC register was not written or not read");
-                          `TIME;
-                          $display("wbm_init_waits %d, addr %h, data %h, tmp_data %h", 
-                                    wbm_init_waits, addr, data, tmp_data);
-                        end
-                      end
-                    else // data should not be equal to tmp_data
-                      begin
-                        if (tmp_data === data)
-                          begin
-                            fail = fail + 1;
-                            test_fail("NON RW bit of the MAC register was written, but it shouldn't be");
-                            `TIME;
-                            $display("wbm_init_waits %d, addr %h, data %h, tmp_data %h",
-                                      wbm_init_waits, addr, data, tmp_data);
-                          end
-                      end
-                  end
-              end
-          end
+        fail = fail + 1;
+        test_fail_num("Register default value is not ZERO", i_addr);
+        `TIME;
+        $display("Register default value is not ZERO - addr %h, tmp_data %h", addr, tmp_data);
       end
+      for (i1 = 0; i1 <= 3; i1 = i1 + 1) // position of first active byte select
+      begin
+        case ({i, i1})
+        10:      sel = 4'b0001; // data = 32'hFFFF_FF00;
+        11:      sel = 4'b0010; // data = 32'hFFFF_00FF;
+        12:      sel = 4'b0100; // data = 32'hFF00_FFFF;
+        13:      sel = 4'b1000; // data = 32'h00FF_FFFF;
+        20:      sel = 4'b0011; // data = 32'hFFFF_0000;
+        21:      sel = 4'b0110; // data = 32'hFF00_00FF;
+        22:      sel = 4'b1100; // data = 32'h0000_FFFF;
+        23:      sel = 4'b1001; // data = 32'h00FF_FF00;
+        30:      sel = 4'b0111; // data = 32'hFF00_0000;
+        31:      sel = 4'b1110; // data = 32'h0000_00FF;
+        32:      sel = 4'b1101; // data = 32'h0000_FF00;
+        default: sel = 4'b1011; // data = 32'h00FF_0000;
+        endcase
+        // set value to 32'hFFFF_FFFF
+        data = 32'hFFFF_FFFF;
+        wbm_write(addr, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        wait (wbm_working == 0);
+        wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        if (tmp_data !== data)
+        begin
+          fail = fail + 1;
+          test_fail_num("Register could not be written to FFFF_FFFF", i_addr);
+          `TIME;
+          $display("Register could not be written to FFFF_FFFF - addr %h, tmp_data %h", addr, tmp_data);
+        end
+        // write appropriate byte(s) to 0
+        data = 32'h0;
+        wbm_write(addr, data, sel, 1, wbm_init_waits, wbm_subseq_waits);
+        wait (wbm_working == 0);
+        if (i1[0])
+          wbm_read(addr, tmp_data, sel, 1, wbm_init_waits, wbm_subseq_waits);
+        else
+          wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
+        data = {({8{~sel[3]}}), ({8{~sel[2]}}), ({8{~sel[1]}}), ({8{~sel[0]}})};
+        if (tmp_data !== data)
+        begin
+          fail = fail + 1;
+          test_fail_num("Wrong data read out form register", i_addr);
+          `TIME;
+          $display("Wrong data read out from register - addr %h, data %h, tmp_data %h, sel %b", 
+                   addr, data, tmp_data, sel);
+        end
+      end
+    end
+    if(fail == 0)
+      test_ok;
+    else
+      fail = 0;    // Errors were reported previously
+  end
+
+
+  ////////////////////////////////////////////////////////////////////
+  ////                                                            ////
+  ////  Walking 1 with single cycles across MAC regs.             ////
+  ////                                                            ////
+  ////////////////////////////////////////////////////////////////////
+  if (test_num == 1) // Walking 1 with single cycles across MAC regs.
+  begin
+    // TEST 1: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )
+    test_name   = "TEST 1: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )";
+    `TIME; $display("  TEST 1: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )");
+    
+    data = 0;
+    rand_sel = 0;
+    sel = 0;
+    for (i_addr = 0; i_addr <= {22'h0, `ETH_TX_CTRL_ADR, 2'h0}; i_addr = i_addr + 4) // register address
+    begin
+      if (i_addr[6:4] < 5)
+        wbm_init_waits = i_addr[6:4];
+      else
+        wbm_init_waits = 4;
+      wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
+      addr = `ETH_BASE + i_addr;
+      // set ranges of R/W bits
+      case (addr)
+      `ETH_MODER:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 16;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_INT: // READONLY - tested within INT test
+      begin
+        bit_start_1 = 32; // not used
+        bit_end_1   = 32; // not used
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_INT_MASK:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 6;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_IPGT:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 6;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_IPGR1:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 6;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_IPGR2:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 6;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_PACKETLEN:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 31;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_COLLCONF:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 5;
+        bit_start_2 = 16; 
+        bit_end_2   = 19; 
+      end
+      `ETH_TX_BD_NUM: 
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 7;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_CTRLMODER:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 2;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_MIIMODER:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 8;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_MIICOMMAND: // "WRITEONLY" - tested within MIIM test - 3 LSBits are not written here!!!
+      begin
+        bit_start_1 = 32; // not used
+        bit_end_1   = 32; // not used
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_MIIADDRESS:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 4;
+        bit_start_2 = 8; 
+        bit_end_2   = 12;
+      end
+      `ETH_MIITX_DATA:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 15;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_MIIRX_DATA: // READONLY - tested within MIIM test
+      begin
+        bit_start_1 = 32; // not used
+        bit_end_1   = 32; // not used
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_MIISTATUS: // READONLY - tested within MIIM test
+      begin
+        bit_start_1 = 32; // not used
+        bit_end_1   = 32; // not used
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_MAC_ADDR0:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 31;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_MAC_ADDR1:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 15;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_HASH_ADDR0:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 31;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      `ETH_HASH_ADDR1:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 31;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      default: // `ETH_TX_CTRL_ADR:
+      begin
+        bit_start_1 = 0;
+        bit_end_1   = 16;
+        bit_start_2 = 32; // not used
+        bit_end_2   = 32; // not used
+      end
+      endcase
+      
+      for (i_data = 0; i_data <= 31; i_data = i_data + 1) // the position of walking one
+      begin
+        data = 1'b1 << i_data;
+        if ( (addr == `ETH_MIICOMMAND)/* && (i_data <= 2)*/ ) // DO NOT WRITE to 3 LSBits of MIICOMMAND !!!
+          ;
+        else
+        begin
+          rand_sel[2:0] = {$random} % 8;
+          if ((i_data >= 0) && (i_data < 8))
+            sel = {rand_sel[2:0], 1'b1};
+          else if ((i_data >= 8) && (i_data < 16))
+            sel = {rand_sel[2:1], 1'b1, rand_sel[0]};
+          else if ((i_data >= 16) && (i_data < 24))
+            sel = {rand_sel[2], 1'b1, rand_sel[1:0]};
+          else // if ((i_data >= 24) && (i_data < 32))
+            sel = {1'b1, rand_sel[2:0]};
+          wbm_write(addr, data, sel, 1, wbm_init_waits, wbm_subseq_waits);
+          wait (wbm_working == 0);
+          wbm_read(addr, tmp_data, sel, 1, wbm_init_waits, wbm_subseq_waits);
+          if ( ((i_data >= bit_start_1) && (i_data <= bit_end_1)) ||
+               ((i_data >= bit_start_2) && (i_data <= bit_end_2)) ) // data should be equal to tmp_data
+          begin
+            if ( ((tmp_data[31:24] !== data[31:24]) && sel[3]) || ((tmp_data[23:16] !== data[23:16]) && sel[2]) ||
+                 ((tmp_data[15: 8] !== data[15: 8]) && sel[1]) || ((tmp_data[ 7: 0] !== data[ 7: 0]) && sel[0]) )
+            begin
+              fail = fail + 1;
+              test_fail_num("RW bit of the MAC register was not written or not read", i_addr);
+              `TIME;
+              $display("Wrong RW bit - wbm_init_waits %d, addr %h, data %h, tmp_data %h, sel %b", 
+                        wbm_init_waits, addr, data, tmp_data, sel);
+            end
+          end
+          else // data should not be equal to tmp_data
+          begin
+            if ( ((tmp_data[31:24] === data[31:24]) && sel[3]) && ((tmp_data[23:16] === data[23:16]) && sel[2]) &&
+                 ((tmp_data[15: 8] === data[15: 8]) && sel[1]) && ((tmp_data[ 7: 0] === data[ 7: 0]) && sel[0]) )
+            begin
+              fail = fail + 1;
+              test_fail_num("NON RW bit of the MAC register was written, but it shouldn't be", i_addr);
+              `TIME;
+              $display("Wrong NON RW bit - wbm_init_waits %d, addr %h, data %h, tmp_data %h, sel %b",
+                        wbm_init_waits, addr, data, tmp_data, sel);
+            end
+          end
+        end
+      end
+    end
     // INTERMEDIATE DISPLAYS (The only one)
-    $display("    ->buffer descriptors tested with 0, 1, 2, 3 and 4 bus delay cycles");
+    $display("    ->registers tested with 0, 1, 2, 3 and 4 bus delay cycles");
     if(fail == 0)
       test_ok;
     else
@@ -771,108 +898,121 @@ begin
   ////  Walking 1 with single cycles across MAC buffer descript.  ////
   ////                                                            ////
   ////////////////////////////////////////////////////////////////////
-  if (test_num == 1) // Start Walking 1 with single cycles across MAC buffer descript.
+  if (test_num == 2) // Start Walking 1 with single cycles across MAC buffer descript.
   begin
-    // TEST 1: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )
-    test_name   = "TEST 1: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )";
-    `TIME; $display("  TEST 1: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )");
+    // TEST 2: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )
+    test_name   = "TEST 2: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )";
+    `TIME; $display("  TEST 2: 'WALKING ONE' WITH SINGLE CYCLES ACROSS MAC BUFFER DESC. ( VARIOUS BUS DELAYS )");
         
     data = 0;
+    rand_sel = 0;
+    sel = 0;
     // set TX and RX buffer descriptors
     tx_bd_num = 32'h40;
     wbm_write(`ETH_TX_BD_NUM, tx_bd_num, 4'hF, 1, 0, 0);
-    for (i = 0; i <= 4; i = i + 1) // for initial wait cycles on WB bus
+    for (i_addr = 32'h400; i_addr <= 32'h7FC; i_addr = i_addr + 4) // buffer descriptor address
     begin
-      wbm_init_waits = i;
+      if (i_addr[11:8] < 8)
+        wbm_init_waits = i_addr[10:8] - 3'h4;
+      else
+        wbm_init_waits = 3;
       wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
-      for (i_addr = 32'h400; i_addr <= 32'h7FC; i_addr = i_addr + 4) // buffer descriptor address
+      addr = `ETH_BASE + i_addr;
+      if (i_addr < (32'h400 + (tx_bd_num << 3))) // TX buffer descriptors
       begin
-        addr = `ETH_BASE + i_addr;
-        if (i_addr < (32'h400 + (tx_bd_num << 3))) // TX buffer descriptors
-        begin
-          // set ranges of R/W bits
-          case (addr[3])
-            1'b0: // buffer control bits
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 31; // 8;
-              bit_start_2 = 11;
-              bit_end_2   = 31;
-            end
-            default: // 1'b1: // buffer pointer
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 31;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          endcase
-        end
-        else // RX buffer descriptors
-        begin
-          // set ranges of R/W bits
-          case (addr[3])
-            1'b0: // buffer control bits
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 31; // 7;
-              bit_start_2 = 13;
-              bit_end_2   = 31;
-            end
-            default: // 1'b1: // buffer pointer
-            begin
-              bit_start_1 = 0;
-              bit_end_1   = 31;
-              bit_start_2 = 32; // not used
-              bit_end_2   = 32; // not used
-            end
-          endcase
-        end
-        
-        for (i_data = 0; i_data <= 31; i_data = i_data + 1) // the position of walking one
-        begin
-          data = 1'b1 << i_data;
-          if ( (addr[3] == 0) && (i_data == 15) ) // DO NOT WRITE to this bit !!!
-            ;
-          else
+        // set ranges of R/W bits
+        case (addr[3])
+          1'b0: // buffer control bits
           begin
-            wbm_write(addr, data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-            wbm_read(addr, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-            if ( ((i_data >= bit_start_1) && (i_data <= bit_end_1)) ||
-                 ((i_data >= bit_start_2) && (i_data <= bit_end_2)) ) // data should be equal to tmp_data
+            bit_start_1 = 0;
+            bit_end_1   = 31; // 8;
+            bit_start_2 = 11;
+            bit_end_2   = 31;
+          end
+          default: // 1'b1: // buffer pointer
+          begin
+            bit_start_1 = 0;
+            bit_end_1   = 31;
+            bit_start_2 = 32; // not used
+            bit_end_2   = 32; // not used
+          end
+        endcase
+      end
+      else // RX buffer descriptors
+      begin
+        // set ranges of R/W bits
+        case (addr[3])
+          1'b0: // buffer control bits
+          begin
+            bit_start_1 = 0;
+            bit_end_1   = 31; // 7;
+            bit_start_2 = 13;
+            bit_end_2   = 31;
+          end
+          default: // 1'b1: // buffer pointer
+          begin
+            bit_start_1 = 0;
+            bit_end_1   = 31;
+            bit_start_2 = 32; // not used
+            bit_end_2   = 32; // not used
+          end
+        endcase
+      end
+      
+      for (i_data = 0; i_data <= 31; i_data = i_data + 1) // the position of walking one
+      begin
+        data = 1'b1 << i_data;
+        if ( (addr[3] == 0) && (i_data == 15) ) // DO NOT WRITE to this bit !!!
+          ;
+        else
+        begin
+          rand_sel[2:0] = {$random} % 8;
+          if ((i_data >= 0) && (i_data < 8))
+            sel = {rand_sel[2:0], 1'b1};
+          else if ((i_data >= 8) && (i_data < 16))
+            sel = {rand_sel[2:1], 1'b1, rand_sel[0]};
+          else if ((i_data >= 16) && (i_data < 24))
+            sel = {rand_sel[2], 1'b1, rand_sel[1:0]};
+          else // if ((i_data >= 24) && (i_data < 32))
+            sel = {1'b1, rand_sel[2:0]};
+          wbm_write(addr, data, sel, 1, wbm_init_waits, wbm_subseq_waits);
+          wbm_read(addr, tmp_data, sel, 1, wbm_init_waits, wbm_subseq_waits);
+          if ( ((i_data >= bit_start_1) && (i_data <= bit_end_1)) ||
+               ((i_data >= bit_start_2) && (i_data <= bit_end_2)) ) // data should be equal to tmp_data
+          begin
+            if ( ((tmp_data[31:24] !== data[31:24]) && sel[3]) || ((tmp_data[23:16] !== data[23:16]) && sel[2]) ||
+                 ((tmp_data[15: 8] !== data[15: 8]) && sel[1]) || ((tmp_data[ 7: 0] !== data[ 7: 0]) && sel[0]) )
             begin
-              if (tmp_data !== data)
-              begin
-                fail = fail + 1;
-                test_fail("RW bit of the MAC buffer descriptors was not written or not read");
-                `TIME;
-                $display("wbm_init_waits %d, addr %h, data %h, tmp_data %h", 
-                          wbm_init_waits, addr, data, tmp_data);
-              end
+              fail = fail + 1;
+              test_fail("RW bit of the MAC buffer descriptors was not written or not read");
+              `TIME;
+              $display("Wrong RW bit - wbm_init_waits %d, addr %h, data %h, tmp_data %h, sel %b", 
+                        wbm_init_waits, addr, data, tmp_data, sel);
             end
-            else // data should not be equal to tmp_data
+          end
+          else // data should not be equal to tmp_data
+          begin
+            if ( ((tmp_data[31:24] === data[31:24]) && sel[3]) && ((tmp_data[23:16] === data[23:16]) && sel[2]) &&
+                 ((tmp_data[15: 8] === data[15: 8]) && sel[1]) && ((tmp_data[ 7: 0] === data[ 7: 0]) && sel[0]) )
             begin
-              if (tmp_data === data)
-              begin
-                fail = fail + 1;
-                test_fail("NON RW bit of the MAC buffer descriptors was written, but it shouldn't be");
-                `TIME;
-                $display("wbm_init_waits %d, addr %h, data %h, tmp_data %h",
-                          wbm_init_waits, addr, data, tmp_data);
-              end
+              fail = fail + 1;
+              test_fail("NON RW bit of the MAC buffer descriptors was written, but it shouldn't be");
+              `TIME;
+              $display("Wrong NON RW bit - wbm_init_waits %d, addr %h, data %h, tmp_data %h, sel %b",
+                        wbm_init_waits, addr, data, tmp_data, sel);
             end
           end
         end
       end
       // INTERMEDIATE DISPLAYS
-      case (i)
-        0:       $display("    ->buffer descriptors tested with 0 bus delay");
-        1:       $display("    ->buffer descriptors tested with 1 bus delay cycle");
-        2:       $display("    ->buffer descriptors tested with 2 bus delay cycles");
-        3:       $display("    ->buffer descriptors tested with 3 bus delay cycles");
-        default: $display("    ->buffer descriptors tested with 4 bus delay cycles");
-      endcase
+      if (i_addr[11:0] == 12'h500)
+        $display("    ->buffer descriptors tested with 0 bus delay");
+      else if (i_addr[11:0] == 12'h600)
+        $display("    ->buffer descriptors tested with 1 bus delay cycle");
+      else if (i_addr[11:0] == 12'h700)
+        $display("    ->buffer descriptors tested with 2 bus delay cycles");
     end
+    $display("    ->buffer descriptors tested with 3 bus delay cycles");
     if(fail == 0)
       test_ok;
     else
@@ -886,133 +1026,144 @@ begin
   ////  inverse reset values and hard reset of the MAC            ////
   ////                                                            ////
   ////////////////////////////////////////////////////////////////////
-  if (test_num == 2) // Start this task
+  if (test_num == 3) // Start this task
   begin
-    // TEST 2: MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC
+    // TEST 3: MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC
     test_name   = 
-      "TEST 2: MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC";
+      "TEST 3: MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC";
     `TIME; $display(
-      "  TEST 2: MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC");
+      "  TEST 3: MAX REG. VALUES AND REG. VALUES AFTER WRITING INVERSE RESET VALUES AND HARD RESET OF THE MAC");
         
     // reset MAC registers
     hard_reset;
     for (i = 0; i <= 4; i = i + 1) // 0, 2 - WRITE; 1, 3, 4 - READ
     begin
-      for (i_addr = 0; i_addr <= 32'h4C; i_addr = i_addr + 4) // register address
+      for (i_addr = 0; i_addr <= {22'h0, `ETH_TX_CTRL_ADR, 2'h0}; i_addr = i_addr + 4) // register address
       begin
         addr = `ETH_BASE + i_addr;
         // set ranges of R/W bits
         case (addr)
-          `ETH_MODER:
-          begin
-            data = 32'h0000_A800;
-            data_max = 32'h0001_FFFF;
-          end
-          `ETH_INT: // READONLY - tested within INT test
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'h0000_0000;
-          end
-          `ETH_INT_MASK:
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'h0000_007F;
-          end
-          `ETH_IPGT:
-          begin
-            data = 32'h0000_0012;
-            data_max = 32'h0000_007F;
-          end
-          `ETH_IPGR1:
-          begin
-            data = 32'h0000_000C;
-            data_max = 32'h0000_007F;
-          end
-          `ETH_IPGR2:
-          begin
-            data = 32'h0000_0012;
-            data_max = 32'h0000_007F;
-          end
-          `ETH_PACKETLEN:
-          begin
-            data = 32'h0040_0600;
-            data_max = 32'hFFFF_FFFF;
-          end
-          `ETH_COLLCONF:
-          begin
-            data = 32'h000F_003F;
-            data_max = 32'h000F_003F;
-          end
-          `ETH_TX_BD_NUM: 
-          begin
-            data = 32'h0000_0040;
-            data_max = 32'h0000_0080;
-          end
-          `ETH_CTRLMODER:
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'h0000_0007;
-          end
-          `ETH_MIIMODER:
-          begin
-            data = 32'h0000_0064;
-            data_max = 32'h0000_03FF;
-          end
-          `ETH_MIICOMMAND: // "WRITEONLY" - tested within MIIM test - 3 LSBits are not written here!!!
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'h0000_0007;
-          end
-          `ETH_MIIADDRESS:
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'h0000_1F1F;
-          end
-          `ETH_MIITX_DATA:
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'h0000_FFFF;
-          end
-          `ETH_MIIRX_DATA: // READONLY - tested within MIIM test
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'h0000_0000;
-          end
-          `ETH_MIISTATUS: // READONLY - tested within MIIM test
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'h0000_0000;
-          end
-          `ETH_MAC_ADDR0:
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'hFFFF_FFFF;
-          end
-          `ETH_MAC_ADDR1:
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'h0000_FFFF;
-          end
-          `ETH_HASH_ADDR0:
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'hFFFF_FFFF;
-          end
-          default: // `ETH_HASH_ADDR1:
-          begin
-            data = 32'h0000_0000;
-            data_max = 32'hFFFF_FFFF;
-          end
+        `ETH_MODER:
+        begin
+          data = 32'h0000_A000; // bit 11 not used any more
+          data_max = 32'h0001_FFFF;
+        end
+        `ETH_INT: // READONLY - tested within INT test
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'h0000_0000;
+        end
+        `ETH_INT_MASK:
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'h0000_007F;
+        end
+        `ETH_IPGT:
+        begin
+          data = 32'h0000_0012;
+          data_max = 32'h0000_007F;
+        end
+        `ETH_IPGR1:
+        begin
+          data = 32'h0000_000C;
+          data_max = 32'h0000_007F;
+        end
+        `ETH_IPGR2:
+        begin
+          data = 32'h0000_0012;
+          data_max = 32'h0000_007F;
+        end
+        `ETH_PACKETLEN:
+        begin
+          data = 32'h0040_0600;
+          data_max = 32'hFFFF_FFFF;
+        end
+        `ETH_COLLCONF:
+        begin
+          data = 32'h000F_003F;
+          data_max = 32'h000F_003F;
+        end
+        `ETH_TX_BD_NUM: 
+        begin
+          data = 32'h0000_0040;
+          data_max = 32'h0000_0080;
+        end
+        `ETH_CTRLMODER:
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'h0000_0007;
+        end
+        `ETH_MIIMODER:
+        begin
+          data = 32'h0000_0064;
+          data_max = 32'h0000_01FF;
+        end
+        `ETH_MIICOMMAND: // "WRITEONLY" - tested within MIIM test - 3 LSBits are not written here!!!
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'h0000_0000;
+        end
+        `ETH_MIIADDRESS:
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'h0000_1F1F;
+        end
+        `ETH_MIITX_DATA:
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'h0000_FFFF;
+        end
+        `ETH_MIIRX_DATA: // READONLY - tested within MIIM test
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'h0000_0000;
+        end
+        `ETH_MIISTATUS: // READONLY - tested within MIIM test
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'h0000_0000;
+        end
+        `ETH_MAC_ADDR0:
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'hFFFF_FFFF;
+        end
+        `ETH_MAC_ADDR1:
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'h0000_FFFF;
+        end
+        `ETH_HASH_ADDR0:
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'hFFFF_FFFF;
+        end
+        `ETH_HASH_ADDR1:
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'hFFFF_FFFF;
+        end
+        default: // `ETH_TX_CTRL_ADR:
+        begin
+          data = 32'h0000_0000;
+          data_max = 32'h0000_FFFF;
+        end
         endcase
         
         wbm_init_waits = {$random} % 3;
         wbm_subseq_waits = {$random} % 5; // it is not important for single accesses
         if (i == 0)
         begin
+          if (addr == `ETH_MIICOMMAND) // DO NOT WRITE to 3 LSBits of MIICOMMAND !!!
+            ;
+          else
           wbm_write(addr, ~data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         end
         else if (i == 2)
         begin
+          if (addr == `ETH_MIICOMMAND) // DO NOT WRITE to 3 LSBits of MIICOMMAND !!!
+            ;
+          else
           wbm_write(addr, 32'hFFFFFFFF, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
         end
         else if ((i == 1) || (i == 4))
@@ -1098,18 +1249,15 @@ begin
   ////  of the mac and reseting the logic                         ////
   ////                                                            ////
   ////////////////////////////////////////////////////////////////////
-  if (test_num == 3) // Start this task
+  if (test_num == 4) // Start this task
   begin
-    // TEST 3: BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC
-    test_name   = "TEST 3: BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC";
+    // TEST 4: BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC
+    test_name   = "TEST 4: BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC";
     `TIME; 
-    $display("  TEST 3: BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC");
+    $display("  TEST 4: BUFFER DESC. RAM PRESERVING VALUES AFTER HARD RESET OF THE MAC AND RESETING THE LOGIC");
         
     // reset MAC registers
     hard_reset;
-    // reset LOGIC with soft reset
-//    reset_mac;
-//    reset_mii;
     for (i = 0; i <= 3; i = i + 1) // 0, 2 - WRITE; 1, 3 - READ
     begin
       for (i_addr = 32'h400; i_addr <= 32'h7FC; i_addr = i_addr + 4) // buffer descriptor address
@@ -1144,9 +1292,6 @@ begin
       begin
         // reset MAC registers
         hard_reset;
-        // reset LOGIC with soft reset
-//        reset_mac;
-//        reset_mii;
       end
     end
     if(fail == 0)
@@ -1156,11 +1301,11 @@ begin
   end
 
 
-  if (test_num == 4) // Start this task
+  if (test_num == 5) // Start this task
   begin
-        /*  // TEST 4: 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )
-          test_name   = "TEST 4: 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )";
-          `TIME; $display("  TEST 4: 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )");
+        /*  // TEST 5: 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )
+          test_name   = "TEST 5: 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )";
+          `TIME; $display("  TEST 5: 'WALKING ONE' WITH BURST CYCLES ACROSS MAC REGISTERS ( VARIOUS BUS DELAYS )");
         
           data = 0;
           burst_data = 0;
@@ -1433,9 +1578,6 @@ fail = 0;
 
 // reset MAC registers
 hard_reset;
-// reset MAC and MII LOGIC with soft reset
-//reset_mac;
-//reset_mii;
 
 
 //////////////////////////////////////////////////////////////////////
@@ -1928,7 +2070,7 @@ begin
     #Tp mii_read_req(phy_addr, reg_addr);
     check_mii_busy; // wait for read to finish
     // read data
-    $display("  => Two errors will be displayed from WB Bus Monitor, because correct HIGH Z data was read");
+    $display("  => Two error lines will be displayed from WB Bus Monitor, because correct HIGH Z data was read");
     wbm_read(`ETH_MIIRX_DATA, tmp_data, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
     if (tmp_data !== 16'hzzzz)
     begin
@@ -3019,12 +3161,6 @@ begin
       // MII mode register
       wbm_write(`ETH_MIIMODER, (`ETH_MIIMODER_NOPRE & {23'h0, i, 8'h0}) | (`ETH_MIIMODER_CLKDIV & clk_div),
                 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
-      if (i)
-      begin
-        // change saved data when preamble is suppressed
-        #Tp tmp_data = tmp_data | 16'h0040; // put bit 6 to ONE
-      end
-  
       // scan request
       #Tp mii_scan_req(phy_addr, reg_addr);
       check_mii_scan_valid; // wait for scan to make first data valid
@@ -3264,12 +3400,6 @@ begin
       // MII mode register
       #Tp wbm_write(`ETH_MIIMODER, (`ETH_MIIMODER_NOPRE & {23'h0, i2, 8'h0}), 4'hF, 1, wbm_init_waits, 
                     wbm_subseq_waits);
-      if (i2)
-      begin
-        // change saved data when preamble is suppressed
-        #Tp tmp_data = tmp_data | 16'h0040; // put bit 6 to ONE
-      end
-  
       i = 0;
       while (i < 80) // delay for sliding of LinkFail bit
       begin
@@ -8005,6 +8135,7 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
     min_tmp = 0;
     num_of_frames = 0;
     num_of_bd = 0;
+    tx_bd_num = 0;
     // set 13 TX buffer descriptors - must be set before TX enable
     wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'hD, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -8053,22 +8184,29 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
         set_tx_bd_ready(0, 0);
       end
       else if (num_of_bd == 1)
+      begin
         set_tx_bd_ready(1, 1);
+        tx_bd_num = 1;
+      end
       else if (num_of_bd == 2)
+      begin
         set_tx_bd_ready(2, 2);
+        tx_bd_num = 2;
+      end
       else if (num_of_bd == 3)
       begin
         set_tx_bd(0, 0, 100, 1'b1, 1'b1, 1'b1, `MEMORY_BASE);
         set_tx_bd_wrap(2);
         set_tx_bd_ready(0, 0);
-        i_length = 96;
+        i_length = 100;
+        tx_bd_num = 0;
       end
         
 
       // CHECK END OF TRANSMITION
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
       wait (MTxEn === 1'b1); // start transmit
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
       if (data[15] !== 1)
       begin
         test_fail("Wrong buffer descriptor's ready bit read out from MAC");
@@ -8077,17 +8215,28 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
       wait (MTxEn === 1'b0); // end transmit
       while (data[15] === 1)
       begin
-        check_tx_bd(num_of_bd, data);
+        check_tx_bd(tx_bd_num, data);
         @(posedge wb_clk);
       end
       repeat (1) @(posedge wb_clk);
       // check length of a PACKET
       tmp_len = eth_phy.tx_len;
       #1;
-      if (tmp_len != (i_length + 4))
+      if ((i_length + 4) <= max_tmp)
       begin
-        test_fail("Wrong length of the packet out from MAC");
-        fail = fail + 1;
+        if (tmp_len != (i_length + 4))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
+      end
+      else
+      begin
+        if (tmp_len != (i_length + 4 - 1))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
       end
 
       // check transmitted TX packet data
@@ -8123,7 +8272,7 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
         fail = fail + 1;
       end
 
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
       if ( ((data[15:0] !== 16'h7800) && (num_of_bd == 2)) || // wrap bit
            ((data[15:0] !== 16'h5800) && (num_of_bd < 2)) )   // without wrap bit
       begin
@@ -8207,6 +8356,7 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
     min_tmp = 0;
     num_of_frames = 0;
     num_of_bd = 0;
+    tx_bd_num = 0;
     // set 13 TX buffer descriptors - must be set before TX enable
     wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'hD, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -8255,22 +8405,29 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
         set_tx_bd_ready(0, 0);
       end
       else if (num_of_bd == 1)
+      begin
         set_tx_bd_ready(1, 1);
+        tx_bd_num = 1;
+      end
       else if (num_of_bd == 2)
+      begin
         set_tx_bd_ready(2, 2);
+        tx_bd_num = 2;
+      end
       else if (num_of_bd == 3)
       begin
         set_tx_bd(0, 0, 100, 1'b1, 1'b1, 1'b1, `MEMORY_BASE);
         set_tx_bd_wrap(2);
         set_tx_bd_ready(0, 0);
-        i_length = 96;
+        i_length = 100;
+        tx_bd_num = 0;
       end
         
 
       // CHECK END OF TRANSMITION
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
       wait (MTxEn === 1'b1); // start transmit
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
       if (data[15] !== 1)
       begin
         test_fail("Wrong buffer descriptor's ready bit read out from MAC");
@@ -8279,7 +8436,7 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
       wait (MTxEn === 1'b0); // end transmit
       while (data[15] === 1)
       begin
-        check_tx_bd(num_of_bd, data);
+        check_tx_bd(tx_bd_num, data);
         @(posedge wb_clk);
       end
       repeat (1) @(posedge wb_clk);
@@ -8287,10 +8444,21 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
       // check length of a PACKET
       tmp_len = eth_phy.tx_len;
       #1;
-      if (tmp_len != (i_length + 4))
+      if ((i_length + 4) <= max_tmp)
       begin
-        test_fail("Wrong length of the packet out from MAC");
-        fail = fail + 1;
+        if (tmp_len != (i_length + 4))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
+      end
+      else
+      begin
+        if (tmp_len != (i_length + 4 - 1))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
       end
 
       // check transmitted TX packet data
@@ -8326,7 +8494,7 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
         fail = fail + 1;
       end
 
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
       if ( ((data[15:0] !== 16'h7800) && (num_of_bd == 2)) || // wrap bit
            ((data[15:0] !== 16'h5800) && (num_of_bd < 2)) )   // without wrap bit
       begin
@@ -8411,6 +8579,7 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
     min_tmp = 0;
     num_of_frames = 0;
     num_of_bd = 0;
+    tx_bd_num = 0;
     // set 47 TX buffer descriptors - must be set before TX enable
     wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h2F, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -8454,20 +8623,26 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
       // prepare BDs
       if (num_of_bd == 0)
       begin
-        set_tx_bd(0, 0, i_length, 1'b1, 1'b1, 1'b1, `MEMORY_BASE);
-        set_tx_bd(1, 1, i_length+1, 1'b1, 1'b1, 1'b1, `MEMORY_BASE);
+        set_tx_bd(0, 0, i_length+4, 1'b1, 1'b1, 1'b0, `MEMORY_BASE); // no CRC adding
+        set_tx_bd(1, 1, i_length+1, 1'b1, 1'b0, 1'b1, `MEMORY_BASE); // no PADDING
         set_tx_bd(2, 2, i_length+2, 1'b1, 1'b1, 1'b1, `MEMORY_BASE);
         set_tx_bd_wrap(2);
         set_tx_bd_ready(0, 0);
       end
       else if (num_of_bd == 1)
+      begin
         set_tx_bd_ready(1, 1);
+        tx_bd_num = 1;
+      end
       else if (num_of_bd == 2)
+      begin
         set_tx_bd_ready(2, 2);
+        tx_bd_num = 2;
+      end
       // CHECK END OF TRANSMITION
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
         wait (MTxEn === 1'b1); // start transmit
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
         if (data[15] !== 1)
         begin
           test_fail("Wrong buffer descriptor's ready bit read out from MAC");
@@ -8476,27 +8651,42 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
         wait (MTxEn === 1'b0); // end transmit
         while (data[15] === 1)
         begin
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
           @(posedge wb_clk);
         end
         repeat (5) @(posedge mtx_clk);
       // check length of a PACKET
       tmp_len = eth_phy.tx_len;
       #1;
-      if (tmp_len != (i_length + 4))
+      if ((i_length + 4) <= max_tmp)
       begin
-        test_fail("Wrong length of the packet out from MAC");
-        fail = fail + 1;
+        if (tmp_len != (i_length + 4))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
       end
+      else
+      begin
+        if (tmp_len != (i_length + 4 - 1))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
+      end
+
       // checking packet
-      check_tx_packet(`MEMORY_BASE, 0, i_length, tmp);
+      if (num_of_bd === 0)
+        check_tx_packet(`MEMORY_BASE, 0, i_length + 4, tmp); // also data representing CRC
+      else
+        check_tx_packet(`MEMORY_BASE, 0, i_length, tmp);
       if (tmp > 0)
       begin
         test_fail("Wrong data of the transmitted packet");
         fail = fail + 1;
       end
       // check transmited TX packet CRC
-      if (num_of_bd !== 2)
+      if (num_of_bd === 1)
         check_tx_crc(0, i_length, 1'b0, tmp); // length without CRC
       if (tmp > 0)
       begin
@@ -8511,9 +8701,10 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
         fail = fail + 1;
       end
       // check TX buffer descriptor of a packet
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
       if ( ((data[15:0] !== 16'h7800) && (num_of_bd == 2)) || // wrap bit
-           ((data[15:0] !== 16'h5800) && (num_of_bd < 2)) )   // without wrap bit
+           ((data[15:0] !== 16'h4800) && (num_of_bd == 1)) || // without wrap bit and without pad bit
+           ((data[15:0] !== 16'h5000) && (num_of_bd == 0)) )   // without wrap bit and without crc bit
       begin
         `TIME; $display("*E TX buffer descriptor status is not correct: %0h", data[15:0]);
         test_fail("TX buffer descriptor status is not correct");
@@ -8589,6 +8780,7 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
     min_tmp = 0;
     num_of_frames = 0;
     num_of_bd = 0;
+    tx_bd_num = 0;
     // set 47 TX buffer descriptors - must be set before TX enable
     wait (wbm_working == 0);
     wbm_write(`ETH_TX_BD_NUM, 32'h2F, 4'hF, 1, wbm_init_waits, wbm_subseq_waits);
@@ -8632,20 +8824,26 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
       // prepare BDs
       if (num_of_bd == 0)
       begin
-        set_tx_bd(0, 0, i_length, 1'b1, 1'b1, 1'b1, `MEMORY_BASE);
-        set_tx_bd(1, 1, i_length+1, 1'b1, 1'b1, 1'b1, `MEMORY_BASE);
+        set_tx_bd(0, 0, i_length+4, 1'b1, 1'b1, 1'b0, `MEMORY_BASE); // no CRC adding
+        set_tx_bd(1, 1, i_length+1, 1'b1, 1'b0, 1'b1, `MEMORY_BASE); // no PADDING
         set_tx_bd(2, 2, i_length+2, 1'b1, 1'b1, 1'b1, `MEMORY_BASE);
         set_tx_bd_wrap(2);
         set_tx_bd_ready(0, 0);
       end
       else if (num_of_bd == 1)
+      begin
         set_tx_bd_ready(1, 1);
+        tx_bd_num = 1;
+      end
       else if (num_of_bd == 2)
+      begin
         set_tx_bd_ready(2, 2);
+        tx_bd_num = 2;
+      end
       // CHECK END OF TRANSMITION
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
         wait (MTxEn === 1'b1); // start transmit
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
         if (data[15] !== 1)
         begin
           test_fail("Wrong buffer descriptor's ready bit read out from MAC");
@@ -8654,27 +8852,42 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
         wait (MTxEn === 1'b0); // end transmit
         while (data[15] === 1)
         begin
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
           @(posedge wb_clk);
         end
         repeat (5) @(posedge mtx_clk);
       // check length of a PACKET
       tmp_len = eth_phy.tx_len;
       #1;
-      if (tmp_len != (i_length + 4))
+      if ((i_length + 4) <= max_tmp)
       begin
-        test_fail("Wrong length of the packet out from MAC");
-        fail = fail + 1;
+        if (tmp_len != (i_length + 4))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
       end
+      else
+      begin
+        if (tmp_len != (i_length + 4 - 1))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
+      end
+
       // checking packet
-      check_tx_packet(`MEMORY_BASE, 0, i_length, tmp);
+      if (num_of_bd === 0)
+        check_tx_packet(`MEMORY_BASE, 0, i_length + 4, tmp); // also data representing CRC
+      else
+        check_tx_packet(`MEMORY_BASE, 0, i_length, tmp);
       if (tmp > 0)
       begin
         test_fail("Wrong data of the transmitted packet");
         fail = fail + 1;
       end
       // check transmited TX packet CRC
-      if (num_of_bd !== 2)
+      if (num_of_bd === 1)
         check_tx_crc(0, i_length, 1'b0, tmp); // length without CRC
       if (tmp > 0)
       begin
@@ -8689,9 +8902,10 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
         fail = fail + 1;
       end
       // check TX buffer descriptor of a packet
-      check_tx_bd(num_of_bd, data);
+      check_tx_bd(tx_bd_num, data);
       if ( ((data[15:0] !== 16'h7800) && (num_of_bd == 2)) || // wrap bit
-           ((data[15:0] !== 16'h5800) && (num_of_bd < 2)) )   // without wrap bit
+           ((data[15:0] !== 16'h4800) && (num_of_bd == 1)) || // without wrap bit and without pad bit
+           ((data[15:0] !== 16'h5000) && (num_of_bd == 0)) )   // without wrap bit and without crc bit
       begin
         `TIME; $display("*E TX buffer descriptor status is not correct: %0h", data[15:0]);
         test_fail("TX buffer descriptor status is not correct");
@@ -8845,10 +9059,21 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
       // check length of a PACKET
       tmp_len = eth_phy.tx_len;
       #1;
-      if (tmp_len != (i_length + 4))
+      if ((i_length + 4) >= min_tmp)
       begin
-        test_fail("Wrong length of the packet out from MAC");
-        fail = fail + 1;
+        if (tmp_len != (i_length + 4))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
+      end
+      else
+      begin
+        if (tmp_len != (i_length + 4 + 1))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
       end
       // checking packet
       check_tx_packet(`MEMORY_BASE, 0, i_length, tmp);
@@ -9028,10 +9253,21 @@ $display("(%0t) num_of_frames = 0x%0x", $time, num_of_frames);
       // check length of a PACKET
       tmp_len = eth_phy.tx_len;
       #1;
-      if (tmp_len != (i_length + 4))
+      if ((i_length + 4) >= min_tmp)
       begin
-        test_fail("Wrong length of the packet out from MAC");
-        fail = fail + 1;
+        if (tmp_len != (i_length + 4))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
+      end
+      else
+      begin
+        if (tmp_len != (i_length + 4 + 1))
+        begin
+          test_fail("Wrong length of the packet out from MAC");
+          fail = fail + 1;
+        end
       end
       // checking packet
       check_tx_packet(`MEMORY_BASE, 0, i_length, tmp);
@@ -18453,7 +18689,8 @@ begin
   end
   else
   begin
-    wb_slave.wr_mem(addr_wb, {crc[7:0], crc[15:8], crc[23:16], crc[31:24]}, 4'hF);
+//    wb_slave.wr_mem(addr_wb, {crc[7:0], crc[15:8], crc[23:16], crc[31:24]}, 4'hF);
+    wb_slave.wr_mem(addr_wb, crc[31:0], 4'hF);
   end
   delta_t = !delta_t;
 end
@@ -18829,7 +19066,7 @@ begin
     nibble_cnt = ((len + 4) << 1) + 1'b1; // one nibble longer
   else
     nibble_cnt = ((len + 4) << 1);
-  load_reg = wb_slave.wb_memory[{12'h0, addr_cnt}];
+  load_reg = wb_slave.wb_memory[{12'h0, addr_cnt[21:2]}];
   addr_cnt = addr_cnt + 4;
   while (nibble_cnt > 0)
   begin
@@ -18890,7 +19127,7 @@ begin
     if ((word_cnt+3) == 7)//4)
     begin
       // because of MAGIC NUMBER nibbles are swapped [3:0] -> [0:3]
-      load_reg = wb_slave.wb_memory[{12'h0, addr_cnt}];
+      load_reg = wb_slave.wb_memory[{12'h0, addr_cnt[21:2]}];
       addr_cnt = addr_cnt + 4;
     end
     // set new load bit position
@@ -19492,6 +19729,38 @@ begin
  `endif
 end
 endtask // test_fail
+
+
+task test_fail_num ;
+  input [7999:0] failure_reason ;
+  input [31:0]   number ;
+//  reg   [8007:0] display_failure ;
+  reg   [7999:0] display_failure ;
+  reg   [799:0] display_test ;
+begin
+  tests_failed = tests_failed + 1 ;
+
+  display_failure = failure_reason; // {failure_reason, "!"} ;
+  while ( display_failure[7999:7992] == 0 )
+    display_failure = display_failure << 8 ;
+
+  display_test = test_name ;
+  while ( display_test[799:792] == 0 )
+    display_test = display_test << 8 ;
+
+  $fdisplay( tb_log_file, "    *************************************************************************************" ) ;
+  $fdisplay( tb_log_file, "    At time: %t ", $time ) ;
+  $fdisplay( tb_log_file, "    Test: %s", display_test ) ;
+  $fdisplay( tb_log_file, "    *FAILED* because") ;
+  $fdisplay( tb_log_file, "    %s; %d", display_failure, number ) ;
+  $fdisplay( tb_log_file, "    *************************************************************************************" ) ;
+  $fdisplay( tb_log_file, " " ) ;
+
+ `ifdef STOP_ON_FAILURE
+    #20 $stop ;
+ `endif
+end
+endtask // test_fail_num
 
 
 task test_ok ;
