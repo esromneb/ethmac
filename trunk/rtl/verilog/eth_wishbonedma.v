@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.2  2001/08/08 08:28:21  mohor
+// "else" was missing within the always block in file eth_wishbonedma.v.
+//
 // Revision 1.1  2001/08/06 14:44:29  mohor
 // A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
 // Include files fixed to contain no path.
@@ -222,20 +225,25 @@ reg     [7:0]   RxBDAddress;
 
 reg             GotDataSync1;
 reg             GotDataSync2;
-reg             GotDataSync3;
+wire            TPauseRqSync2;
+//reg             GotDataSync3;
+wire             GotDataSync3;
 reg             GotData;
 reg             SyncGetNewTxData_wb1;
 reg             SyncGetNewTxData_wb2;
 reg             SyncGetNewTxData_wb3;
 reg             TxDoneSync1;
 reg             TxDoneSync2;
-reg             TxDoneSync3;
+//reg             TxDoneSync3;
+wire             TxDoneSync3;
 reg             TxRetrySync1;
 reg             TxRetrySync2;
-reg             TxRetrySync3;
+//reg             TxRetrySync3;
+wire            TxRetrySync3;
 reg             TxAbortSync1;
 reg             TxAbortSync2;
-reg             TxAbortSync3;
+//reg             TxAbortSync3;
+wire            TxAbortSync3;
 
 reg             TxAbort_q;
 reg             TxDone_q;
@@ -253,15 +261,18 @@ reg             StartShifting;
 reg             Shifting_wb_Sync1;
 reg             Shifting_wb_Sync2;
 reg             LatchNow_wb;
+//wire            LatchNow_wb;
 
 reg             ShiftEndedSync1;
 reg             ShiftEndedSync2;
 reg             ShiftEndedSync3;
-reg             ShiftEnded;
+//reg             ShiftEnded;
+wire            ShiftEnded;
 
 reg             RxStartFrmSync1;
 reg             RxStartFrmSync2;
-reg             RxStartFrmSync3;
+//reg             RxStartFrmSync3;
+wire            RxStartFrmSync3;
 
 reg             DMACycleFinishedTx_q;
 reg             DataNotAvaliable;
@@ -272,6 +283,7 @@ reg             ClearTxBDReady;
 
 reg             TxCtrlEndFrm_wbSync1;
 reg             TxCtrlEndFrm_wbSync2;
+wire            TxCtrlEndFrm_wbSync3;
 reg             TxCtrlEndFrm_wb;
 
 wire    [15:0]  TxPauseTV;
@@ -329,8 +341,6 @@ wire            ResetTxRetrySync;
 wire            ResetTxAbortSync;
 wire            SetSyncGetNewTxData_wb;
 
-wire            SetTxDoneSync;
-wire            SetTxRetrySync;
 wire            SetTxAbortSync;
 wire            ResetShiftEnded;
 wire            ResetRxStartFrmSync1;
@@ -348,28 +358,40 @@ wire            SetTxCtrlEndFrm_wb;
      
      
       
-assign AccessToBD = WB_ADR_I[15:12] == `BD_SPACE;
+assign AccessToBD = WB_ADR_I[15:12] == `ETH_BD_SPACE;
       
 assign DWord = &WB_SEL_I;
 assign BDWe = DWord & WB_CYC_I & WB_STB_I & WB_WE_I & AccessToBD;
 assign BDRead = DWord & WB_CYC_I & WB_STB_I & ~WB_WE_I & AccessToBD;
 assign WB_ACK_O = BDWe | BDRead & BDRead_q;  // ACK is delayed one clock because of BLOCKRAM properties when performing read
-        
-        
 
-`ifdef FPGA
+
+
+reg EnableRAM;
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
+begin
+  if(WB_RST_I)
+    EnableRAM   <=#Tp 1'b0;
+  else
+  if(BDWe)
+    EnableRAM   <=#Tp 1'b1;
+  else
+    EnableRAM   <=#Tp EnableRAM;
+end
+
+`ifdef ETH_FPGA
   // Xilinx BlockRAM for storing Tx and Rx buffer descriptors
   
   RAMB4_S16_S16 RAM1 ( .DIA(WB_DAT_I[15:0]),     .DOA(WB_BDDataOut[15:0]),  .ADDRA(WB_ADR_I[9:2]), 
                        .WEA(BDWe),               .CLKA(WB_CLK_I),           .ENA(1'b1), 
                        .RSTA(WB_RST_I),          .DIB(BDDataIn[15:0]),      .DOB(BDDataOut[15:0]), 
-                       .ADDRB(BDAddress[7:0]),   .WEB(BDStatusWrite),       .CLKB(~WB_CLK_I), 
-                       .ENB(1'b1), .RSTB(WB_RST_I) ); 
+                       .ADDRB(BDAddress[7:0]),   .WEB(BDStatusWrite),       .CLKB(WB_CLK_I), 
+                       .ENB(EnableRAM), .RSTB(WB_RST_I) ); 
   RAMB4_S16_S16 RAM2 ( .DIA(WB_DAT_I[31:16]),    .DOA(WB_BDDataOut[31:16]), .ADDRA(WB_ADR_I[9:2]), 
                        .WEA(BDWe),               .CLKA(WB_CLK_I),           .ENA(1'b1), 
                        .RSTA(WB_RST_I),          .DIB(BDDataIn[31:16]),     .DOB(BDDataOut[31:16]), 
-                       .ADDRB(BDAddress[7:0]),   .WEB(BDStatusWrite),       .CLKB(~WB_CLK_I), 
-                       .ENB(1'b1), .RSTB(WB_RST_I) ); 
+                       .ADDRB(BDAddress[7:0]),   .WEB(BDStatusWrite),       .CLKB(WB_CLK_I), 
+                       .ENB(EnableRAM), .RSTB(WB_RST_I) ); 
 `else
   // Artisan RAM (ASIC implementation) for storing Tx and Rx buffer descriptors
   // Size will be reduced before implementation to 256 x 32
@@ -380,7 +402,7 @@ assign WB_ACK_O = BDWe | BDRead & BDRead_q;  // ACK is delayed one clock because
                           .cena(1'b0),                                .wena(~BDWe), 
                           .aa({5'h0, WB_ADR_I[9:2]}),                 .da({32'h0, WB_DAT_I[31:0]}),
                           .oena(1'b0),      
-                          .qb({qb_dummy[63:32], BDDataOut[31:0]}),    .clkb(~WB_CLK_I), 
+                          .qb({qb_dummy[63:32], BDDataOut[31:0]}),    .clkb(WB_CLK_I), 
                           .cenb(1'b0),                                .wenb(~BDStatusWrite), 
                           .ab({5'h0, BDAddress[7:0]}),                .db({32'h0, BDDataIn[31:0]}), 
                           .oenb(1'b0)
@@ -418,7 +440,7 @@ end
 
 
 // Latching READY status of the Tx buffer descriptor
-always @ (negedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
     TxBDReady <=#Tp 1'b0;
@@ -432,7 +454,7 @@ end
 
 
 // Latching READY status of the Tx buffer descriptor
-always @ (negedge WB_CLK_I or posedge WB_RST_I)
+always @ (posedge WB_CLK_I or posedge WB_RST_I)
 begin
   if(WB_RST_I)
     begin
@@ -557,7 +579,7 @@ begin
   if(WB_RST_I)
     TxStatus <=#Tp 16'h0;
   else
-  if(TxBDRead & ~TxEn)
+  if(TxBDRead & TxEn)
     TxStatus <=#Tp BDDataOut[15:0];
 end
 
@@ -568,7 +590,7 @@ begin
   if(WB_RST_I)
     TxLength <=#Tp 16'h0;
   else
-  if(TxBDRead & ~TxEn)
+  if(TxBDRead & TxEn)
     TxLength <=#Tp BDDataOut[31:16];
   else
   if(GetNewTxData_wb & ~WillSendControlFrame)
@@ -588,7 +610,7 @@ begin
   if(WB_RST_I)
     RxStatus <=#Tp 16'h0;
   else
-  if(RxBDRead & ~RxEn)
+  if(RxBDRead & RxEn)
     RxStatus <=#Tp BDDataOut[15:0];
 end
 
@@ -869,36 +891,9 @@ end
 
 
 // Latching and synchronizing the Tx pause request signal
-
-wire ResetTPauseRq;
-wire SetTPauseRq;
-reg TPauseRqSync1;
-reg TPauseRqSync2;
-
-assign ResetTPauseRq = TPauseRqSync2 | WB_RST_I;
-assign SetTPauseRq = TxPauseRq;
-
-
-// Sync stage 1
-always @ (posedge SetTPauseRq or posedge ResetTPauseRq)
-begin
-  if(ResetTPauseRq)
-    TPauseRqSync1 <=#Tp 1'b0;
-  else
-    TPauseRqSync1 <=#Tp 1'b1;
-end
-
-// Sync stage 2
-always @ (posedge MTxClk or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TPauseRqSync2 <=#Tp 1'b0;
-  else
-  if(TPauseRqSync1 & ~TPauseRq)
-    TPauseRqSync2 <=#Tp 1'b1;
-  else
-    TPauseRqSync2 <=#Tp 1'b0;
-end
+eth_sync_clk1_clk2 syn1 (.clk1(MTxClk),     .clk2(WB_CLK_I),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
+                         .set2(TxPauseRq),  .sync_out(TPauseRqSync2)
+                        );
 
 
 always @ (posedge MTxClk or posedge WB_RST_I)
@@ -938,44 +933,9 @@ end
 
 // Sinchronizing and evaluating tx data
 assign SetGotData = (TxStartFrm_wb | NewTxDataAvaliable_wb & ~TxAbort_wb & ~TxRetry_wb) & ~WB_CLK_I;
-assign ResetGotData = GotDataSync3 & ~TxStartFrm_wb | WB_RST_I;
 
-
-// Sync stage 1
-always @ (posedge SetGotData or posedge ResetGotData)
-begin
-  if(ResetGotData)
-    GotDataSync1 <=#Tp 1'b0;
-  else
-    GotDataSync1 <=#Tp 1'b1;
-end
-
-
-// Sync stage 2
-always @ (posedge MTxClk or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    GotDataSync2 <=#Tp 1'b0;
-  else
-  if(GotDataSync1 & ~GotData)
-    GotDataSync2 <=#Tp 1'b1;
-  else
-    GotDataSync2 <=#Tp 1'b0;
-end
-
-
-// Sync stage 3
-always @ (posedge MTxClk or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    GotDataSync3 <=#Tp 1'b0;
-  else
-  if(GotDataSync2 & ~GotData)
-    GotDataSync3 <=#Tp 1'b1;
-  else
-    GotDataSync3 <=#Tp 1'b0;
-end
-
+eth_sync_clk1_clk2 syn2 (.clk1(MTxClk),     .clk2(WB_CLK_I),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
+                         .set2(SetGotData), .sync_out(GotDataSync3));
 
 
 // Evaluating data. If abort or retry occured meanwhile than data is ignored.
@@ -1159,6 +1119,11 @@ end
 
 
 // Synchronizing request for a new tx data
+
+//ne eth_sync_clk1_clk2 syn3 (.clk1(MTxClk),     .clk2(WB_CLK_I),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
+//                         .set2(SetGotData), .sync_out(GotDataSync3));
+
+// This section still needs to be changed due to ASIC demands
 assign ResetSyncGetNewTxData_wb = SyncGetNewTxData_wb3 | TxAbort_wb | TxRetry_wb | WB_RST_I;
 assign SetSyncGetNewTxData_wb = GetNewTxData;
 
@@ -1214,44 +1179,10 @@ end
 
 
 // Synchronizine transmit done signal
-assign ResetTxDoneSync = TxDoneSync3 | WB_RST_I;
-assign SetTxDoneSync = TxDone;
-
-
-// Sync stage 1
-always @ (posedge SetTxDoneSync or posedge ResetTxDoneSync )
-begin
-  if(ResetTxDoneSync)
-    TxDoneSync1 <=#Tp 1'b0;
-  else
-    TxDoneSync1 <=#Tp 1'b1;
-end
-
-
-// Sync stage 2
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxDoneSync2 <=#Tp 1'b0;
-  else
-  if(TxDoneSync1 & ~TxDone_wb)
-    TxDoneSync2 <=#Tp 1'b1;
-  else
-    TxDoneSync2 <=#Tp 1'b0;
-end
-
-
-// Sync stage 3
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxDoneSync3 <=#Tp 1'b0;
-  else
-  if(TxDoneSync2 & ~TxDone_wb)
-    TxDoneSync3 <=#Tp 1'b1;
-  else
-    TxDoneSync3 <=#Tp 1'b0;
-end
+// Sinchronizing and evaluating tx data
+eth_sync_clk1_clk2 syn4 (.clk1(WB_CLK_I),     .clk2(MTxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
+                         .set2(TxDone),       .sync_out(TxDoneSync3)
+                        );
 
 
 // Syncronized signal TxDone_wb (sync. to WISHBONE clock)
@@ -1268,7 +1199,6 @@ begin
 end
 
 
-// Synchronizing transmit control end frame signal
 assign ResetTxCtrlEndFrm_wb = TxCtrlEndFrm_wb | WB_RST_I;
 assign SetTxCtrlEndFrm_wb = TxCtrlEndFrm;
 
@@ -1311,44 +1241,8 @@ end
 
 
 // Synchronizing TxRetry signal
-assign ResetTxRetrySync = TxRetrySync3 | WB_RST_I;
-assign SetTxRetrySync = TxRetryLatched;
-
-
-// Sync. stage 1
-always @ (posedge SetTxRetrySync or posedge ResetTxRetrySync)
-begin
-  if(ResetTxRetrySync)
-    TxRetrySync1 <=#Tp 1'b0;
-  else
-    TxRetrySync1 <=#Tp 1'b1;
-end
-
-
-// Sync. stage 2
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxRetrySync2 <=#Tp 1'b0;
-  else
-  if(TxRetrySync1 & ~TxRetry_wb)
-    TxRetrySync2 <=#Tp 1'b1;
-  else
-    TxRetrySync2 <=#Tp 1'b0;
-end
-
-
-// Sync. stage 3
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxRetrySync3 <=#Tp 1'b0;
-  else
-  if(TxRetrySync2 & ~TxRetry_wb)
-    TxRetrySync3 <=#Tp 1'b1;
-  else
-    TxRetrySync3 <=#Tp 1'b0;
-end                                             
+eth_sync_clk1_clk2 syn6 (.clk1(WB_CLK_I),       .clk2(MTxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
+                         .set2(TxRetryLatched), .sync_out(TxRetrySync3));
 
 
 // Synchronized signal TxRetry_wb (synchronized to WISHBONE clock)
@@ -1366,44 +1260,8 @@ end
 
 
 // Synchronizing TxAbort signal
-assign ResetTxAbortSync = TxAbortSync3 | WB_RST_I;
-assign SetTxAbortSync = TxAbort;
-
-
-// Sync. stage 1
-always @ (posedge SetTxAbortSync or posedge ResetTxAbortSync)
-begin
-  if(ResetTxAbortSync)
-    TxAbortSync1 <=#Tp 1'b0;
-  else
-    TxAbortSync1 <=#Tp 1'b1;
-end
-
-
-// Sync. stage 2
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxAbortSync2 <=#Tp 1'b0;
-  else
-  if(TxAbortSync1 & ~TxAbort_wb)
-    TxAbortSync2 <=#Tp 1'b1;
-  else
-    TxAbortSync2 <=#Tp 1'b0;
-end
-
-
-// Sync. stage 3
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    TxAbortSync3 <=#Tp 1'b0;
-  else
-  if(TxAbortSync2 & ~TxAbort_wb)
-    TxAbortSync3 <=#Tp 1'b1;
-  else
-    TxAbortSync3 <=#Tp 1'b0;
-end
+eth_sync_clk1_clk2 syn7 (.clk1(WB_CLK_I), .clk2(MTxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
+                         .set2(TxAbort),  .sync_out(TxAbortSync3));
 
 
 // Synchronized TxAbort_wb signal (synchronized to WISHBONE clock)
@@ -1492,58 +1350,9 @@ end
 
 
 // Generation of the synchronized signal ShiftEnded that indicates end of reception
-assign ResetShiftEnded = ShiftEndedSync3 | WB_RST_I;
-assign StartShiftEnded = RxEndFrm_wb;
-
-
-// Sync. stage 1
-always @ (posedge StartShiftEnded or posedge ResetShiftEnded)
-begin
-  if(ResetShiftEnded)
-    ShiftEndedSync1 <=#Tp 1'b0;
-  else
-    ShiftEndedSync1 <=#Tp 1'b1;
-end
-
-
-// Sync. stage 2
-always @ (posedge MRxClk or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    ShiftEndedSync2 <=#Tp 1'b0;
-  else
-  if(ShiftEndedSync1 & ~ShiftEnded)
-    ShiftEndedSync2 <=#Tp 1'b1;
-  else
-    ShiftEndedSync2 <=#Tp 1'b0;
-end
-
-
-// Sync. stage 3
-always @ (posedge MRxClk or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    ShiftEndedSync3 <=#Tp 1'b0;
-  else
-  if(ShiftEndedSync2 & ~ShiftEnded)
-    ShiftEndedSync3 <=#Tp 1'b1;
-  else
-    ShiftEndedSync3 <=#Tp 1'b0;
-end                                             
-
-
-
-// Synchronized signal ShiftEnded
-always @ (posedge MRxClk or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    ShiftEnded <=#Tp 1'b0;
-  else
-  if(ShiftEndedSync3 & ~ShiftEnded)
-    ShiftEnded <=#Tp 1'b1;
-  else
-    ShiftEnded <=#Tp 1'b0;
-end
+eth_sync_clk1_clk2 syn8 (.clk1(MRxClk),       .clk2(WB_CLK_I),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
+                         .set2(RxEndFrm_wb),  .sync_out(ShiftEnded)
+                        );
 
 
 // Indicating that last byte is being reveived
@@ -1645,44 +1454,11 @@ end
 
 
 // Synchronizing Rx start frame to the WISHBONE clock
-assign ResetRxStartFrmSync1 = RxStartFrmSync3 | WB_RST_I;
 assign StartRxStartFrmSync1 = RxStartFrm & RxBDReady;
 
-
-// Sync. stage 1
-always @ (posedge StartRxStartFrmSync1 or posedge ResetRxStartFrmSync1)
-begin
-  if(ResetRxStartFrmSync1)
-    RxStartFrmSync1 <=#Tp 1'b0;
-  else
-    RxStartFrmSync1 <=#Tp 1'b1;
-end
-
-
-// Sync. stage 2
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    RxStartFrmSync2 <=#Tp 1'b0;
-  else
-  if(RxStartFrmSync1 & ~RxStartFrm_wb)
-    RxStartFrmSync2 <=#Tp 1'b1;
-  else
-    RxStartFrmSync2 <=#Tp 1'b0;
-end
-
-
-// Sync. stage 3
-always @ (posedge WB_CLK_I or posedge WB_RST_I)
-begin
-  if(WB_RST_I)
-    RxStartFrmSync3 <=#Tp 1'b0;
-  else
-  if(RxStartFrmSync2 & ~RxStartFrm_wb)
-    RxStartFrmSync3 <=#Tp 1'b1;
-  else
-    RxStartFrmSync3 <=#Tp 1'b0;
-end
+eth_sync_clk1_clk2 syn9 (.clk1(WB_CLK_I),     .clk2(MRxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
+                         .set2(SetGotData), .sync_out(RxStartFrmSync3)
+                        );
 
 
 // Generating synchronized Rx start frame
@@ -1699,6 +1475,11 @@ end
 
 
 //Synchronizing signal for latching data that will be written to the WISHBONE
+//eth_sync_clk1_clk2 syn10 (.clk1(WB_CLK_I),     .clk2(MRxClk),            .reset1(WB_RST_I),    .reset2(WB_RST_I), 
+//                         .set2(StartShifting), .sync_out(LatchNow_wb)
+//                        );
+
+// This section still needs to be changed due to ASIC demands
 assign ResetShifting_wb = LatchNow_wb | WB_RST_I;
 assign StartShifting_wb = StartShifting;
 
@@ -1825,3 +1606,4 @@ begin
 end
 
 endmodule
+

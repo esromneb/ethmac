@@ -41,6 +41,16 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/08/06 14:44:29  mohor
+// A define FPGA added to select between Artisan RAM (for ASIC) and Block Ram (For Virtex).
+// Include files fixed to contain no path.
+// File names and module names changed ta have a eth_ prologue in the name.
+// File eth_timescale.v is used to define timescale
+// All pin names on the top module are changed to contain _I, _O or _OE at the end.
+// Bidirectional signal MDIO is changed to three signals (Mdc_O, Mdi_I, Mdo_O
+// and Mdo_OE. The bidirectional signal must be created on the top level. This
+// is done due to the ASIC tools.
+//
 // Revision 1.1  2001/07/30 21:23:42  mohor
 // Directory structure changed. Files checked and joind together.
 //
@@ -50,57 +60,57 @@
 //
 
 
-`define FPGA                        // Core is going to be implemented in FPGA and contains FPGA specific elements
-                                    // Should be cleared for the ASIC implementation
+`define ETH_FPGA                      // Core is going to be implemented in FPGA and contains FPGA specific elements
+                                      // Should be cleared for the ASIC implementation
 
 
 // Address is {`ETHERNET_SPACE, REG_SPACE, 12'hx}
-`define ETHERNET_SPACE    16'hf000  // Ethernet space is allocated from 0xF0000000 to 0xF000FFFF
-`define REG_SPACE         4'h0      // Register space is allocated to 0xF0000000
-`define BD_SPACE          4'h1      // Buffer descriptor space is allocated to 0xF0001000
-`define TX_DATA           4'h2      // Tx data is written to address 0xF0002000. Since DMA is used, TX_DATA is not used in equations.
-`define RX_DATA           4'h3      // Rx data is read from address 0xF0003000. Since DMA is used, RX_DATA is not used in equations.
+`define ETH_ETHERNET_SPACE 16'hf000   // Ethernet space is allocated from 0xF0000000 to 0xF000FFFF
+`define ETH_REG_SPACE         4'h0    // Register space is allocated to 0xF0000000
+`define ETH_BD_SPACE          4'h1    // Buffer descriptor space is allocated to 0xF0001000
+`define ETH_TX_DATA           4'h2    // Tx data is written to address 0xF0002000. Since DMA is used, TX_DATA is not used in equations.
+`define ETH_RX_DATA           4'h3    // Rx data is read from address 0xF0003000. Since DMA is used, RX_DATA is not used in equations.
 
 
-`define PACKET_SEND_ADR   32'h20   // Packet for TX are written to the address 0x20
+`define ETH_PACKET_SEND_ADR   32'h20  // Packet for TX are written to the address 0x20
 
-`define MODER_ADR         6'h0
-`define INT_SOURCE_ADR    6'h1
-`define INT_MASK_ADR      6'h2
-`define IPGT_ADR          6'h3
-`define IPGR1_ADR         6'h4
-`define IPGR2_ADR         6'h5
-`define PACKETLEN_ADR     6'h6
-`define COLLCONF_ADR      6'h7
-`define RX_BD_ADR_ADR     6'h8
-`define CTRLMODER_ADR     6'hA
-`define MIIMODER_ADR      6'hB
-`define MIICOMMAND_ADR    6'hC
-`define MIIADDRESS_ADR    6'hD
-`define MIITX_DATA_ADR    6'hE
-`define MIIRX_DATA_ADR    6'hF
-`define MIISTATUS_ADR     6'h10
-`define MAC_ADDR0_ADR     6'h11
-`define MAC_ADDR1_ADR     6'h12
+`define ETH_MODER_ADR         6'h0
+`define ETH_INT_SOURCE_ADR    6'h1
+`define ETH_INT_MASK_ADR      6'h2
+`define ETH_IPGT_ADR          6'h3
+`define ETH_IPGR1_ADR         6'h4
+`define ETH_IPGR2_ADR         6'h5
+`define ETH_PACKETLEN_ADR     6'h6
+`define ETH_COLLCONF_ADR      6'h7
+`define ETH_RX_BD_ADR_ADR     6'h8
+`define ETH_CTRLMODER_ADR     6'hA
+`define ETH_MIIMODER_ADR      6'hB
+`define ETH_MIICOMMAND_ADR    6'hC
+`define ETH_MIIADDRESS_ADR    6'hD
+`define ETH_MIITX_DATA_ADR    6'hE
+`define ETH_MIIRX_DATA_ADR    6'hF
+`define ETH_MIISTATUS_ADR     6'h10
+`define ETH_MAC_ADDR0_ADR     6'h11
+`define ETH_MAC_ADDR1_ADR     6'h12
 
 
 
-`define MODER_DEF         32'h0000A000
-`define INT_SOURCE_DEF    32'h00000000
-`define INT_MASK_DEF      32'h00000000
-`define IPGT_DEF          32'h00000012
-`define IPGR1_DEF         32'h0000000C
-`define IPGR2_DEF         32'h00000012
-`define PACKETLEN_DEF     32'h003C0600
-`define COLLCONF_DEF      32'h000F0040
-`define CTRLMODER_DEF     32'h00000000
-`define MIIMODER_DEF      32'h00000064
-`define MIICOMMAND_DEF    32'h00000000
-`define MIIADDRESS_DEF    32'h00000000
-`define MIITX_DATA_DEF    32'h00000000
-`define MIIRX_DATA_DEF    32'h00000000
-`define MIISTATUS_DEF     32'h00000000
-`define MAC_ADDR0_DEF     32'h00000000
-`define MAC_ADDR1_DEF     32'h00000000
+`define ETH_MODER_DEF         32'h0000A000
+`define ETH_INT_SOURCE_DEF    32'h00000000
+`define ETH_INT_MASK_DEF      32'h00000000
+`define ETH_IPGT_DEF          32'h00000012
+`define ETH_IPGR1_DEF         32'h0000000C
+`define ETH_IPGR2_DEF         32'h00000012
+`define ETH_PACKETLEN_DEF     32'h003C0600
+`define ETH_COLLCONF_DEF      32'h000F0040
+`define ETH_CTRLMODER_DEF     32'h00000000
+`define ETH_MIIMODER_DEF      32'h00000064
+`define ETH_MIICOMMAND_DEF    32'h00000000
+`define ETH_MIIADDRESS_DEF    32'h00000000
+`define ETH_MIITX_DATA_DEF    32'h00000000
+`define ETH_MIIRX_DATA_DEF    32'h00000000
+`define ETH_MIISTATUS_DEF     32'h00000000
+`define ETH_MAC_ADDR0_DEF     32'h00000000
+`define ETH_MAC_ADDR1_DEF     32'h00000000
 
-`define RX_BD_ADR_DEF     8'h0
+`define ETH_RX_BD_ADR_DEF     8'h0
