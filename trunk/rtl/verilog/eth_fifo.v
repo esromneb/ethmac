@@ -41,6 +41,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2002/02/05 16:44:39  mohor
+// Both rx and tx part are finished. Tested with wb_clk_i between 10 and 200
+// MHz. Statuses, overrun, control frame transmission and reception still  need
+// to be fixed.
+//
 //
 
 `include "timescale.v"
@@ -78,7 +83,7 @@ begin
     cnt <=#Tp 0;
   else
   if(clear)
-    cnt <=#Tp 0;
+    cnt <=#Tp { {(CNT_WIDTH-1){1'b0}}, read^write};
   else
   if(read ^ write)
     if(read)
@@ -93,7 +98,7 @@ begin
     read_pointer <=#Tp 0;
   else
   if(clear)
-    read_pointer <=#Tp 0;
+    read_pointer <=#Tp { {(CNT_WIDTH-2){1'b0}}, read};
   else
   if(read & ~empty)
     read_pointer <=#Tp read_pointer + 1'b1;
@@ -105,7 +110,7 @@ begin
     write_pointer <=#Tp 0;
   else
   if(clear)
-    write_pointer <=#Tp 0;
+    write_pointer <=#Tp { {(CNT_WIDTH-2){1'b0}}, write};
   else
   if(write & ~full)
     write_pointer <=#Tp write_pointer + 1'b1;
