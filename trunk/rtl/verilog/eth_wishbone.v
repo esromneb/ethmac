@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.30  2002/07/23 15:28:31  mohor
+// Ram , used for BDs changed from generic_spram to eth_spram_256x32.
+//
 // Revision 1.29  2002/07/20 00:41:32  mohor
 // ShiftEnded synchronization changed.
 //
@@ -930,6 +933,13 @@ begin
         6'b10_00_1_x, 6'b01_00_1_x :
           begin
             MasterWbTX <=#Tp 1'b0;  // whatever and no master read or write is needed (ack or err comes finishing previous access)
+            MasterWbRX <=#Tp 1'b0;
+            m_wb_cyc_o <=#Tp 1'b0;
+            m_wb_stb_o <=#Tp 1'b0;
+          end
+        6'b10_00_0_1, 6'b01_00_0_1 :
+          begin
+            MasterWbTX <=#Tp 1'b0;  // Between cyc_cleared request was cleared
             MasterWbRX <=#Tp 1'b0;
             m_wb_cyc_o <=#Tp 1'b0;
             m_wb_stb_o <=#Tp 1'b0;
@@ -1849,7 +1859,7 @@ rx_fifo (.data_in(RxDataLatched2),                      .data_out(m_wb_dat_o),
          .empty(RxBufferEmpty),                         .cnt()
         );
 
-assign WriteRxDataToMemory = ~RxBufferEmpty & (~MasterWbRX | ~RxBufferAlmostEmpty);
+assign WriteRxDataToMemory = ~RxBufferEmpty & ~MasterWbRX;
 
 
 
