@@ -40,6 +40,8 @@
 //
 // CVS Revision History
 //
+// $Log: not supported by cvs2svn $
+//
 // Revision 1.1  2002/02/08 12:51:54  ditt
 // Initial release of the ethernet addresscheck module.
 //
