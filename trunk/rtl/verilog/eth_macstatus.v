@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2002/09/12 14:50:16  mohor
+// CarrierSenseLost bug fixed when operating in full duplex mode.
+//
 // Revision 1.11  2002/09/04 18:38:03  mohor
 // CarrierSenseLost status is not set when working in loopback mode.
 //
@@ -222,8 +225,9 @@ assign ReceivedLengthOK = RxByteCnt[15:0] >= r_MinFL[15:0] & RxByteCnt[15:0] <= 
 
 
 // Time to take a sample
-assign TakeSample = |RxStateData     & ~MRxDV & RxByteCntGreat2  |
-                     RxStateData[0]  &  MRxDV & RxByteCntMaxFrame;
+//assign TakeSample = |RxStateData     & ~MRxDV & RxByteCntGreat2  |
+assign TakeSample = (|RxStateData)   & (~MRxDV)                    |
+                      RxStateData[0] &   MRxDV & RxByteCntMaxFrame;
 
 
 // LoadRxStatus
@@ -278,7 +282,7 @@ begin
   if(LoadRxStatus)
     RxLateCollision <=#Tp 1'b0;
   else
-  if(Collision & (~RxColWindow | r_RecSmall))
+  if(Collision & (~r_FullD) & (~RxColWindow | r_RecSmall))
     RxLateCollision <=#Tp 1'b1;
 end
 
