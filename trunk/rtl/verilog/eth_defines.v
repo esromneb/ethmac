@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.17  2002/04/24 08:52:19  mohor
+// Compiler directives added. Tx and Rx fifo size incremented. A "late collision"
+// bug fixed.
+//
 // Revision 1.16  2002/03/19 12:53:29  mohor
 // Some defines that are used in testbench only were moved to tb_eth_defines.v
 // file.
@@ -171,7 +175,7 @@
 
 
 // Outputs are registered (uncomment when needed)
-//`define ETH_REGISTERED_OUTPUTS
+`define ETH_REGISTERED_OUTPUTS
 
 `define TX_FIFO_CNT_WIDTH      5
 `define TX_FIFO_DEPTH         16

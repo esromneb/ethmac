@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2002/04/22 14:15:42  mohor
+// Wishbone signals are registered when ETH_REGISTERED_OUTPUTS is
+// selected in eth_defines.v
+//
 // Revision 1.23  2002/03/25 13:33:53  mohor
 // md_padoen_o changed to md_padoe_o. Signal was always active high, just
 // name was incorrect.
@@ -373,9 +377,9 @@ assign temp_wb_err_o = wb_stb_i & wb_cyc_i & ~DWord;
       end
     else
       begin
-        temp_wb_ack_o_reg <=#Tp temp_wb_ack_o;
+        temp_wb_ack_o_reg <=#Tp temp_wb_ack_o & ~temp_wb_ack_o_reg;
         temp_wb_dat_o_reg <=#Tp temp_wb_dat_o;
-        temp_wb_err_o_reg <=#Tp temp_wb_err_o;
+        temp_wb_err_o_reg <=#Tp temp_wb_err_o & ~temp_wb_err_o_reg;
       end
   end
 `endif
@@ -639,7 +643,7 @@ eth_wishbone wishbone
   .WB_ADR_I(wb_adr_i[9:2]),           .WB_WE_I(wb_we_i), 
   .BDCs(BDCs),                        .WB_ACK_O(BDAck), 
 
-  .Reset(wb_rst_i), 
+  .Reset(r_Rst), 
 
 `ifdef EXTERNAL_DMA
   .WB_REQ_O(wb_req_o),                .WB_ND_O(wb_nd_o),                        .WB_RD_O(wb_rd_o), 

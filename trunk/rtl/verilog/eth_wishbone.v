@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2002/04/24 08:52:19  mohor
+// Compiler directives added. Tx and Rx fifo size incremented. A "late collision"
+// bug fixed.
+//
 // Revision 1.21  2002/03/29 16:18:11  lampret
 // Small typo fixed.
 //
@@ -362,15 +366,10 @@ wire    [7:0]   TempRxBDAddress;
 wire            SetGotData;
 wire            GotDataEvaluate;
 
-reg             temp_ack;
+reg             WB_ACK_O;
 
 wire    [6:0]   RxStatusIn;
 reg     [6:0]   RxStatusInLatched;
-
-`ifdef ETH_REGISTERED_OUTPUTS
-reg             temp_ack2;
-reg [31:0]      registered_ram_do;
-`endif
 
 reg WbEn, WbEn_q;
 reg RxEn, RxEn_q;
@@ -396,30 +395,15 @@ always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
     begin
-      temp_ack <=#Tp 1'b0;
-      `ifdef ETH_REGISTERED_OUTPUTS
-      temp_ack2 <=#Tp 1'b0;
-      registered_ram_do <=#Tp 32'h0;
-      `endif
+      WB_ACK_O <=#Tp 1'b0;
     end
   else
     begin
-      temp_ack <=#Tp BDWrite & WbEn & WbEn_q | BDRead & WbEn & ~WbEn_q;
-      `ifdef ETH_REGISTERED_OUTPUTS
-      temp_ack2 <=#Tp temp_ack;
-      registered_ram_do <=#Tp ram_do;
-      `endif
+      WB_ACK_O <=#Tp BDWrite & WbEn & WbEn_q | BDRead & WbEn & ~WbEn_q;
     end
 end
 
-`ifdef ETH_REGISTERED_OUTPUTS
-  assign WB_ACK_O = temp_ack2;
-  assign WB_DAT_O = registered_ram_do;
-`else
-  assign WB_ACK_O = temp_ack;
-  assign WB_DAT_O = ram_do;
-`endif
-
+assign WB_DAT_O = ram_do;
 
 // Generic synchronous single-port RAM interface
 generic_spram #(8, 32) ram (
@@ -444,7 +428,7 @@ begin
     TxEn_needed <=#Tp 1'b0;
 end
 
-
+reg [3:0] stm_status;
 // Enabling access to the RAM for three devices.
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
@@ -457,6 +441,7 @@ begin
       ram_di <=#Tp 32'h0;
       BDRead <=#Tp 1'b0;
       BDWrite <=#Tp 1'b0;
+stm_status <=#Tp 4'h0;
     end
   else
     begin
@@ -464,6 +449,7 @@ begin
       case ({WbEn_q, RxEn_q, TxEn_q, RxEn_needed, TxEn_needed})  // synopsys parallel_case
         5'b100_10, 5'b100_11 :
           begin
+stm_status <=#Tp 4'h1;
             WbEn <=#Tp 1'b0;
             RxEn <=#Tp 1'b1;  // wb access stage and r_RxEn is enabled
             TxEn <=#Tp 1'b0;
@@ -472,6 +458,7 @@ begin
           end
         5'b100_01 :
           begin
+stm_status <=#Tp 4'h2;
             WbEn <=#Tp 1'b0;
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b1;  // wb access stage, r_RxEn is disabled but r_TxEn is enabled
@@ -480,6 +467,7 @@ begin
           end
         5'b010_00, 5'b010_10 :
           begin
+stm_status <=#Tp 4'h3;
             WbEn <=#Tp 1'b1;  // RxEn access stage and r_TxEn is disabled
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b0;
@@ -490,6 +478,7 @@ begin
           end
         5'b010_01, 5'b010_11 :
           begin
+stm_status <=#Tp 4'h4;
             WbEn <=#Tp 1'b0;
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b1;  // RxEn access stage and r_TxEn is enabled
@@ -498,6 +487,7 @@ begin
           end
         5'b001_00, 5'b001_01, 5'b001_10, 5'b001_11 :
           begin
+stm_status <=#Tp 4'h5;
             WbEn <=#Tp 1'b1;  // TxEn access stage (we always go to wb access stage)
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b0;
@@ -508,10 +498,12 @@ begin
           end
         5'b100_00 :
           begin
+stm_status <=#Tp 4'h6;
             WbEn <=#Tp 1'b0;  // WbEn access stage and there is no need for other stages. WbEn needs to be switched off for a bit
           end
         5'b000_00 :
           begin
+stm_status <=#Tp 4'h7;
             WbEn <=#Tp 1'b1;  // Idle state. We go to WbEn access stage.
             RxEn <=#Tp 1'b0;
             TxEn <=#Tp 1'b0;
