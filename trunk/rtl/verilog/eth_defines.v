@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2002/07/23 15:28:31  mohor
+// Ram , used for BDs changed from generic_spram to eth_spram_256x32.
+//
 // Revision 1.18  2002/05/03 10:15:50  mohor
 // Outputs registered. Reset changed for eth_wishbone module.
 //
@@ -161,7 +164,7 @@
 `define ETH_PACKETLEN_DEF     32'h00400600
 `define ETH_COLLCONF0_DEF     6'h3f
 `define ETH_COLLCONF1_DEF     4'hF
-`define ETH_TX_BD_NUM_DEF     8'h80
+`define ETH_TX_BD_NUM_DEF     8'h40
 `define ETH_CTRLMODER_DEF     3'h0
 `define ETH_MIIMODER_DEF      11'h064
 `define ETH_MIIADDRESS0_DEF   5'h00

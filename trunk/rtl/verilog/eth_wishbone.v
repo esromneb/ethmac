@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.31  2002/07/25 18:29:01  mohor
+// WriteRxDataToMemory signal changed so end of frame (when last word is
+// written to fifo) is changed.
+//
 // Revision 1.30  2002/07/23 15:28:31  mohor
 // Ram , used for BDs changed from generic_spram to eth_spram_256x32.
 //
@@ -1137,7 +1141,7 @@ assign WrapRxStatusBit = RxStatus[13];
 
 // Temporary Tx and Rx buffer descriptor address 
 assign TempTxBDAddress[7:0] = {8{ TxStatusWrite     & ~WrapTxStatusBit}} & (TxBDAddress + 2'h2) ; // Tx BD increment or wrap (last BD)
-assign TempRxBDAddress[7:0] = {8{ WrapRxStatusBit}} & (r_TxBDNum)       | // Using first Rx BD
+assign TempRxBDAddress[7:0] = {8{ WrapRxStatusBit}} & (r_TxBDNum<<1)     | // Using first Rx BD
                               {8{~WrapRxStatusBit}} & (RxBDAddress + 2'h2) ; // Using next Rx BD (incremenrement address)
 
 
@@ -1156,10 +1160,10 @@ end
 always @ (posedge WB_CLK_I or posedge Reset)
 begin
   if(Reset)
-    RxBDAddress <=#Tp `ETH_TX_BD_NUM_DEF;
+    RxBDAddress <=#Tp `ETH_TX_BD_NUM_DEF<<1;
   else
   if(TX_BD_NUM_Wr)                        // When r_TxBDNum is updated, RxBDAddress is also
-    RxBDAddress <=#Tp WB_DAT_I[7:0];
+    RxBDAddress <=#Tp WB_DAT_I[7:0]<<1;
   else
   if(RxStatusWrite)
     RxBDAddress <=#Tp TempRxBDAddress;
