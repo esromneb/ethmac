@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.22  2002/02/26 16:59:54  mohor
+// Small fixes for external/internal DMA missmatches.
+//
 // Revision 1.21  2002/02/26 16:21:00  mohor
 // Interrupts changed in the top file
 //
@@ -158,7 +161,7 @@ module eth_top
   mrx_clk_pad_i, mrxd_pad_i, mrxdv_pad_i, mrxerr_pad_i, mcoll_pad_i, mcrs_pad_i, 
   
   // MIIM
-  mdc_pad_o, md_pad_i, md_pad_o, md_padoen_o,
+  mdc_pad_o, md_pad_i, md_pad_o, md_padoe_o,
 
   int_o
 
@@ -224,7 +227,7 @@ input           mcrs_pad_i;    // Carrier sense (from PHY)
 input           md_pad_i;      // MII data input (from I/O cell)
 output          mdc_pad_o;     // MII Management data clock (to PHY)
 output          md_pad_o;      // MII data output (to I/O cell)
-output          md_padoen_o;   // MII data output enable (to I/O cell)
+output          md_padoe_o;    // MII data output enable (to I/O cell)
 
 output          int_o;         // Interrupt output
 
@@ -265,7 +268,7 @@ eth_miim miim1
   .NoPre(r_MiiNoPre),                     .CtrlData(r_CtrlData),              .Rgad(r_RGAD), 
   .Fiad(r_FIAD),                          .WCtrlData(r_WCtrlData),            .RStat(r_RStat), 
   .ScanStat(r_ScanStat),                  .Mdi(md_pad_i),                     .Mdo(md_pad_o), 
-  .MdoEn(md_padoen_o),                    .Mdc(mdc_pad_o),                    .Busy(Busy_stat), 
+  .MdoEn(md_padoe_o),                     .Mdc(mdc_pad_o),                    .Busy(Busy_stat), 
   .Prsd(Prsd),                            .LinkFail(LinkFail),                .Nvalid(NValid_stat), 
   .WCtrlDataStart(WCtrlDataStart),        .RStatStart(RStatStart),            .UpdateMIIRX_DATAReg(UpdateMIIRX_DATAReg)
 );
