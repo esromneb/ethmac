@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.51  2003/01/30 13:36:22  mohor
+// A new bug (entered with previous update) fixed. When abort occured sometimes
+// data transmission was blocked.
+//
 // Revision 1.50  2003/01/22 13:49:26  tadejm
 // When control packets were received, they were ignored in some cases.
 //
@@ -1436,11 +1440,11 @@ begin
   if(Reset)
     TxAbortPacketBlocked <=#Tp 1'b0;
   else
-  if(TxAbortPacket)
-    TxAbortPacketBlocked <=#Tp 1'b1;
-  else
   if(!TxAbort_wb & TxAbort_wb_q)
     TxAbortPacketBlocked <=#Tp 1'b0;
+  else
+  if(TxAbortPacket)
+    TxAbortPacketBlocked <=#Tp 1'b1;
 end
 
 
@@ -1477,11 +1481,11 @@ begin
   if(Reset)
     TxRetryPacketBlocked <=#Tp 1'b0;
   else
-  if(TxRetryPacket)
-    TxRetryPacketBlocked <=#Tp 1'b1;
-  else
   if(!TxRetry_wb & TxRetry_wb_q)
     TxRetryPacketBlocked <=#Tp 1'b0;
+  else
+  if(TxRetryPacket)
+    TxRetryPacketBlocked <=#Tp 1'b1;
 end
 
 
@@ -1518,11 +1522,11 @@ begin
   if(Reset)
     TxDonePacketBlocked <=#Tp 1'b0;
   else
-  if(TxDonePacket)
-    TxDonePacketBlocked <=#Tp 1'b1;
-  else
   if(!TxDone_wb & TxDone_wb_q)
     TxDonePacketBlocked <=#Tp 1'b0;
+  else
+  if(TxDonePacket)
+    TxDonePacketBlocked <=#Tp 1'b1;
 end
 
 
