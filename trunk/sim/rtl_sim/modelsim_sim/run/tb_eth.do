@@ -41,6 +41,9 @@
 #/ CVS Revision History
 #/
 #/ $Log: not supported by cvs2svn $
+#/ Revision 1.4  2002/10/11 13:33:56  mohor
+#/ Bist supported.
+#/
 #/ Revision 1.3  2002/10/11 12:42:12  mohor
 #/ Bist supported.
 #/
@@ -53,6 +56,10 @@
 #/
 #/
 #/
+
+
+#write format wave -window .wave C:/Projects/ethernet/tadejm/ethernet/sim/rtl_sim/modelsim_sim/bin/wave.do
+#.main clear
 
 vlog -reportprogress 300 -work work {../../../../rtl/verilog/eth_clockgen.v}
 vlog -reportprogress 300 -work work {../../../../rtl/verilog/eth_crc.v}
@@ -108,9 +115,11 @@ vlog -reportprogress 300 -work work {../../../../bench/verilog/wb_slave_behavior
 # !ETH_XILINX_RAMB4
   vsim work.tb_ethernet
 #  ETH_XILINX_RAMB4
-#  vsim work.glbl work.tb_ethernet
+  #vsim work.glbl work.tb_ethernet
 
 
+do ../bin/eth_wave.do
+#do ../bin/wave.do
 run -all
  
 
