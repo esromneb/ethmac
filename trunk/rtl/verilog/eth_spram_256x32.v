@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2003/12/04 14:59:13  simons
+// Lapsus fixed (!we -> ~we).
+//
 // Revision 1.7  2003/11/12 18:24:59  tadejm
 // WISHBONE slave changed and tested from only 32-bit accesss to byte access.
 //
@@ -130,7 +133,7 @@ module eth_spram_256x32(
     RAMB4_S8 ram0
     (
         .DO      (do[7:0]),
-        .ADDR    (addr),
+        .ADDR    ({1'b0, addr}),
         .DI      (di[7:0]),
         .EN      (ce),
         .CLK     (clk),
@@ -141,7 +144,7 @@ module eth_spram_256x32(
     RAMB4_S8 ram1
     (
         .DO      (do[15:8]),
-        .ADDR    (addr),
+        .ADDR    ({1'b0, addr}),
         .DI      (di[15:8]),
         .EN      (ce),
         .CLK     (clk),
@@ -152,7 +155,7 @@ module eth_spram_256x32(
     RAMB4_S8 ram2
     (
         .DO      (do[23:16]),
-        .ADDR    (addr),
+        .ADDR    ({1'b0, addr}),
         .DI      (di[23:16]),
         .EN      (ce),
         .CLK     (clk),
@@ -163,7 +166,7 @@ module eth_spram_256x32(
     RAMB4_S8 ram3
     (
         .DO      (do[31:24]),
-        .ADDR    (addr),
+        .ADDR    ({1'b0, addr}),
         .DI      (di[31:24]),
         .EN      (ce),
         .CLK     (clk),
