@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/03/20 15:14:11  mohor
+// When in promiscous mode some frames were not received correctly. Fixed.
+//
 // Revision 1.5  2002/03/02 21:06:32  mohor
 // Log info was missing.
 //
@@ -103,7 +106,6 @@ parameter Tp = 1;
  reg MulticastOK;
  reg UnicastOK;
  reg RxAbort;
- reg CrcHashGood_d;  // delay HashGood by one cycle
  
 assign RxAddressInvalid = ~(UnicastOK | BroadcastOK | MulticastOK | r_Pro);
  
@@ -118,7 +120,7 @@ always @ (posedge MRxClk or posedge Reset)
 begin
   if(Reset)
     RxAbort <= #Tp 1'b0;
-  else if(CrcHashGood_d & RxAddressInvalid & RxCheckEn)
+  else if(RxAddressInvalid & ByteCntEq7 & RxCheckEn)
     RxAbort <= #Tp 1'b1;
   else
     RxAbort <= #Tp 1'b0;
@@ -126,15 +128,6 @@ end
  
 // Hash Address Check, Multicast
 
-
-// delay CrcHashGood by 1 cycle
-always @ (posedge MRxClk or posedge Reset)
-begin
-  if(Reset)
-    CrcHashGood_d <= #Tp 1'b0;
-  else
-    CrcHashGood_d <= #Tp CrcHashGood;  
-end
 
 always @ (posedge MRxClk or posedge Reset)
 begin
