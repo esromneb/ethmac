@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2003/08/20 12:12:07  mohor
+// Artisan RAMs added.
+//
 // Revision 1.3  2002/10/18 17:03:34  tadejm
 // Changed BIST scan signals.
 //
@@ -194,11 +197,9 @@ eth_top ethtop
   // Bist
 `ifdef ETH_BIST
   ,
-  .scanb_rst      (1'b1),
-  .scanb_clk      (1'b0),
-  .scanb_si       (1'b0),
-  .scanb_so       (),
-  .scanb_en       (1'b0)
+  .mbist_si_i       (1'b0),
+  .mbist_so_o       (),
+  .mbist_ctrl_i       (3'b001) // {enable, clock, reset}
 `endif
   
 );

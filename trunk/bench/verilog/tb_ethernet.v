@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.29  2003/08/20 12:06:24  mohor
+// Artisan RAMs added.
+//
 // Revision 1.28  2003/01/31 15:58:27  mohor
 // Tests test_mac_full_duplex_receive 4-7  fixed to proper BD.
 //
@@ -211,11 +214,9 @@ eth_top eth_top
   // Bist
 `ifdef ETH_BIST
   ,
-  .scanb_rst      (1'b1),
-  .scanb_clk      (1'b0),
-  .scanb_si       (1'b0),
-  .scanb_so       (),
-  .scanb_en       (1'b0)
+  .mbist_si_i       (1'b0),
+  .mbist_so_o       (),
+  .mbist_ctrl_i       (3'b001) // {enable, clock, reset}
 `endif
 );
 

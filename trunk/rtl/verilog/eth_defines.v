@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.31  2003/08/14 16:42:58  simons
+// Artisan ram instance added.
+//
 // Revision 1.30  2003/06/13 11:55:37  mohor
 // Define file in eth_cop.v is changed to eth_defines.v. Some defines were
 // moved from tb_eth_defines.v to eth_defines.v.
@@ -168,6 +171,7 @@
 
 //`define ETH_BIST                    // Bist for usage with Virtual Silicon RAMS
 
+`define ETH_MBIST_CTRL_WIDTH 3        // width of MBIST control bus
 
 // Ethernet implemented in Xilinx Chips
 // `define ETH_FIFO_XILINX             // Use Xilinx distributed ram for tx and rx fifo
