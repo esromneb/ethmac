@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.3  2002/01/23 10:28:16  mohor
+// Link in the header changed.
+//
 // Revision 1.2  2001/10/19 08:43:51  mohor
 // eth_timescale.v changed to timescale.v This is done because of the
 // simulation of the few cores in a one joined project.
@@ -280,7 +283,7 @@ begin
     Nvalid <= #Tp 1'b0;
   else
     begin
-      if(~InProgress & InProgress_q1)
+      if(~InProgress_q2 & InProgress_q3)
         begin
           Nvalid <= #Tp 1'b0;
         end
@@ -343,7 +346,7 @@ assign ScanStatusOp = SyncStatMdcEn     & ~InProgress & ~InProgress_q1 & ~InProg
 assign StartOp      = WriteDataOp | ReadStatusOp | ScanStatusOp;
 
 // Busy
-assign Busy = WCtrlDataStart | RStatStart | SyncStatMdcEn | EndBusy | InProgress | InProgress_q3;
+assign Busy = WCtrlDataStart | RStatStart | SyncStatMdcEn | EndBusy | InProgress | InProgress_q3 | Nvalid;
 
 
 // Generation of the InProgress signal (indicates when an operation is in progress)
