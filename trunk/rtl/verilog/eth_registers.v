@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.11  2002/02/16 14:03:44  mohor
+// Registered trimmed. Unused registers removed.
+//
 // Revision 1.10  2002/02/15 11:08:25  mohor
 // File format fixed a bit.
 //
@@ -291,8 +294,8 @@ eth_register #(1)  MIICOMMAND1 (.DataIn(DataIn[1]),    .DataOut(MIICOMMANDOut[1]
 eth_register #(1)  MIICOMMAND0 (.DataIn(DataIn[0]),    .DataOut(MIICOMMANDOut[0]),   .Write(MIICOMMAND_Wr), .Clk(Clk), .Reset(Reset),                  .Default(1'b0));
 assign MIICOMMANDOut[31:3] = 29'h0;
 
-eth_register #(5)  MIIADDRESS0 (.DataIn(DataIn[4:0]),  .DataOut(MIIADDRESSOut[4:0]), .Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIADDRESS_DEF0));
-eth_register #(5)  MIIADDRESS1 (.DataIn(DataIn[12:8]), .DataOut(MIIADDRESSOut[12:8]),.Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIADDRESS_DEF1));
+eth_register #(5)  MIIADDRESS0 (.DataIn(DataIn[4:0]),  .DataOut(MIIADDRESSOut[4:0]), .Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIADDRESS0_DEF));
+eth_register #(5)  MIIADDRESS1 (.DataIn(DataIn[12:8]), .DataOut(MIIADDRESSOut[12:8]),.Write(MIIADDRESS_Wr), .Clk(Clk), .Reset(Reset), .Default(`ETH_MIIADDRESS1_DEF));
 assign MIIADDRESSOut[7:5] = 0;
 assign MIIADDRESSOut[31:13] = 0;
 
