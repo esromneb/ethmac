@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.43  2002/11/22 01:57:06  mohor
+// Rx Flow control fixed. CF flag added to the RX buffer descriptor. RxAbort
+// synchronized.
+//
 // Revision 1.42  2002/11/21 00:09:19  mohor
 // TPauseRq synchronized to tx_clk.
 //
@@ -855,7 +859,7 @@ eth_wishbone wishbone
 
   // Register
   .r_TxEn(r_TxEn),                    .r_RxEn(r_RxEn),                          .r_TxBDNum(r_TxBDNum), 
-  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),        .r_RxFlow(r_RxFlow), 
+  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),        .r_RxFlow(r_RxFlow),                      .r_PassAll(r_PassAll), 
 
   //RX
   .MRxClk(mrx_clk_pad_i),             .RxData(RxData),                          .RxValid(RxValid), 

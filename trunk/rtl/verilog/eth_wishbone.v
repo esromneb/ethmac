@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.48  2003/01/20 12:05:26  mohor
+// When in full duplex, transmit was sometimes blocked. Fixed.
+//
 // Revision 1.47  2002/11/22 13:26:21  mohor
 // Registers RxStatusWrite_rck and RxStatusWriteLatched were not used
 // anywhere. Removed.
@@ -244,7 +247,7 @@ module eth_wishbone
     MRxClk, RxData, RxValid, RxStartFrm, RxEndFrm, RxAbort, 
     
     // Register
-    r_TxEn, r_RxEn, r_TxBDNum, TX_BD_NUM_Wr, r_RxFlow, 
+    r_TxEn, r_RxEn, r_TxBDNum, TX_BD_NUM_Wr, r_RxFlow, r_PassAll, 
 
     // Interrupts
     TxB_IRQ, TxE_IRQ, RxB_IRQ, RxE_IRQ, Busy_IRQ, 
@@ -318,6 +321,7 @@ input           LoadRxStatus;     // Rx status was loaded
 input           ReceivedPacketGood;// Received packet's length and CRC are good
 input           AddressMiss;      // When a packet is received AddressMiss status is written to the Rx BD
 input           r_RxFlow;
+input           r_PassAll;
 input           ReceivedPauseFrm;
 
 // Tx Status signals
@@ -2420,8 +2424,8 @@ begin
   if(Reset)
     RxB_IRQ <=#Tp 1'b0;
   else
-  if(RxStatusWrite & RxIRQEn)
-    RxB_IRQ <=#Tp ReceivedPacketGood & (~RxError) & (~r_RxFlow); // When r_RxFlow is set, RXC irq is set.
+  if(RxStatusWrite & RxIRQEn & ReceivedPacketGood & (~ReceivedPauseFrm | ReceivedPauseFrm & r_PassAll & (~r_RxFlow)))
+    RxB_IRQ <=#Tp (~RxError);
   else
     RxB_IRQ <=#Tp 1'b0;
 end
@@ -2433,7 +2437,7 @@ begin
   if(Reset)
     RxE_IRQ <=#Tp 1'b0;
   else
-  if(RxStatusWrite & RxIRQEn)
+  if(RxStatusWrite & RxIRQEn & (~ReceivedPauseFrm | ReceivedPauseFrm & r_PassAll & (~r_RxFlow)))
     RxE_IRQ <=#Tp RxError;
   else
     RxE_IRQ <=#Tp 1'b0;
@@ -2479,40 +2483,6 @@ assign Busy_IRQ = Busy_IRQ_sync2 & ~Busy_IRQ_sync3;
 
 
          
-// TX
-// bit 15 ready
-// bit 14 interrupt
-// bit 13 wrap
-// bit 12 pad
-// bit 11 crc
-// bit 10 last
-// bit 9  pause request (control frame)
-// bit 8  TxUnderRun          
-// bit 7-4 RetryCntLatched    
-// bit 3  retransmittion limit
-// bit 2  LateCollLatched        
-// bit 1  DeferLatched        
-// bit 0  CarrierSenseLost    
-
-
-// RX
-// bit 15 od rx je empty
-// bit 14 od rx je interrupt
-// bit 13 od rx je wrap
-// bit 12 od rx je reserved
-// bit 11 od rx je reserved
-// bit 10 od rx je reserved
-// bit 9  od rx je reserved
-// bit 8  od rx je reserved
-// bit 7  od rx je Miss
-// bit 6  od rx je RxOverrun
-// bit 5  od rx je InvalidSymbol
-// bit 4  od rx je DribbleNibble
-// bit 3  od rx je ReceivedPacketTooBig
-// bit 2  od rx je ShortFrame
-// bit 1  od rx je LatchedCrcError
-// bit 0  od rx je RxLateCollision
 
 
 endmodule
-
