@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/02/06 14:11:35  mohor
+// non-DMA host interface added. Select the right configutation in eth_defines.
+//
 // Revision 1.6  2001/12/08 12:36:00  mohor
 // TX_BD_NUM register added instead of the RB_BD_ADDR.
 //
@@ -703,12 +706,17 @@ begin
   WishboneWrite(32'h00000000, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 0
   WishboneWrite(32'h00000080, {26'h0, `ETH_TX_BD_NUM_ADR<<2}); // r_RxBDAddress = 0x80
 
-  WishboneWrite(32'h0002A443, {26'h0, `ETH_MODER_ADR<<2});     // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
+  WishboneWrite(32'h00022043, {26'h0, `ETH_MODER_ADR<<2});     // RxEn, Txen, CrcEn, Pad, DmaEn, r_IFG
 
   WishboneWrite(32'h00000004, {26'h0, `ETH_CTRLMODER_ADR<<2}); //r_TxFlow = 1
 
+  WishboneWrite(32'h12345678, {26'h0, `ETH_HASH0_ADR<<2});
+  WishboneWrite(32'h98765432, {26'h0, `ETH_HASH1_ADR<<2});
+  WishboneRead({26'h0, `ETH_HASH0_ADR<<2});   // Read from HASH0 register
+  WishboneRead({26'h0, `ETH_HASH1_ADR<<2});   // Read from HASH1 register
 
-  SendPacket(16'h0010, 1'b0);
+
+  SendPacket(16'h0007, 1'b0);
   SendPacket(16'h0011, 1'b0);
   SendPacket(16'h0012, 1'b0);
   SendPacket(16'h0013, 1'b0);
@@ -724,7 +732,7 @@ begin
   SendPacket(16'h0017, 1'b0);
 
 //  ReceivePacket(16'h0012, 1'b1, 1'b0);    // Initializes RxBD and then Sends a control packet on the MRxD[3:0] signals.
-  ReceivePacket(16'h0015, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  ReceivePacket(16'h000b, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
   ReceivePacket(16'h0016, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
   ReceivePacket(16'h0017, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
   ReceivePacket(16'h0018, 1'b0, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
@@ -752,19 +760,26 @@ begin
   #100000 $stop;
 end
 
-//integer ijk;
+integer ijk;
 
-//initial
-//ijk = 0;    // for stoping generation of the m_wb_ack_i signal at the right moment so we get underrun
+initial
+ijk = 0;    // for stoping generation of the m_wb_ack_i signal at the right moment so we get underrun
 
 // Answering to master Wishbone requests
+//wire [31:0] daatax = 32'h87654321;
+//wire [31:0] daatay = 32'h00edcba9;
+
 always @ (posedge WB_CLK_I)
 begin
   if(m_wb_cyc_o & m_wb_stb_o) // Add valid address range
     begin
       repeat(3) @ (posedge WB_CLK_I);
         begin
-//          if(ijk==41)
+          if(ijk==6) // mama
+            MColl = 1;
+//          if(ijk==9)
+          else
+            MColl = 0;
 //            begin
 //              repeat(1000) @ (posedge WB_CLK_I);
 //            end
@@ -773,13 +788,14 @@ begin
           if(~m_wb_we_o)
             begin
               #Tp m_wb_dat_i = m_wb_adr_o + 1'b1; // For easier following of the data
+//                #Tp m_wb_dat_i = ijk? daatay : daatax;
               $fdisplay(mcd1, "(%0t) master read (0x%0x) = 0x%0x", $time, m_wb_adr_o, m_wb_dat_i);
-//              ijk = ijk + 1;
             end
           else
             $fdisplay(mcd2, "(%0t) master write (0x%0x) = 0x%0x", $time, m_wb_adr_o, m_wb_dat_o);
         end
       @ (posedge WB_CLK_I);
+      ijk = ijk + 1;
       m_wb_ack_i <=#Tp 1'b0;
     end
 end
@@ -904,8 +920,7 @@ task SendPacket;
     WishboneWrite(TempData, TempAddr); // buffer pointer
 
 
-    TempAddr = {22'h01, (TxBDIndex<<2)};  // igor !!! zbrisi spodnjo vrstico
-//    TempAddr = {22'h01, 10'b1010010100};
+    TempAddr = {22'h01, (TxBDIndex<<2)};
 
     TempData = {Length[15:0], 1'b1, 1'b0, Wrap, 3'h0, ControlFrame, 1'b0, TxBDIndex[7:0]};  // Ready and Wrap = 1
 
@@ -971,7 +986,11 @@ task GetDataOnMRxD;
   input abort;
   integer tt;
 
+//  reg [87:0] ddata;
+
   begin
+//    ddata = 88'h50727196edcba987654321;
+
     @ (posedge MRxClk);
     MRxDV=1'b1;
     
@@ -981,7 +1000,7 @@ task GetDataOnMRxD;
       @ (posedge MRxClk);
     end
     MRxD=4'hd;                // SFD
-    
+
     for(tt=1; tt<(Len+1); tt=tt+1)
     begin
       @ (posedge MRxClk);
@@ -992,6 +1011,22 @@ task GetDataOnMRxD;
       MRxD=tt[7:4];
       RxAbort<=#1 0;
     end
+/*
+    for(tt=0; tt<Len; tt=tt+1)
+    begin
+      @ (posedge MRxClk);
+      MRxD=ddata[3:0];
+      $display("MRxD=0x%0x", MRxD);
+      if(tt==9)
+        RxAbort<=#1 abort;
+      @ (posedge MRxClk);
+      MRxD=ddata[7:4];
+      $display("MRxD=0x%0x", MRxD);
+      ddata[87:0] = {8'h0, ddata[87:8]};
+      
+      RxAbort<=#1 0;
+    end
+*/
     @ (posedge MRxClk);
     MRxDV=1'b0;
   end
