@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.12  2002/09/16 15:10:42  mohor
+// MIIM test look better.
+//
 // Revision 1.11  2002/09/13 19:18:04  mohor
 // Bench outputs data to display every 128 bytes.
 //
@@ -4426,7 +4429,7 @@ begin
       $display("    packets with lengths (including FCS) from %0d to %0d are checked",
                tmp_data, (i_length + 4));
     end
-    else if (!((i_length + 4) % 128)) // 8'h7C + 8'h04 = 8'h80 (128), because i_length has length - 4 value
+    else if (!((i_length + 4) % 128)) // every 128 bytes 
     begin
       $display("    packets with lengths (including FCS) from %0d to %0d are checked",
                tmp_data, (i_length + 4));
