@@ -41,6 +41,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2002/08/14 18:32:10  mohor
+// - Busy signal was not set on time when scan status operation was performed
+// and clock was divided with more than 2.
+// - Nvalid remains valid two more clocks (was previously cleared too soon).
+//
 // Revision 1.3  2002/01/23 10:28:16  mohor
 // Link in the header changed.
 //
@@ -346,7 +351,7 @@ assign ScanStatusOp = SyncStatMdcEn     & ~InProgress & ~InProgress_q1 & ~InProg
 assign StartOp      = WriteDataOp | ReadStatusOp | ScanStatusOp;
 
 // Busy
-assign Busy = WCtrlDataStart | RStatStart | SyncStatMdcEn | EndBusy | InProgress | InProgress_q3 | Nvalid;
+assign Busy = WCtrlData | WCtrlDataStart | RStat | RStatStart | SyncStatMdcEn | EndBusy | InProgress | InProgress_q3 | Nvalid;
 
 
 // Generation of the InProgress signal (indicates when an operation is in progress)
