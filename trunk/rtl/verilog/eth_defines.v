@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.24  2002/10/10 16:33:11  mohor
+// Bist added.
+//
 // Revision 1.23  2002/09/23 18:22:48  mohor
 // Virtual Silicon RAM might be used in the ASIC implementation of the ethernet
 // core.
@@ -219,10 +222,20 @@
 // Outputs are registered (uncomment when needed)
 `define ETH_REGISTERED_OUTPUTS
 
-`define TX_FIFO_CNT_WIDTH      5
-`define TX_FIFO_DEPTH         16
-`define TX_FIFO_DATA_WIDTH    32
+// Settings for TX FIFO
+`define ETH_TX_FIFO_CNT_WIDTH  5
+`define ETH_TX_FIFO_DEPTH      16
+`define ETH_TX_FIFO_DATA_WIDTH 32
 
-`define RX_FIFO_CNT_WIDTH      5
-`define RX_FIFO_DEPTH         16
-`define RX_FIFO_DATA_WIDTH    32
+// Settings for RX FIFO
+`define ETH_RX_FIFO_CNT_WIDTH  5
+`define ETH_RX_FIFO_DEPTH      16
+`define ETH_RX_FIFO_DATA_WIDTH 32
+
+// Burst length
+`define ETH_BURST_LENGTH       4    // Change also ETH_BURST_CNT_WIDTH
+`define ETH_BURST_CNT_WIDTH    3    // The counter must be width enough to count to ETH_BURST_LENGTH
+
+// WISHBONE interface is Revision B3 compliant (uncomment when needed)
+//`define ETH_WISHBONE_B3
+
