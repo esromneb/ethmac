@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/02/11 09:18:21  mohor
+// Tx status is written back to the BD.
+//
 // Revision 1.5  2002/02/08 16:21:54  mohor
 // Rx status is written back to the BD.
 //
@@ -374,7 +377,7 @@ begin
   if(Reset)
     CarrierSenseLost <=#Tp 1'b0;
   else
-  if((StatePreamble | (|StateData)) & ~CarrierSense)
+  if((StatePreamble | (|StateData)) & ~CarrierSense & ~Collision)
     CarrierSenseLost <=#Tp 1'b1;
   else
   if(TxStartFrm)

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2002/02/15 12:17:39  mohor
+// RxStartFrm cleared when abort or retry comes.
+//
 // Revision 1.9  2002/02/15 11:59:10  mohor
 // Changes that were lost when updating from 1.5 to 1.8 fixed.
 //
@@ -277,6 +280,7 @@ reg             ShiftWillEnd;
 
 reg             WriteRxDataToFifo;
 reg    [15:0]   LatchedRxLength;
+reg             RxAbortLatched;
 
 reg             ShiftEnded;
 reg             RxOverrun;
@@ -1676,6 +1680,18 @@ begin
 end
 
 
+always @ (posedge MRxClk or posedge Reset)
+begin
+  if(Reset)
+    RxAbortLatched <=#Tp 1'b0;
+  else
+  if(RxAbort)
+    RxAbortLatched <=#Tp 1'b1;
+  else
+  if(RxStartFrm)
+    RxAbortLatched <=#Tp 1'b0;
+end
+
 
 
 
@@ -1690,12 +1706,13 @@ assign Busy_IRQ = 1'b0;
 
 
 reg LoadStatusBlocked;
+
 always @ (posedge MRxClk or posedge Reset)
 begin
   if(Reset)
     LoadStatusBlocked <=#Tp 1'b0;
   else
-  if(LoadRxStatus)
+  if(LoadRxStatus & ~RxAbortLatched)
     LoadStatusBlocked <=#Tp 1'b1;
   else
   if(RxStatusWrite_rck)
@@ -1708,7 +1725,7 @@ begin
   if(Reset)
     LatchedRxLength[15:0] <=#Tp 16'h0;
   else
-  if(LoadRxStatus & ~LoadStatusBlocked)
+  if(LoadRxStatus & ~RxAbortLatched & ~LoadStatusBlocked)
     LatchedRxLength[15:0] <=#Tp RxLength[15:0];
 end
 
@@ -1720,7 +1737,7 @@ begin
   if(Reset)
     RxStatusInLatched <=#Tp 'h0;
   else
-  if(LoadRxStatus & ~LoadStatusBlocked)
+  if(LoadRxStatus & ~RxAbortLatched & ~LoadStatusBlocked)
     RxStatusInLatched <=#Tp RxStatusIn;
 end
 
