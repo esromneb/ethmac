@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.10  2002/07/25 18:17:46  mohor
+// InvalidSymbol generation changed.
+//
 // Revision 1.9  2002/04/22 13:51:44  mohor
 // Short frame and ReceivedLengthOK were not detected correctly.
 //
@@ -96,7 +99,7 @@ module eth_macstatus(
                       r_RecSmall, r_MinFL, r_MaxFL, ShortFrame, DribbleNibble, ReceivedPacketTooBig, r_HugEn,
                       LoadRxStatus, StartTxDone, StartTxAbort, RetryCnt, RetryCntLatched, MTxClk, MaxCollisionOccured, 
                       RetryLimit, LateCollision, LateCollLatched, StartDefer, DeferLatched, TxStartFrm,
-                      StatePreamble, StateData, CarrierSense, CarrierSenseLost, TxUsedData, LatchedMRxErr
+                      StatePreamble, StateData, CarrierSense, CarrierSenseLost, TxUsedData, LatchedMRxErr, Loopback
                     );
 
 
@@ -139,6 +142,7 @@ input         StatePreamble;
 input   [1:0] StateData;
 input         CarrierSense;
 input         TxUsedData;
+input         Loopback;
 
 
 output        ReceivedLengthOK;
@@ -386,7 +390,7 @@ begin
   if(Reset)
     CarrierSenseLost <=#Tp 1'b0;
   else
-  if((StatePreamble | (|StateData)) & ~CarrierSense & ~Collision)
+  if((StatePreamble | (|StateData)) & ~CarrierSense & ~Loopback & ~Collision)
     CarrierSenseLost <=#Tp 1'b1;
   else
   if(TxStartFrm)
