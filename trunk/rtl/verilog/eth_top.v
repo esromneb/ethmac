@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.38  2002/11/14 18:37:20  mohor
+// r_Rst signal does not reset any module any more and is removed from the design.
+//
 // Revision 1.37  2002/11/13 22:25:36  tadejm
 // All modules are reset with wb_rst instead of the r_Rst. Exception is MII module.
 //
@@ -334,7 +337,7 @@ reg             RstTxPauseRq;
 // Connecting Miim module
 eth_miim miim1
 (
-  .Clk(wb_clk_i),                         .Reset(r_MiiMRst),                  .Divider(r_ClkDiv), 
+  .Clk(wb_clk_i),                         .Reset(wb_rst_i),                   .Divider(r_ClkDiv), 
   .NoPre(r_MiiNoPre),                     .CtrlData(r_CtrlData),              .Rgad(r_RGAD), 
   .Fiad(r_FIAD),                          .WCtrlData(r_WCtrlData),            .RStat(r_RStat), 
   .ScanStat(r_ScanStat),                  .Mdi(md_pad_i),                     .Mdo(md_pad_o), 
