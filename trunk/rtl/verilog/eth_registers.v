@@ -13,7 +13,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2001 Authors                                   ////
+//// Copyright (C) 2001, 2002 Authors                             ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2002/08/19 16:01:40  mohor
+// Only values smaller or equal to 0x80 can be written to TX_BD_NUM register.
+// r_TxEn and r_RxEn depend on the limit values of the TX_BD_NUMOut.
+//
 // Revision 1.18  2002/08/16 22:28:23  mohor
 // Syntax error fixed.
 //
@@ -131,17 +135,21 @@ module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut,
                       r_RecSmall, r_Pad, r_HugEn, r_CrcEn, r_DlyCrcEn, 
                       r_Rst, r_FullD, r_ExDfrEn, r_NoBckof, r_LoopBck, r_IFG, 
                       r_Pro, r_Iam, r_Bro, r_NoPre, r_TxEn, r_RxEn, 
-                      TxB_IRQ, TxE_IRQ, RxB_IRQ, RxE_IRQ, Busy_IRQ, TxC_IRQ, RxC_IRQ, 
+                      TxB_IRQ, TxE_IRQ, RxB_IRQ, RxE_IRQ, Busy_IRQ, 
                       r_IPGT, r_IPGR1, r_IPGR2, r_MinFL, r_MaxFL, r_MaxRet, 
                       r_CollValid, r_TxFlow, r_RxFlow, r_PassAll, 
                       r_MiiMRst, r_MiiNoPre, r_ClkDiv, r_WCtrlData, r_RStat, r_ScanStat, 
                       r_RGAD, r_FIAD, r_CtrlData, NValid_stat, Busy_stat, 
                       LinkFail, r_MAC, WCtrlDataStart, RStatStart,
                       UpdateMIIRX_DATAReg, Prsd, r_TxBDNum, TX_BD_NUM_Wr, int_o,
-                      r_HASH0, r_HASH1
+                      r_HASH0, r_HASH1, r_TxPauseTV, r_TxPauseRq, RstTxPauseRq, TxCtrlEndFrm, 
+                      StartTxDone, TxClk, RxClk, ReceivedPauseFrm,
+                      reg1, reg2, reg3, reg4
                     );
 
 parameter Tp = 1;
+
+input [31:0] reg1, reg2, reg3, reg4;
 
 input [31:0] DataIn;
 input [7:0] Address;
@@ -185,8 +193,6 @@ input TxE_IRQ;
 input RxB_IRQ;
 input RxE_IRQ;
 input Busy_IRQ;
-input TxC_IRQ;
-input RxC_IRQ;
 
 output [6:0] r_IPGT;
 
@@ -226,6 +232,14 @@ output [47:0]r_MAC;
 output [7:0] r_TxBDNum;
 output       TX_BD_NUM_Wr;
 output       int_o;
+output [15:0]r_TxPauseTV;
+output       r_TxPauseRq;
+input        RstTxPauseRq;
+input        TxCtrlEndFrm;
+input        StartTxDone;
+input        TxClk;
+input        RxClk;
+input        ReceivedPauseFrm;      // sinhroniziraj tale shit da bo delal interrupt. Pazi na PassAll bit
 
 reg          irq_txb;
 reg          irq_txe;
@@ -234,6 +248,16 @@ reg          irq_rxe;
 reg          irq_busy;
 reg          irq_txc;
 reg          irq_rxc;
+
+reg SetTxCIrq_txclk;
+reg SetTxCIrq_sync1, SetTxCIrq_sync2, SetTxCIrq_sync3;
+reg SetTxCIrq;
+reg ResetTxCIrq_sync1, ResetTxCIrq_sync2;
+
+reg SetRxCIrq_rxclk;
+reg SetRxCIrq_sync1, SetRxCIrq_sync2, SetRxCIrq_sync3;
+reg SetRxCIrq;
+reg ResetRxCIrq_sync1, ResetRxCIrq_sync2;
 
 wire Write = Cs &  Rw;
 wire Read  = Cs & ~Rw;
@@ -255,8 +279,10 @@ wire MIITX_DATA_Wr  = (Address == `ETH_MIITX_DATA_ADR  )  & Write;
 wire MIIRX_DATA_Wr  = UpdateMIIRX_DATAReg;     
 wire MAC_ADDR0_Wr   = (Address == `ETH_MAC_ADDR0_ADR   )  & Write;
 wire MAC_ADDR1_Wr   = (Address == `ETH_MAC_ADDR1_ADR   )  & Write;
-wire HASH0_Wr       = (Address == `ETH_HASH0_ADR   )  & Write;
-wire HASH1_Wr       = (Address == `ETH_HASH1_ADR   )  & Write;
+wire HASH0_Wr       = (Address == `ETH_HASH0_ADR       )  & Write;
+wire HASH1_Wr       = (Address == `ETH_HASH1_ADR       )  & Write;
+wire TXCTRL_Wr      = (Address == `ETH_TX_CTRL_ADR     )  & Write;
+wire RXCTRL_Wr      = (Address == `ETH_RX_CTRL_ADR     )  & Write;
 assign TX_BD_NUM_Wr = (Address == `ETH_TX_BD_NUM_ADR   )  & Write;
 
 
@@ -281,6 +307,8 @@ wire [31:0] MAC_ADDR1Out;
 wire [31:0] TX_BD_NUMOut;
 wire [31:0] HASH0Out;
 wire [31:0] HASH1Out;
+wire [31:0] TXCTRLOut;
+wire [31:0] RXCTRLOut;
 
 
 // MODER Register
@@ -538,13 +566,50 @@ eth_register #(`ETH_HASH1_WIDTH, `ETH_HASH1_DEF)          RXHASH1
   );
 
 
+// TXCTRL Register
+eth_register #((`ETH_TX_CTRL_WIDTH-1), {(`ETH_TX_CTRL_WIDTH-1){1'b0}})      TXCTRL0
+  (
+   .DataIn    (DataIn[`ETH_TX_CTRL_WIDTH-2:0]),
+   .DataOut   (TXCTRLOut[`ETH_TX_CTRL_WIDTH-2:0]),
+   .Write     (TXCTRL_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (1'b0)
+  );
+
+eth_register #(1, 1'b0)                                   TXCTRL1     // Request bit is synchronously reset
+  (
+   .DataIn    (DataIn[16]),
+   .DataOut   (TXCTRLOut[16]),
+   .Write     (TXCTRL_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (RstTxPauseRq)
+  );
+assign TXCTRLOut[31:`ETH_TX_CTRL_WIDTH] = 0;
+
+
+// RXCTRL Register
+eth_register #(`ETH_RX_CTRL_WIDTH, `ETH_RX_CTRL_DEF)      RXCTRL
+  (
+   .DataIn    (DataIn[`ETH_RX_CTRL_WIDTH-1:0]),
+   .DataOut   (RXCTRLOut[`ETH_RX_CTRL_WIDTH-1:0]),
+   .Write     (RXCTRL_Wr),
+   .Clk       (Clk),
+   .Reset     (Reset),
+   .SyncReset (1'b0)
+  );
+assign RXCTRLOut[31:`ETH_RX_CTRL_WIDTH] = 0;
+
+
 // Reading data from registers
 always @ (Address       or Read           or MODEROut       or INT_SOURCEOut  or
           INT_MASKOut   or IPGTOut        or IPGR1Out       or IPGR2Out       or
           PACKETLENOut  or COLLCONFOut    or CTRLMODEROut   or MIIMODEROut    or
           MIICOMMANDOut or MIIADDRESSOut  or MIITX_DATAOut  or MIIRX_DATAOut  or 
           MIISTATUSOut  or MAC_ADDR0Out   or MAC_ADDR1Out   or TX_BD_NUMOut   or
-          HASH0Out      or HASH1Out
+          HASH0Out      or HASH1Out       or TXCTRLOut      or RXCTRLOut
+          or reg1 or reg2 or reg3 or reg4
          )
 begin
   if(Read)  // read
@@ -570,6 +635,14 @@ begin
         `ETH_TX_BD_NUM_ADR    :  DataOut<=TX_BD_NUMOut;
         `ETH_HASH0_ADR        :  DataOut<=HASH0Out;
         `ETH_HASH1_ADR        :  DataOut<=HASH1Out;
+        `ETH_TX_CTRL_ADR      :  DataOut<=TXCTRLOut;
+        `ETH_RX_CTRL_ADR      :  DataOut<=RXCTRLOut;
+
+        8'h16   /* 0x58 */    :  DataOut<=reg1;
+        8'h17   /* 0x5c */    :  DataOut<=reg2;
+        8'h18   /* 0x60 */    :  DataOut<=reg3;
+        8'h19   /* 0x64 */    :  DataOut<=reg4;
+
         default:             DataOut<=32'h0;
       endcase
     end
@@ -635,7 +708,141 @@ assign r_MAC[47:32]       = MAC_ADDR1Out[15:0];
 assign r_HASH1[31:0]      = HASH1Out;
 assign r_HASH0[31:0]      = HASH0Out;
 
-assign r_TxBDNum[7:0] = TX_BD_NUMOut[7:0];
+assign r_TxBDNum[7:0]     = TX_BD_NUMOut[7:0];
+
+assign r_TxPauseTV[15:0]  = TXCTRLOut[15:0];
+assign r_TxPauseRq        = TXCTRLOut[16];
+
+
+// Synchronizing TxC Interrupt
+always @ (posedge TxClk or posedge Reset)
+begin
+  if(Reset)
+    SetTxCIrq_txclk <=#Tp 1'b0;
+  else
+  if(TxCtrlEndFrm & StartTxDone & r_TxFlow)
+    SetTxCIrq_txclk <=#Tp 1'b1;
+  else
+  if(ResetTxCIrq_sync2)
+    SetTxCIrq_txclk <=#Tp 1'b0;
+end
+
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    SetTxCIrq_sync1 <=#Tp 1'b0;
+  else
+    SetTxCIrq_sync1 <=#Tp SetTxCIrq_txclk;
+end
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    SetTxCIrq_sync2 <=#Tp 1'b0;
+  else
+    SetTxCIrq_sync2 <=#Tp SetTxCIrq_sync1;
+end
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    SetTxCIrq_sync3 <=#Tp 1'b0;
+  else
+    SetTxCIrq_sync3 <=#Tp SetTxCIrq_sync2;
+end
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    SetTxCIrq <=#Tp 1'b0;
+  else
+    SetTxCIrq <=#Tp SetTxCIrq_sync2 & ~SetTxCIrq_sync3;
+end
+
+always @ (posedge TxClk or posedge Reset)
+begin
+  if(Reset)
+    ResetTxCIrq_sync1 <=#Tp 1'b0;
+  else
+    ResetTxCIrq_sync1 <=#Tp SetTxCIrq_sync2;
+end
+
+always @ (posedge TxClk or posedge Reset)
+begin
+  if(Reset)
+    ResetTxCIrq_sync2 <=#Tp 1'b0;
+  else
+    ResetTxCIrq_sync2 <=#Tp SetTxCIrq_sync1;
+end
+
+
+// Synchronizing RxC Interrupt
+always @ (posedge RxClk or posedge Reset)
+begin
+  if(Reset)
+    SetRxCIrq_rxclk <=#Tp 1'b0;
+  else
+  if(ReceivedPauseFrm & r_RxFlow)
+    SetRxCIrq_rxclk <=#Tp 1'b1;
+  else
+  if(ResetRxCIrq_sync2)
+    SetRxCIrq_rxclk <=#Tp 1'b0;
+end
+
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    SetRxCIrq_sync1 <=#Tp 1'b0;
+  else
+    SetRxCIrq_sync1 <=#Tp SetRxCIrq_rxclk;
+end
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    SetRxCIrq_sync2 <=#Tp 1'b0;
+  else
+    SetRxCIrq_sync2 <=#Tp SetRxCIrq_sync1;
+end
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    SetRxCIrq_sync3 <=#Tp 1'b0;
+  else
+    SetRxCIrq_sync3 <=#Tp SetRxCIrq_sync2;
+end
+
+always @ (posedge Clk or posedge Reset)
+begin
+  if(Reset)
+    SetRxCIrq <=#Tp 1'b0;
+  else
+    SetRxCIrq <=#Tp SetRxCIrq_sync2 & ~SetRxCIrq_sync3;
+end
+
+always @ (posedge RxClk or posedge Reset)
+begin
+  if(Reset)
+    ResetRxCIrq_sync1 <=#Tp 1'b0;
+  else
+    ResetRxCIrq_sync1 <=#Tp SetRxCIrq_sync2;
+end
+
+always @ (posedge TxClk or posedge Reset)
+begin
+  if(Reset)
+    ResetRxCIrq_sync2 <=#Tp 1'b0;
+  else
+    ResetRxCIrq_sync2 <=#Tp SetRxCIrq_sync1;
+end
+
+
+
+
+
 
 
 // Interrupt generation
@@ -704,7 +911,7 @@ begin
   if(Reset)
     irq_txc <= 1'b0;
   else
-  if(TxC_IRQ)
+  if(SetTxCIrq)
     irq_txc <= #Tp 1'b1;
   else
   if(INT_SOURCE_Wr & DataIn[5])
@@ -716,7 +923,7 @@ begin
   if(Reset)
     irq_rxc <= 1'b0;
   else
-  if(RxC_IRQ)
+  if(SetRxCIrq)
     irq_rxc <= #Tp 1'b1;
   else
   if(INT_SOURCE_Wr & DataIn[6])
