@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.38  2002/10/10 16:29:30  mohor
+// BIST added.
+//
 // Revision 1.37  2002/09/11 14:18:46  mohor
 // Sometimes both RxB_IRQ and RxE_IRQ were activated. Bug fixed.
 //
@@ -194,6 +197,10 @@ module eth_wishbone
     m_wb_dat_o, m_wb_dat_i, m_wb_cyc_o, 
     m_wb_stb_o, m_wb_ack_i, m_wb_err_i, 
 
+`ifdef ETH_WISHBONE_B3
+    m_wb_cti_o, m_wb_bte_o, 
+`endif
+
     //TX
     MTxClk, TxStartFrm, TxEndFrm, TxUsedData, TxData, 
     TxRetry, TxAbort, TxUnderRun, TxDone, PerPacketCrcEn, 
@@ -249,6 +256,12 @@ output          m_wb_stb_o;     //
 input   [31:0]  m_wb_dat_i;     // 
 input           m_wb_ack_i;     // 
 input           m_wb_err_i;     // 
+
+`ifdef ETH_WISHBONE_B3
+output   [2:0]  m_wb_cti_o;     // Cycle Type Identifier
+output   [1:0]  m_wb_bte_o;     // Burst Type Extension
+reg      [2:0]  m_wb_cti_o;     // Cycle Type Identifier
+`endif
 
 input           Reset;       // Reset signal
 
@@ -344,9 +357,9 @@ reg             TxDone_wb;
 reg             TxDone_wb_q;
 reg             TxAbort_wb_q;
 reg             TxRetry_wb_q;
-reg             TxDone_wb_q2;
-reg             TxAbort_wb_q2;
-reg             TxRetry_wb_q2;
+reg             TxRetryPacket;
+reg             TxDonePulse_q;
+reg             TxAbortPacket;
 reg             RxBDReady;
 reg             RxReady;
 reg             TxBDReady;
@@ -401,9 +414,6 @@ reg             TxEndFrm_wb;
 wire            TxRetryPulse;
 wire            TxDonePulse;
 wire            TxAbortPulse;
-wire            TxRetryPulse_q;
-wire            TxDonePulse_q;
-wire            TxAbortPulse_q;
 
 wire            StartRxBDRead;
 
@@ -447,6 +457,10 @@ reg RxEn_needed;
 wire StartRxPointerRead;
 reg RxPointerRead; 
 
+`ifdef ETH_WISHBONE_B3
+assign m_wb_bte_o = 2'b00;    // Linear burst
+`endif
+
 
 always @ (posedge WB_CLK_I)
 begin
@@ -459,7 +473,7 @@ assign WB_DAT_O = ram_do;
 eth_spram_256x32 bd_ram (
   .clk(WB_CLK_I), .rst(Reset), .ce(ram_ce), .we(ram_we), .oe(ram_oe), .addr(ram_addr), .di(ram_di), .do(ram_do)
 `ifdef ETH_BIST
-  , .trst(trst), .SO(SO), .SI(SI), .shift_DR(.shift_DR), .capture_DR(capture_DR), .extest(extest), .tck(tck)
+  , .trst(trst), .SO(SO), .SI(SI), .shift_DR(shift_DR), .capture_DR(capture_DR), .extest(extest), .tck(tck)
 `endif
 );
 
@@ -847,12 +861,10 @@ wire TxBufferAlmostFull;
 wire TxBufferFull;
 wire TxBufferEmpty;
 wire TxBufferAlmostEmpty;
-wire ResetReadTxDataFromMemory;
 wire SetReadTxDataFromMemory;
 
 reg BlockReadTxDataFromMemory;
 
-assign ResetReadTxDataFromMemory = (TxLengthEq0) | TxAbortPulse_q | TxRetryPulse_q;
 assign SetReadTxDataFromMemory = TxEn & TxEn_q & TxPointerRead;
 
 always @ (posedge WB_CLK_I or posedge Reset)
@@ -860,7 +872,7 @@ begin
   if(Reset)
     ReadTxDataFromMemory <=#Tp 1'b0;
   else
-  if(ResetReadTxDataFromMemory)
+  if(TxLengthEq0 | TxAbortPacket | TxRetryPacket)
     ReadTxDataFromMemory <=#Tp 1'b0;
   else
   if(SetReadTxDataFromMemory)
@@ -876,16 +888,18 @@ begin
   if(Reset)
     BlockReadTxDataFromMemory <=#Tp 1'b0;
   else
-  if(ReadTxDataFromFifo_wb | ResetReadTxDataFromMemory)
-    BlockReadTxDataFromMemory <=#Tp 1'b0;
-  else
   if((TxBufferAlmostFull | TxLength <= 4)& MasterWbTX)
     BlockReadTxDataFromMemory <=#Tp 1'b1;
+  else
+  if(ReadTxDataFromFifo_wb | TxDonePulse_q | TxAbortPacket | TxRetryPacket)
+    BlockReadTxDataFromMemory <=#Tp 1'b0;
 end
 
 
 
 assign MasterAccessFinished = m_wb_ack_i | m_wb_err_i;
+wire [`ETH_TX_FIFO_CNT_WIDTH-1:0] txfifo_cnt;
+wire [`ETH_RX_FIFO_CNT_WIDTH-1:0] rxfifo_cnt;
 
 // Enabling master wishbone access to the memory for two devices TX and RX.
 always @ (posedge WB_CLK_I or posedge Reset)
@@ -1015,13 +1029,12 @@ end
 
 wire TxFifoClear;
 
-assign TxFifoClear = (TxAbort_wb | TxRetry_wb) & ~TxBDReady;
-wire [4:0] txfifo_cnt;
+assign TxFifoClear = (TxAbortPacket | TxRetryPacket);
 
-eth_fifo #(`TX_FIFO_DATA_WIDTH, `TX_FIFO_DEPTH, `TX_FIFO_CNT_WIDTH)
+eth_fifo #(`ETH_TX_FIFO_DATA_WIDTH, `ETH_TX_FIFO_DEPTH, `ETH_TX_FIFO_CNT_WIDTH)
 tx_fifo ( .data_in(m_wb_dat_i),                             .data_out(TxData_wb), 
           .clk(WB_CLK_I),                                   .reset(Reset), 
-          .write(MasterWbTX & m_wb_ack_i),                  .read(ReadTxDataFromFifo_wb), 
+          .write(MasterWbTX & m_wb_ack_i),                  .read(ReadTxDataFromFifo_wb & ~TxBufferEmpty), 
           .clear(TxFifoClear),                              .full(TxBufferFull), 
           .almost_full(TxBufferAlmostFull),                 .almost_empty(TxBufferAlmostEmpty), 
           .empty(TxBufferEmpty),                            .cnt(txfifo_cnt)
@@ -1213,9 +1226,6 @@ assign TxBDDataIn = {LatchedTxLength, 1'b0, TxStatus, 2'h0, TxStatusInLatched};
 assign TxRetryPulse   = TxRetry_wb   & ~TxRetry_wb_q;
 assign TxDonePulse    = TxDone_wb    & ~TxDone_wb_q;
 assign TxAbortPulse   = TxAbort_wb   & ~TxAbort_wb_q;
-assign TxRetryPulse_q = TxRetry_wb_q & ~TxRetry_wb_q2;
-assign TxDonePulse_q  = TxDone_wb_q  & ~TxDone_wb_q2;
-assign TxAbortPulse_q = TxAbort_wb_q & ~TxAbort_wb_q2;
 
 
 
@@ -1244,25 +1254,73 @@ begin
       TxDone_wb_q   <=#Tp 1'b0;
       TxAbort_wb_q  <=#Tp 1'b0;
       TxRetry_wb_q  <=#Tp 1'b0;
-      TxDone_wb_q2  <=#Tp 1'b0;
-      TxAbort_wb_q2 <=#Tp 1'b0;
-      TxRetry_wb_q2 <=#Tp 1'b0;
+      TxDonePulse_q  <=#Tp 1'b0;
     end
   else
     begin
       TxDone_wb_q   <=#Tp TxDone_wb;
       TxAbort_wb_q  <=#Tp TxAbort_wb;
       TxRetry_wb_q  <=#Tp TxRetry_wb;
-      TxDone_wb_q2  <=#Tp TxDone_wb_q;
-      TxAbort_wb_q2 <=#Tp TxAbort_wb_q;
-      TxRetry_wb_q2 <=#Tp TxRetry_wb_q;
+      TxDonePulse_q  <=#Tp TxDonePulse;
     end
+end
+
+
+reg TxAbortPacketBlocked;
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    TxAbortPacket <=#Tp 1'b0;
+  else
+  if(TxAbort_wb & (!TxAbortPacketBlocked) & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+    TxAbortPacket <=#Tp 1'b1;
+  else
+    TxAbortPacket <=#Tp 1'b0;
+end
+
+
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    TxAbortPacketBlocked <=#Tp 1'b0;
+  else
+  if(TxAbortPacket)
+    TxAbortPacketBlocked <=#Tp 1'b1;
+  else
+  if(!TxAbort_wb & TxAbort_wb_q)
+    TxAbortPacketBlocked <=#Tp 1'b0;
+end
+
+
+reg TxRetryPacketBlocked;
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    TxRetryPacket <=#Tp 1'b0;
+  else
+  if(TxRetry_wb & (!TxRetryPacketBlocked) & (MasterWbTX & MasterAccessFinished | (!MasterWbTX)))
+    TxRetryPacket <=#Tp 1'b1;
+  else
+    TxRetryPacket <=#Tp 1'b0;
+end
+
+
+always @ (posedge WB_CLK_I or posedge Reset)
+begin
+  if(Reset)
+    TxRetryPacketBlocked <=#Tp 1'b0;
+  else
+  if(TxRetryPacket)
+    TxRetryPacketBlocked <=#Tp 1'b1;
+  else
+  if(!TxRetry_wb & TxRetry_wb_q)
+    TxRetryPacketBlocked <=#Tp 1'b0;
 end
 
 
 // Sinchronizing and evaluating tx data
 //assign SetGotData = (TxStartFrm_wb | NewTxDataAvaliable_wb & ~TxAbort_wb & ~TxRetry_wb) & ~WB_CLK_I;
-assign SetGotData = (TxStartFrm_wb); // igor namesto zgornje
+assign SetGotData = (TxStartFrm_wb);
 
 // Evaluating data. If abort or retry occured meanwhile than data is ignored.
 //assign GotDataEvaluate = GotDataSync3 & ~GotData & (~TxRetry & ~TxAbort | (TxRetry | TxAbort) & (TxStartFrm));
@@ -1938,18 +1996,17 @@ end
 
 assign RxFifoReset = SyncRxStartFrm_q & ~SyncRxStartFrm_q2;
 
-wire [4:0] rxfifo_cnt;
 
-eth_fifo #(`RX_FIFO_DATA_WIDTH, `RX_FIFO_DEPTH, `RX_FIFO_CNT_WIDTH)
+eth_fifo #(`ETH_RX_FIFO_DATA_WIDTH, `ETH_RX_FIFO_DEPTH, `ETH_RX_FIFO_CNT_WIDTH)
 rx_fifo (.data_in(RxDataLatched2),                      .data_out(m_wb_dat_o), 
          .clk(WB_CLK_I),                                .reset(Reset), 
-         .write(WriteRxDataToFifo_wb),                  .read(MasterWbRX & m_wb_ack_i), 
+         .write(WriteRxDataToFifo_wb & ~RxBufferFull),  .read(MasterWbRX & m_wb_ack_i), 
          .clear(RxFifoReset),                           .full(RxBufferFull), 
          .almost_full(),                                .almost_empty(RxBufferAlmostEmpty), 
          .empty(RxBufferEmpty),                         .cnt(rxfifo_cnt)
         );
 
-assign WriteRxDataToMemory = ~RxBufferEmpty & ~MasterWbRX;
+assign WriteRxDataToMemory = ~RxBufferEmpty;
 
 
 
@@ -2042,7 +2099,6 @@ begin
   if(Reset)
     RxAbortSync1 <=#Tp 1'b0;
   else
-//    RxAbortSync1 <=#Tp RxAbort;
     RxAbortSync1 <=#Tp RxAbortLatched;
 end
 
