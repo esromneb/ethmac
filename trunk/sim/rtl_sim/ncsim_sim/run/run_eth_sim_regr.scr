@@ -165,13 +165,13 @@ else
 endif
 echo "worklib.ethernet:fun" >> ./ncsim.args
 
-#ncsim -file ./ncsim.args# > /dev/null
-#if ($status != 0) then
+ncsim -file ./ncsim.args# > /dev/null
+if ($status != 0) then
   echo ""
-#  echo "TESTS couldn't start due to Errors!"
+  echo "TESTS couldn't start due to Errors!"
   echo ""
-#  exit
-#else
+  exit
+else
   if ($arg_regression == 1) then
     if ($arg_waves == 1) then
       mv ../out/waves.shm ../out/i${iter}_waves.shm
@@ -190,7 +190,7 @@ echo "worklib.ethernet:fun" >> ./ncsim.args
     mv ../log/eth_tb_wb_s_mon.log ../log/i${iter}_eth_tb_wb_s_mon.log
     mv ../log/eth_tb_wb_m_mon.log ../log/i${iter}_eth_tb_wb_m_mon.log
   endif
-#endif
+endif
 echo "" 
 
 @ iter += 1;
