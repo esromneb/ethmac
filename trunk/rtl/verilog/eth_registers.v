@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.4  2001/10/19 08:43:51  mohor
+// eth_timescale.v changed to timescale.v This is done because of the
+// simulation of the few cores in a one joined project.
+//
 // Revision 1.3  2001/10/18 12:07:11  mohor
 // Status signals changed, Adress decoding changed, interrupt controller
 // added.
@@ -87,7 +91,7 @@ module eth_registers( DataIn, Address, Rw, Cs, Clk, Reset, DataOut, r_DmaEn,
                       r_MiiMRst, r_MiiNoPre, r_ClkDiv, r_WCtrlData, r_RStat, r_ScanStat, 
                       r_RGAD, r_FIAD, r_CtrlData, NValid_stat, Busy_stat, 
                       LinkFail, r_MAC, WCtrlDataStart, RStatStart,
-                      UpdateMIIRX_DATAReg, Prsd, r_RxBDAddress, RX_BD_ADR_Wr, int_o 
+                      UpdateMIIRX_DATAReg, Prsd, r_RxBDNum, RX_BD_NUM_Wr, int_o 
                     );
 
 parameter Tp = 1;
@@ -169,8 +173,8 @@ input Busy_stat;
 input LinkFail;
 
 output [47:0]r_MAC;
-output [7:0] r_RxBDAddress;
-output       RX_BD_ADR_Wr;
+output [7:0] r_RxBDNum;
+output       RX_BD_NUM_Wr;
 output       int_o;
 
 reg          irq_txb;
@@ -200,7 +204,7 @@ wire MIIRX_DATA_Wr  = UpdateMIIRX_DATAReg;
 wire MIISTATUS_Wr   = (Address == `ETH_MIISTATUS_ADR   )  & Write;
 wire MAC_ADDR0_Wr   = (Address == `ETH_MAC_ADDR0_ADR   )  & Write;
 wire MAC_ADDR1_Wr   = (Address == `ETH_MAC_ADDR1_ADR   )  & Write;
-assign RX_BD_ADR_Wr = (Address == `ETH_RX_BD_ADR_ADR   )  & Write;
+assign RX_BD_NUM_Wr = (Address == `ETH_RX_BD_NUM_ADR   )  & Write;
 
 
 
@@ -221,7 +225,7 @@ wire [31:0] MIIRX_DATAOut;
 wire [31:0] MIISTATUSOut;
 wire [31:0] MAC_ADDR0Out;
 wire [31:0] MAC_ADDR1Out;
-wire [31:0] RX_BD_ADROut;
+wire [31:0] RX_BD_NUMOut;
 
 eth_register #(32) MODER       (.DataIn(DataIn), .DataOut(MODEROut),      .Write(MODER_Wr),      .Clk(Clk), .Reset(Reset), .Default(`ETH_MODER_DEF));
 eth_register #(32) INT_MASK    (.DataIn(DataIn), .DataOut(INT_MASKOut),   .Write(INT_MASK_Wr),   .Clk(Clk), .Reset(Reset), .Default(`ETH_INT_MASK_DEF));
@@ -255,8 +259,8 @@ eth_register #(32) MIIRX_DATA  (.DataIn({16'h0, Prsd}),   .DataOut(MIIRX_DATAOut
 eth_register #(32) MAC_ADDR0   (.DataIn(DataIn), .DataOut(MAC_ADDR0Out),  .Write(MAC_ADDR0_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_MAC_ADDR0_DEF));
 eth_register #(32) MAC_ADDR1   (.DataIn(DataIn), .DataOut(MAC_ADDR1Out),  .Write(MAC_ADDR1_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_MAC_ADDR1_DEF));
 
-assign RX_BD_ADROut[31:8] = 24'h0;
-eth_register #(8) RX_BD_ADR   (.DataIn(DataIn[7:0]), .DataOut(RX_BD_ADROut[7:0]), .Write(RX_BD_ADR_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_RX_BD_ADR_DEF));
+assign RX_BD_NUMOut[31:8] = 24'h0;
+eth_register #(8) RX_BD_NUM   (.DataIn(DataIn[7:0]), .DataOut(RX_BD_NUMOut[7:0]), .Write(RX_BD_NUM_Wr),  .Clk(Clk), .Reset(Reset), .Default(`ETH_RX_BD_NUM_DEF));
 
 
 reg LinkFailRegister;
@@ -288,7 +292,7 @@ always @ (Address or Read or MODEROut or INT_SOURCEOut or INT_MASKOut or IPGTOut
           IPGR1Out or IPGR2Out or PACKETLENOut or COLLCONFOut or CTRLMODEROut or 
           MIIMODEROut or MIICOMMANDOut or MIIADDRESSOut or MIITX_DATAOut or 
           MIIRX_DATAOut or MIISTATUSOut or MAC_ADDR0Out or MAC_ADDR1Out or 
-          RX_BD_ADROut)
+          RX_BD_NUMOut)
 begin
   if(Read)  // read
     begin
@@ -310,7 +314,7 @@ begin
         `ETH_MIISTATUS_ADR    :  DataOut<=MIISTATUSOut;
         `ETH_MAC_ADDR0_ADR    :  DataOut<=MAC_ADDR0Out;
         `ETH_MAC_ADDR1_ADR    :  DataOut<=MAC_ADDR1Out;
-        `ETH_RX_BD_ADR_ADR    :  DataOut<=RX_BD_ADROut;
+        `ETH_RX_BD_NUM_ADR    :  DataOut<=RX_BD_NUMOut;
         default:             DataOut<=32'h0;
       endcase
     end
@@ -378,7 +382,7 @@ assign MIISTATUSOut[0]  = LinkFailRegister   ;
 assign r_MAC[31:0]        = MAC_ADDR0Out[31:0];
 assign r_MAC[47:32]       = MAC_ADDR1Out[15:0];
 
-assign r_RxBDAddress[7:0] = RX_BD_ADROut[7:0];
+assign r_RxBDNum[7:0] = RX_BD_NUMOut[7:0];
 
 
 // Interrupt generation
