@@ -421,7 +421,9 @@ begin
         `ifdef VERBOSE
         $fdisplay(phy_log, "   (%0t)(%m)MIIM - 32-bit preamble received", $time);
         `endif
-        if (md_io_reg !== 1'b0)
+        // check start bit only if md_transfer_cnt_reset is inactive, because if
+        // preamble suppression was changed start bit should not be checked
+        if ((md_io_reg !== 1'b0) && (md_transfer_cnt_reset == 1'b0))
         begin
           // ERROR - start !
           `ifdef VERBOSE
