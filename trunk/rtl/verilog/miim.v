@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
 // Revision 1.3  2001/06/01 22:28:56  mohor
 // This files (MIIM) are fully working. They were thoroughly tested. The testbench is not updated.
 //
@@ -99,7 +102,7 @@ output [15:0] Prsd;               // Read Status Data (data read from the PHY)
 
 output        WCtrlDataStart;     // This signals resets the WCTRLDATA bit in the MIIM Command register
 output        RStatStart;         // This signal resets the RSTAT BIT in the MIIM Command register
-output        UpdateMIIRX_DATAReg;// Updates MII RX_DATA register with readed data
+output        UpdateMIIRX_DATAReg;// Updates MII RX_DATA register with read data
 
 parameter Tp = 1;
 
@@ -154,7 +157,7 @@ reg           LatchByte1_d;
 reg           LatchByte0_d;
 reg     [1:0] LatchByte;          // Latch Byte selects which part of Read Status Data is updated from the shift register
 
-reg           UpdateMIIRX_DATAReg;// Updates MII RX_DATA register with readed data
+reg           UpdateMIIRX_DATAReg;// Updates MII RX_DATA register with read data
 
 
 

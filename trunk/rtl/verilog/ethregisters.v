@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
 //
 //
 //
@@ -60,8 +63,8 @@ module ethregisters( DataIn, Address, Rw, Cs, Clk, Reset, DataOut, r_DmaEn,
                      TxB_MASK, r_IPGT, r_IPGR1, r_IPGR2, r_MinFL, r_MaxFL, r_MaxRet, 
                      r_CollValid, r_TxFlow, r_RxFlow, r_PassAll, 
                      r_MiiMRst, r_MiiNoPre, r_ClkDiv, r_WCtrlData, r_RStat, r_ScanStat, 
-                     r_RGAD, r_FIAD, r_CtrlData, r_Prsd,Scan_stat, NValid_stat, Busy_stat, 
-                     Speed_stat, Duplex_stat, LinkFail, r_MAC, WCtrlDataStart, RStatStart,
+                     r_RGAD, r_FIAD, r_CtrlData, NValid_stat, Busy_stat, 
+                     LinkFail, r_MAC, WCtrlDataStart, RStatStart,
                      UpdateMIIRX_DATAReg, Prsd, r_RxBDAddress, RX_BD_ADR_Wr 
                    );
 
@@ -144,13 +147,9 @@ output [4:0] r_FIAD;
 
 output [15:0] r_CtrlData;
 
-output [15:0] r_Prsd;
 
-input Scan_stat;
 input NValid_stat;
 input Busy_stat;
-input Speed_stat;
-input Duplex_stat;
 input LinkFail;
 
 output [47:0] r_MAC;
@@ -362,15 +361,12 @@ assign r_FIAD[4:0]        = MIIADDRESSOut[4:0];
 
 assign r_CtrlData[15:0]   = MIITX_DATAOut[15:0];
 
-assign r_Prsd[15:0]       = MIIRX_DATAOut[15:0];
-
-assign MIISTATUSOut[31:11] = 21'h0           ; 
-assign MIISTATUSOut[10] = Scan_stat          ; 
+assign MIISTATUSOut[31:10] = 22'h0           ; 
 assign MIISTATUSOut[9]  = NValid_stat        ; 
 assign MIISTATUSOut[8]  = Busy_stat          ; 
 assign MIISTATUSOut[7:3]= 5'h0               ; 
-assign MIISTATUSOut[2]  = Speed_stat         ; 
-assign MIISTATUSOut[1]  = Duplex_stat        ; 
+assign MIISTATUSOut[2]  = 1'b0;
+assign MIISTATUSOut[1]  = 1'b0;
 assign MIISTATUSOut[0]  = LinkFailRegister   ; 
 
 assign r_MAC[31:0]        = MAC_ADDR0Out[31:0];

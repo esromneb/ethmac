@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2001/07/30 21:23:42  mohor
+// Directory structure changed. Files checked and joind together.
+//
 //
 //
 //
@@ -128,17 +131,14 @@ wire            r_ScanStat;
 wire            Mdi;
 wire            Mdo;
 wire            MdoEn;
-wire            Mdc;
-wire            Scan_stat;
 wire            NValid_stat;
 wire            Busy_stat;
-wire            Speed_stat;     //kam prideta ta dva signala
-wire            Duplex_stat;
 wire            LinkFail;
 wire            r_MiiMRst;
 wire    [15:0]  Prsd;             // Read Status Data (data read from the PHY)
 wire            WCtrlDataStart;
 wire            RStatStart;
+wire            UpdateMIIRX_DATAReg;
 
 wire            TxStartFrm;
 wire            TxEndFrm;
@@ -158,11 +158,16 @@ miim miim1
   .Clk(WB_CLK_I),                         .Reset(r_MiiMRst),                  .Divider(r_ClkDiv), 
   .NoPre(r_MiiNoPre),                     .CtrlData(r_CtrlData),              .Rgad(r_RGAD), 
   .Fiad(r_FIAD),                          .WCtrlData(r_WCtrlData),            .RStat(r_RStat), 
-  .ScanStat(Scan_stat),                   .Mdi(Mdi),                          .Mdo(Mdo), 
+  .ScanStat(r_ScanStat),                  .Mdi(Mdi),                          .Mdo(Mdo), 
   .MdoEn(MdoEn),                          .Mdc(Mdc),                          .Busy(Busy_stat), 
   .Prsd(Prsd),                            .LinkFail(LinkFail),                .Nvalid(NValid_stat), 
-  .WCtrlDataStart(WCtrlDataStart),        .RStatStart(RStatStart),            .UpdateMIIRX_DATAReg()
+  .WCtrlDataStart(WCtrlDataStart),        .RStatStart(RStatStart),            .UpdateMIIRX_DATAReg(UpdateMIIRX_DATAReg)
 );
+
+
+assign MDIO =  MdoEn & Mdo;
+assign Mdi  = ~MdoEn & MDIO;
+
 
 wire        RegCs;          // Connected to registers
 wire [31:0] RegDataOut;     // Multiplexed to WB_DAT_O
@@ -246,8 +251,7 @@ ethregisters ethreg1
   .r_MiiMRst(r_MiiMRst),                  .r_MiiNoPre(r_MiiNoPre),                    .r_ClkDiv(r_ClkDiv), 
   .r_WCtrlData(r_WCtrlData),              .r_RStat(r_RStat),                          .r_ScanStat(r_ScanStat), 
   .r_RGAD(r_RGAD),                        .r_FIAD(r_FIAD),                            .r_CtrlData(r_CtrlData), 
-  .r_Prsd(),                              .Scan_stat(Scan_stat),                      .NValid_stat(NValid_stat), 
-  .Busy_stat(Busy_stat),                  .Speed_stat(Speed_stat),                    .Duplex_stat(Duplex_stat), 
+  .NValid_stat(NValid_stat),              .Busy_stat(Busy_stat),                   
   .LinkFail(LinkFail),                    .r_MAC(r_MAC),                              .WCtrlDataStart(WCtrlDataStart),
   .RStatStart(RStatStart),                .UpdateMIIRX_DATAReg(UpdateMIIRX_DATAReg),  .Prsd(Prsd), 
   .r_RxBDAddress(r_RxBDAddress),          .RX_BD_ADR_Wr(RX_BD_ADR_Wr)
