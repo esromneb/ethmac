@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.19  2002/02/16 14:03:44  mohor
+// Registered trimmed. Unused registers removed.
+//
 // Revision 1.18  2002/02/16 13:06:33  mohor
 // EXTERNAL_DMA used instead of WISHBONE_DMA.
 //
@@ -132,10 +135,9 @@ module eth_top
 
   // WISHBONE slave
   wb_adr_i, wb_sel_i, wb_we_i, wb_cyc_i, wb_stb_i, wb_ack_o, wb_err_o, 
-  wb_ack_i, 
 
 `ifdef EXTERNAL_DMA
-  wb_req_o, wb_nd_o, wb_rd_o, 
+  wb_ack_i, wb_req_o, wb_nd_o, wb_rd_o, 
 `else
   // WISHBONE master
   m_wb_adr_o, m_wb_sel_o, m_wb_we_o, 
@@ -178,6 +180,7 @@ output          wb_ack_o;     // WISHBONE acknowledge output
 
 `ifdef EXTERNAL_DMA
 // DMA
+input    [1:0]  wb_ack_i;     // DMA acknowledge input
 output   [1:0]  wb_req_o;     // DMA request output
 output   [1:0]  wb_nd_o;      // DMA force new descriptor output
 output          wb_rd_o;      // DMA restart descriptor output
@@ -194,7 +197,6 @@ input           m_wb_ack_i;
 input           m_wb_err_i;
 `endif
 
-input    [1:0]  wb_ack_i;     // DMA acknowledge input
 
 // Tx
 input           mtx_clk_pad_i; // Transmit clock (from PHY)

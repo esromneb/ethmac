@@ -41,6 +41,10 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2002/02/15 17:07:39  mohor
+// Status was not written correctly when frames were discarted because of
+// address mismatch.
+//
 // Revision 1.6  2002/02/11 09:18:21  mohor
 // Tx status is written back to the BD.
 //
@@ -308,7 +312,6 @@ end
 
 
 reg ReceivedPacketTooBig;
-assign ReceivedLengthOK = RxByteCnt[15:0] > 63 & RxByteCnt[15:0] < 1519;
 always @ (posedge MRxClk or posedge Reset)
 begin
   if(Reset)
