@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/02/22 12:56:35  mohor
+// Retry is not activated when a Tx Underrun occured
+//
 // Revision 1.5  2002/02/11 09:18:22  mohor
 // Tx status is written back to the BD.
 //
@@ -153,7 +156,6 @@ reg [3:0] MTxD_d;
 reg StatusLatch;
 reg PacketFinished_q;
 reg PacketFinished;
-reg [3:0] RetryCntLatched;
 
 
 wire ExcessiveDeferOccured;
