@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.8  2001/12/05 10:45:59  mohor
+// ETH_RX_BD_ADR register deleted. ETH_RX_BD_NUM is used instead.
+//
 // Revision 1.7  2001/11/13 14:23:56  mohor
 // Generic memory model is used. Defines are changed for the same reason.
 //
@@ -106,7 +109,7 @@ module eth_wishbonedma
     MRxClk, RxData, RxValid, RxStartFrm, RxEndFrm, 
     
     // Register
-    r_TxEn, r_RxEn, r_RxBDNum, r_DmaEn, RX_BD_NUM_Wr, 
+    r_TxEn, r_RxEn, r_TxBDNum, r_DmaEn, TX_BD_NUM_Wr, 
 
     WillSendControlFrame, TxCtrlEndFrm, 
     
@@ -165,9 +168,9 @@ input           RxEndFrm;       //
 //Register
 input           r_TxEn;         // Transmit enable
 input           r_RxEn;         // Receive enable
-input   [7:0]   r_RxBDNum;      // Receive buffer descriptor number
+input   [7:0]   r_TxBDNum;      // Receive buffer descriptor number
 input           r_DmaEn;        // DMA enable
-input           RX_BD_NUM_Wr;   // RxBDNumber written
+input           TX_BD_NUM_Wr;   // RxBDNumber written
 
 // Interrupts
 output TxB_IRQ;
@@ -783,7 +786,7 @@ assign WrapRxStatusBit = RxStatus[13];
 
 // Temporary Tx and Rx buffer descriptor address 
 assign TempTxBDAddress[7:0] = {8{ TxStatusWrite    & ~WrapTxStatusBit}} & (TxBDAddress + 1) ; // Tx BD increment or wrap (last BD)
-assign TempRxBDAddress[7:0] = {8{ WrapRxStatusBit}} & (r_RxBDNum)       | // Using first Rx BD
+assign TempRxBDAddress[7:0] = {8{ WrapRxStatusBit}} & (r_TxBDNum)       | // Using first Rx BD
                               {8{~WrapRxStatusBit}} & (RxBDAddress + 1) ; // Using next Rx BD (incremenrement address)
 
 
@@ -804,7 +807,7 @@ begin
   if(WB_RST_I)
     RxBDAddress <=#Tp 8'h0;
   else
-  if(RX_BD_NUM_Wr)                        // When r_RxBDNum is updated, RxBDAddress is also
+  if(TX_BD_NUM_Wr)                        // When r_TxBDNum is updated, RxBDAddress is also
     RxBDAddress <=#Tp WB_DAT_I[7:0];
   else
   if(RxStatusWrite)

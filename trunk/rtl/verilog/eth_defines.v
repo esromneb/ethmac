@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.5  2001/12/05 10:21:37  mohor
+// ETH_RX_BD_ADR register deleted. ETH_RX_BD_NUM is used instead.
+//
 // Revision 1.4  2001/11/13 14:23:56  mohor
 // Generic memory model is used. Defines are changed for the same reason.
 //
@@ -91,7 +94,7 @@
 `define ETH_IPGR2_ADR         6'h5    // 0x14
 `define ETH_PACKETLEN_ADR     6'h6    // 0x18
 `define ETH_COLLCONF_ADR      6'h7    // 0x1C
-`define ETH_RX_BD_NUM_ADR     6'h8    // 0x20
+`define ETH_TX_BD_NUM_ADR     6'h8    // 0x20
 `define ETH_CTRLMODER_ADR     6'h9    // 0x24
 `define ETH_MIIMODER_ADR      6'hA    // 0x28
 `define ETH_MIICOMMAND_ADR    6'hB    // 0x2C
@@ -122,4 +125,4 @@
 `define ETH_MAC_ADDR0_DEF     32'h00000000
 `define ETH_MAC_ADDR1_DEF     32'h00000000
 
-`define ETH_RX_BD_NUM_DEF     8'h80
+`define ETH_TX_BD_NUM_DEF     8'h80

@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.7  2001/12/05 10:45:59  mohor
+// ETH_RX_BD_ADR register deleted. ETH_RX_BD_NUM is used instead.
+//
 // Revision 1.6  2001/10/19 11:24:29  mohor
 // Number of addresses (wb_adr_i) minimized.
 //
@@ -221,7 +224,7 @@ wire [15:0] r_MaxFL;        // Maximum frame length
 wire [15:0] r_MinFL;        // Minimum frame length
 wire [47:0] r_MAC;          // MAC address
 
-wire  [7:0] r_RxBDNum;      // Receive buffer descriptor number
+wire  [7:0] r_TxBDNum;      // Receive buffer descriptor number
 wire  [6:0] r_IPGT;         // 
 wire  [6:0] r_IPGR1;        // 
 wire  [6:0] r_IPGR2;        // 
@@ -231,7 +234,7 @@ wire        r_TPauseRq;     // Transmit PAUSE request pulse
 wire  [3:0] r_MaxRet;       //
 wire        r_NoBckof;      // 
 wire        r_ExDfrEn;      // 
-wire        RX_BD_NUM_Wr;   // Write enable that writes RX_BD_NUM to the registers.
+wire        TX_BD_NUM_Wr;   // Write enable that writes RX_BD_NUM to the registers.
 wire        TPauseRq;       // Sinhronized Tx PAUSE request
 wire [15:0] TxPauseTV;      // Tx PAUSE timer value
 wire        r_TxFlow;       // Tx flow control enable
@@ -283,7 +286,7 @@ eth_registers ethreg1
   .NValid_stat(NValid_stat),              .Busy_stat(Busy_stat),                   
   .LinkFail(LinkFail),                    .r_MAC(r_MAC),                              .WCtrlDataStart(WCtrlDataStart),
   .RStatStart(RStatStart),                .UpdateMIIRX_DATAReg(UpdateMIIRX_DATAReg),  .Prsd(Prsd), 
-  .r_RxBDNum(r_RxBDNum),                  .RX_BD_NUM_Wr(RX_BD_NUM_Wr),                .int_o(int_o)
+  .r_TxBDNum(r_TxBDNum),                  .TX_BD_NUM_Wr(TX_BD_NUM_Wr),                .int_o(int_o)
 );
 
 
@@ -508,8 +511,8 @@ eth_wishbonedma wbdma
   .TxCtrlEndFrm(TxCtrlEndFrm), 
 
   // Register
-  .r_TxEn(r_TxEn),                    .r_RxEn(r_RxEn),                          .r_RxBDNum(r_RxBDNum), 
-  .r_DmaEn(r_DmaEn),                  .RX_BD_NUM_Wr(RX_BD_NUM_Wr), 
+  .r_TxEn(r_TxEn),                    .r_RxEn(r_RxEn),                          .r_TxBDNum(r_TxBDNum), 
+  .r_DmaEn(r_DmaEn),                  .TX_BD_NUM_Wr(TX_BD_NUM_Wr), 
 
   //RX
   .MRxClk(mrx_clk_pad_i),             .RxData(RxData),                          .RxValid(RxValid), 
