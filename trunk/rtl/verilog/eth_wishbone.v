@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.43  2002/10/18 20:53:34  mohor
+// case changed to casex.
+//
 // Revision 1.42  2002/10/18 17:04:20  tadejm
 // Changed BIST scan signals.
 //
@@ -2387,7 +2390,10 @@ wire TxError;
 assign TxError = TxUnderRun | RetryLimit | LateCollLatched | CarrierSenseLost;
 
 wire RxError;
-assign RxError = |RxStatusInLatched[6:0];
+
+// ShortFrame (RxStatusInLatched[2]) can not set an error because short frames
+// are aborted when signal r_RecSmall is set to 0 in MODER register.
+assign RxError = (|RxStatusInLatched[6:3]) | (|RxStatusInLatched[1:0]);
 
 // Tx Done Interrupt
 always @ (posedge WB_CLK_I or posedge Reset)
