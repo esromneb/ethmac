@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.46  2003/01/30 13:30:22  tadejm
+// Defer indication changed.
+//
 // Revision 1.45  2003/01/22 13:49:26  tadejm
 // When control packets were received, they were ignored in some cases.
 //
@@ -571,8 +574,8 @@ reg Collision_Tx1;
 reg Collision_Tx2;
 
 reg RxEnSync;                 // Synchronized Receive Enable
-reg CarrierSense_Rx1;
-reg RxCarrierSense;           // Synchronized CarrierSense (to Rx clock)
+//reg CarrierSense_Rx1;
+//reg RxCarrierSense;           // Synchronized CarrierSense (to Rx clock)
 reg WillTransmit_q;
 reg WillTransmit_q2;
 
@@ -684,19 +687,19 @@ assign Collision = ~r_FullD & Collision_Tx2;
 
 
 // Carrier sense is synchronized to receive clock.
-always @ (posedge mrx_clk_pad_i or posedge wb_rst_i)
-begin
-  if(wb_rst_i)
-    begin
-      CarrierSense_Rx1 <= #Tp 1'h0;
-      RxCarrierSense <= #Tp 1'h0;
-    end
-  else
-    begin
-      CarrierSense_Rx1 <= #Tp mcrs_pad_i;
-      RxCarrierSense <= #Tp CarrierSense_Rx1;
-    end
-end
+//always @ (posedge mrx_clk_pad_i or posedge wb_rst_i)
+//begin
+//  if(wb_rst_i)
+//    begin
+//      CarrierSense_Rx1 <= #Tp 1'h0;
+//      RxCarrierSense <= #Tp 1'h0;
+//    end
+//  else
+//    begin
+//      CarrierSense_Rx1 <= #Tp mcrs_pad_i;
+//      RxCarrierSense <= #Tp CarrierSense_Rx1;
+//    end
+//end
 
 
 // Delayed WillTransmit
@@ -717,7 +720,8 @@ begin
   if(wb_rst_i)
     RxEnSync <= #Tp 1'b0;
   else
-  if(~RxCarrierSense | RxCarrierSense & Transmitting)
+  //if(~RxCarrierSense | RxCarrierSense & Transmitting)
+  if(~mrxdv_pad_i)
     RxEnSync <= #Tp r_RxEn;
 end 
 
