@@ -8,12 +8,12 @@
 ////  Author(s):                                                  ////
 ////      - Igor Mohor (igorM@opencores.org)                      ////
 ////                                                              ////
-////  All additional information is avaliable in the Readme.txt   ////
+////  All additional information is available in the Readme.txt   ////
 ////  file.                                                       ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2001 Authors                                   ////
+//// Copyright (C) 2001, 2002 Authors                             ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -41,6 +41,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.31  2002/09/12 14:50:17  mohor
+// CarrierSenseLost bug fixed when operating in full duplex mode.
+//
 // Revision 1.30  2002/09/10 10:35:23  mohor
 // Ethernet debug registers removed.
 //
@@ -346,6 +349,8 @@ wire        DWord;
 wire        BDAck;
 wire [31:0] BD_WB_DAT_O;    // wb_dat_o that comes from the Wishbone module (for buffer descriptors read/write)
 wire        BDCs;           // Buffer descriptor CS
+wire        CsMiss;         // When access to the address between 0x800 and 0xfff occurs, acknowledge is set
+                            // but data is not valid.
 
 wire        temp_wb_ack_o;
 wire [31:0] temp_wb_dat_o;
@@ -360,9 +365,10 @@ wire        temp_wb_err_o;
 assign DWord = &wb_sel_i;
 assign RegCs = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] & ~wb_adr_i[10];   // 0x0   - 0x3FF
 assign BDCs  = wb_stb_i & wb_cyc_i & DWord & ~wb_adr_i[11] &  wb_adr_i[10];   // 0x400 - 0x7FF
+assign CsMiss = wb_stb_i & wb_cyc_i & DWord & wb_adr_i[11];                   // 0x800 - 0xfFF
 assign temp_wb_ack_o = RegCs | BDAck;
 assign temp_wb_dat_o = (RegCs & ~wb_we_i)? RegDataOut : BD_WB_DAT_O;
-assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~DWord | BDCs & r_Rst);
+assign temp_wb_err_o = wb_stb_i & wb_cyc_i & (~DWord | BDCs & r_Rst | CsMiss);
 
 `ifdef ETH_REGISTERED_OUTPUTS
   assign wb_ack_o = temp_wb_ack_o_reg;
