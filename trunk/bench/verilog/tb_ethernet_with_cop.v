@@ -41,6 +41,11 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.1  2002/09/18 16:40:40  mohor
+// Simple testbench that includes eth_cop, eth_host and eth_memory modules.
+// This testbench is used for testing the whole environment. Use tb_ethernet
+// testbench for testing just the ethernet MAC core (many tests).
+//
 //
 //
 //
@@ -106,6 +111,12 @@ wire [31:0] eth_ma_wb_adr_o, eth_ma_wb_dat_i, eth_ma_wb_dat_o;
 wire  [3:0] eth_ma_wb_sel_o;
 wire        eth_ma_wb_we_o, eth_ma_wb_cyc_o, eth_ma_wb_stb_o, eth_ma_wb_ack_i, eth_ma_wb_err_i;
 
+`ifdef ETH_WISHBONE_B3
+wire  [2:0] eth_ma_wb_cti_o;
+wire  [1:0] eth_ma_wb_bte_o;
+`endif
+
+
 // Host Master Interface signals
 wire [31:0] host_ma_wb_adr_o, host_ma_wb_dat_i, host_ma_wb_dat_o;
 wire  [3:0] host_ma_wb_sel_o;
@@ -158,6 +169,10 @@ eth_top ethtop
   .m_wb_dat_i(eth_ma_wb_dat_i),     .m_wb_dat_o(eth_ma_wb_dat_o), .m_wb_cyc_o(eth_ma_wb_cyc_o), 
   .m_wb_stb_o(eth_ma_wb_stb_o),     .m_wb_ack_i(eth_ma_wb_ack_i), .m_wb_err_i(eth_ma_wb_err_i), 
 
+`ifdef ETH_WISHBONE_B3
+  .m_wb_cti_o(eth_ma_wb_cti_o),     .m_wb_bte_o(eth_ma_wb_bte_o), 
+`endif
+
   //TX
   .mtx_clk_pad_i(mtx_clk), .mtxd_pad_o(MTxD), .mtxen_pad_o(MTxEn), .mtxerr_pad_o(MTxErr),
 
@@ -169,6 +184,12 @@ eth_top ethtop
   .mdc_pad_o(Mdc_O), .md_pad_i(Mdi_I), .md_pad_o(Mdo_O), .md_padoe_o(Mdo_OE),
   
   .int_o()
+
+  // Bist
+`ifdef ETH_BIST
+  , .trst(1'b0), .SO(), .SI(1'b0), .shift_DR(1'b0), .capture_DR(1'b0), .extest(1'b0), .tck(1'b0)
+`endif
+  
 );
 
 
@@ -234,7 +255,8 @@ end
 initial
 begin
   wb_clk_o=0;
-  forever #20 wb_clk_o = ~wb_clk_o;  // 2*20 ns -> 25 MHz    
+//  forever #20 wb_clk_o = ~wb_clk_o;  // 2*20 ns -> 25 MHz    
+  forever #12.5 wb_clk_o = ~wb_clk_o;  // 2*12.5 ns -> 40 MHz    
 end
 
 // Generating mtx_clk clock
@@ -263,37 +285,52 @@ begin
   eth_host.wb_write(`ETH_MAC_ADDR0, 4'hf, 32'h03040506); // Set ETH_MAC_ADDR0 register
 
   initialize_txbd(3);
-  initialize_rxbd(2);
+  initialize_rxbd(4);
 
 //  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | `ETH_MODER_PRO | 
 //                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD); // Set MODER register
 //  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | 
 //                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD); // Set MODER register
-  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | `ETH_MODER_BRO | 
-                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD); // Set MODER register
+//  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | `ETH_MODER_BRO | 
+//                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD); // Set MODER register
 //  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | `ETH_MODER_PRO | 
 //                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD | `ETH_MODER_LOOPBCK); // Set MODER register
-//  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | `ETH_MODER_PRO | 
-//                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD | `ETH_MODER_LOOPBCK | 
-//                                      `ETH_MODER_FULLD); // Set MODER register
+  eth_host.wb_write(`ETH_MODER, 4'hf, `ETH_MODER_RXEN  | `ETH_MODER_TXEN | `ETH_MODER_PRO | 
+                                      `ETH_MODER_CRCEN | `ETH_MODER_PAD | `ETH_MODER_LOOPBCK | 
+                                      `ETH_MODER_FULLD); // Set MODER register
   eth_host.wb_read(`ETH_MODER, 4'hf, tmp);
 
-  set_packet(16'h64, 8'h1);
-  set_packet(16'h34, 8'h11);
+  set_packet(16'h364, 8'h1);
+  set_packet(16'h234, 8'h11);
   send_packet;
-  set_packet(16'h34, 8'h21);
-  set_packet(16'h34, 8'h31);
+  repeat (1000) @(posedge mrx_clk);   // Waiting for TxEthMac to finish transmit
+
+//  repeat (10000) @(posedge wb_clk_o);   // Waiting for TxEthMac to finish transmit
+  set_packet(16'h534, 8'h21);
+//  set_packet(16'h34, 8'h31);
+
 /*
   eth_host.wb_write(`ETH_CTRLMODER, 4'hf, 32'h4);   // Enable Tx Flow control
   eth_host.wb_write(`ETH_CTRLMODER, 4'hf, 32'h5);   // Enable Tx Flow control
   eth_host.wb_write(`ETH_TX_CTRL, 4'hf, 32'h10013); // Send Control frame with PAUSE_TV=0x0013
 */
+
   send_packet;
+  repeat (1000) @(posedge mrx_clk);   // Waiting for TxEthMac to finish transmit
+  send_packet;
+  repeat (1000) @(posedge mrx_clk);   // Waiting for TxEthMac to finish transmit
+
+/*
+  send_packet;
+*/
 
 
-  GetDataOnMRxD(100, `UNICAST_XFR); // LengthRx bytes is comming on MRxD[3:0] signals
+  repeat (10000) @(posedge wb_clk_o);   // Waiting for TxEthMac to finish transmit
 
-  repeat (1000) @(posedge wb_clk_o);   // Waiting for TxEthMac to finish transmit
+/*
+  GetDataOnMRxD(113, `UNICAST_XFR); // LengthRx bytes is comming on MRxD[3:0] signals
+
+  repeat (10000) @(posedge wb_clk_o);   // Waiting for TxEthMac to finish transmit
 
   GetDataOnMRxD(500, `BROADCAST_XFR); // LengthRx bytes is comming on MRxD[3:0] signals
 
@@ -307,6 +344,7 @@ begin
 
   repeat (10000) @(posedge wb_clk_o);   // Waiting for TxEthMac to finish transmit
   
+*/
   // Reading and printing interrupts
   eth_host.wb_read(`ETH_INT, 4'hf, tmp);
   $display("Print irq = 0x%0x", tmp);
@@ -325,6 +363,51 @@ begin
 
 end
   
+
+`ifdef ETH_WISHBONE_B3
+
+integer single_cnt_tx, burst_cnt_tx, burst_cnt;
+integer single_cnt_rx, burst_cnt_rx;
+
+initial
+begin
+single_cnt_tx=0; burst_cnt_tx=0; burst_cnt=0;
+single_cnt_rx=0; burst_cnt_rx=0;
+end
+
+// Single and burst cycle watcher
+always @ (posedge wb_clk_o)
+begin
+  if(eth_ma_wb_ack_i) begin
+    if(eth_ma_wb_cyc_o & eth_ma_wb_we_o & eth_ma_wb_cti_o==3'b000) begin
+      if(burst_cnt!==0)
+        $display("(%0t)(%m) ERROR !!!  burst_cnt should be 0 because this is a single access", $time);
+      else
+        single_cnt_rx=single_cnt_rx+1;
+    end
+    else if(eth_ma_wb_cyc_o & !eth_ma_wb_we_o & eth_ma_wb_cti_o==3'b000) begin
+      if(burst_cnt!==0)
+        $display("(%0t)(%m) ERROR !!!  burst_cnt should be 0 because this is a single access", $time);
+      else
+        single_cnt_tx=single_cnt_tx+1;
+    end
+    else if(eth_ma_wb_cyc_o & eth_ma_wb_cti_o==3'b010) begin // burst in progress
+      burst_cnt=burst_cnt+1;
+    end
+    else if(eth_ma_wb_cyc_o & eth_ma_wb_we_o & eth_ma_wb_cti_o==3'b111 & burst_cnt==(`ETH_BURST_LENGTH-1)) begin
+      burst_cnt_rx=burst_cnt_rx+1;
+      burst_cnt=0;
+    end
+    else if(eth_ma_wb_cyc_o & !eth_ma_wb_we_o & eth_ma_wb_cti_o==3'b111 & burst_cnt==(`ETH_BURST_LENGTH-1)) begin
+      burst_cnt_tx=burst_cnt_tx+1;
+      burst_cnt=0;
+    end
+    else
+      $display("(%0t)(%m) ERROR !!!  Unknown cycle type or sequence", $time);
+  end
+end
+`endif  // ETH_WISHBONE_B3
+
 
 
 task initialize_txbd;
