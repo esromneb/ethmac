@@ -1,3 +1,26 @@
+
+
+
+
+
+
+
+
+Please use tb_ethernet.v for testbench. Testbench will soon be 
+updated.
+
+
+
+
+
+
+
+
+
+
+
+
+
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
 ////  tb_eth_top.v                                                ////
@@ -41,6 +64,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.13  2002/05/03 10:25:01  mohor
+// Testbench supports unaligned accesses.
+//
 // Revision 1.12  2002/02/26 17:01:09  mohor
 // Small fixes for external/internal DMA missmatches.
 //
@@ -123,11 +149,6 @@ wire          WB_ACK_O;
 wire          WB_ERR_O;
 reg    [1:0]  WB_ACK_I;
 
-`ifdef EXTERNAL_DMA
-wire   [1:0]  WB_REQ_O;
-wire   [1:0]  WB_ND_O;
-wire          WB_RD_O;
-`else
 // WISHBONE master
 wire    [31:0]    m_wb_adr_o;
 wire     [3:0]    m_wb_sel_o;
@@ -138,7 +159,6 @@ wire              m_wb_cyc_o;
 wire              m_wb_stb_o;
 reg               m_wb_ack_i;
 reg               m_wb_err_i;
-`endif
 
 reg           MTxClk;
 wire   [3:0]  MTxD;
@@ -170,11 +190,10 @@ reg [9:0] RxBDIndex;
 
 reg LogEnable;
 
-`ifdef EXTERNAL_DMA
-`else
   integer mcd1;
   integer mcd2;
-`endif
+
+reg [5:0] g_last_txbd;
 
 // Connecting Ethernet top module
 
@@ -187,21 +206,45 @@ eth_top ethtop
  	.wb_adr_i(WB_ADR_I[11:2]), .wb_sel_i(WB_SEL_I), .wb_we_i(WB_WE_I),   .wb_cyc_i(WB_CYC_I), 
  	.wb_stb_i(WB_STB_I),       .wb_ack_o(WB_ACK_O), .wb_err_o(WB_ERR_O), 
  	
-`ifdef EXTERNAL_DMA
- 	.wb_ack_i(WB_ACK_I), .wb_req_o(WB_REQ_O), .wb_nd_o(WB_ND_O),   .wb_rd_o(WB_RD_O), 
-`else
 // WISHBONE master
   .m_wb_adr_o(m_wb_adr_o), .m_wb_sel_o(m_wb_sel_o), .m_wb_we_o(m_wb_we_o), .m_wb_dat_i(m_wb_dat_i), 
   .m_wb_dat_o(m_wb_dat_o), .m_wb_cyc_o(m_wb_cyc_o), .m_wb_stb_o(m_wb_stb_o), .m_wb_ack_i(m_wb_ack_i), 
   .m_wb_err_i(m_wb_err_i), 
-`endif
 
   //TX
   .mtx_clk_pad_i(MTxClk), .mtxd_pad_o(MTxD), .mtxen_pad_o(MTxEn), .mtxerr_pad_o(MTxErr),
 
   //RX
   .mrx_clk_pad_i(MRxClk), .mrxd_pad_i(MRxD), .mrxdv_pad_i(MRxDV), .mrxerr_pad_i(MRxErr), 
-  .mcoll_pad_i(MColl), .mcrs_pad_i(MCrs), 
+  .mcoll_pad_i(MColl),    .mcrs_pad_i(MCrs), 
+  
+  // MIIM
+  .mdc_pad_o(Mdc_O), .md_pad_i(Mdi_I), .md_pad_o(Mdo_O), .md_padoe_o(Mdo_OE),
+  
+  .int_o()
+);
+
+
+bench_cop i_bench_cop
+(
+  // WISHBONE common
+  .wb_clk_i(WB_CLK_I), .wb_rst_i(WB_RST_I), .wb_dat_i(WB_DAT_I), .wb_dat_o(WB_DAT_O), 
+
+  // WISHBONE slave
+ 	.wb_adr_i(WB_ADR_I[11:2]), .wb_sel_i(WB_SEL_I), .wb_we_i(WB_WE_I),   .wb_cyc_i(WB_CYC_I), 
+ 	.wb_stb_i(WB_STB_I),       .wb_ack_o(WB_ACK_O), .wb_err_o(WB_ERR_O), 
+ 	
+// WISHBONE master
+  .m_wb_adr_o(m_wb_adr_o), .m_wb_sel_o(m_wb_sel_o), .m_wb_we_o(m_wb_we_o), .m_wb_dat_i(m_wb_dat_i), 
+  .m_wb_dat_o(m_wb_dat_o), .m_wb_cyc_o(m_wb_cyc_o), .m_wb_stb_o(m_wb_stb_o), .m_wb_ack_i(m_wb_ack_i), 
+  .m_wb_err_i(m_wb_err_i), 
+
+  //TX
+  .mtx_clk_pad_i(MTxClk), .mtxd_pad_o(MTxD), .mtxen_pad_o(MTxEn), .mtxerr_pad_o(MTxErr),
+
+  //RX
+  .mrx_clk_pad_i(MRxClk), .mrxd_pad_i(MRxD), .mrxdv_pad_i(MRxDV), .mrxerr_pad_i(MRxErr), 
+  .mcoll_pad_i(MColl),    .mcrs_pad_i(MCrs), 
   
   // MIIM
   .mdc_pad_o(Mdc_O), .md_pad_i(Mdi_I), .md_pad_o(Mdo_O), .md_padoe_o(Mdo_OE),
@@ -225,12 +268,8 @@ begin
   WB_CYC_I  =  1'b0;
   WB_STB_I  =  1'b0;
 
-`ifdef EXTERNAL_DMA
-  WB_ACK_I  =  2'h0;
-`else
   m_wb_ack_i = 0;
   m_wb_err_i = 0;
-`endif
   MTxClk    =  1'b0;
   MRxClk    =  1'b0;
   MRxD      =  4'h0;
@@ -244,17 +283,15 @@ begin
   TxBDIndex = 10'h0;
   RxBDIndex = 10'h0;
   LogEnable = 1'b1;
+  g_last_txbd = 6'h0;
 end
 
 
 // Reset pulse
 initial
 begin
-`ifdef EXTERNAL_DMA
-`else
   mcd1 = $fopen("ethernet_tx.log");
   mcd2 = $fopen("ethernet_rx.log");
-`endif
   WB_RST_I =  1'b1;
   #100 WB_RST_I =  1'b0;
   #100 StartTB  =  1'b1;
@@ -268,8 +305,9 @@ begin
 //  forever #2.5 WB_CLK_I = ~WB_CLK_I;  // 2*2.5 ns -> 200.0 MHz    
 //  forever #5 WB_CLK_I = ~WB_CLK_I;  // 2*5 ns -> 100.0 MHz    
 //  forever #10 WB_CLK_I = ~WB_CLK_I;  // 2*10 ns -> 50.0 MHz    
+  forever #12.5 WB_CLK_I = ~WB_CLK_I;  // 2*12.5 ns -> 40 MHz    
 //  forever #15 WB_CLK_I = ~WB_CLK_I;  // 2*10 ns -> 33.3 MHz    
-  forever #18 WB_CLK_I = ~WB_CLK_I;  // 2*18 ns -> 27.7 MHz    
+//  forever #20 WB_CLK_I = ~WB_CLK_I;  // 2*20 ns -> 25 MHz    
 //  forever #25 WB_CLK_I = ~WB_CLK_I;  // 2*25 ns -> 20.0 MHz
 //  forever #31.25 WB_CLK_I = ~WB_CLK_I;  // 2*31.25 ns -> 16.0 MHz    
 //  forever #50 WB_CLK_I = ~WB_CLK_I;  // 2*50 ns -> 10.0 MHz
@@ -287,412 +325,10 @@ end
 always
 begin
 //  #16 forever #20 MRxClk = ~MRxClk;   // 2*20 ns -> 25 MHz
-//  #16 forever #200 MRxClk = ~MRxClk;   // 2*200 ns -> 2.5 MHz
-  #16 forever #62.5 MRxClk = ~MRxClk;   // 2*62.5 ns -> 8 MHz       // just for testing purposes
+  #16 forever #200 MRxClk = ~MRxClk;   // 2*200 ns -> 2.5 MHz
+//  #16 forever #62.5 MRxClk = ~MRxClk;   // 2*62.5 ns -> 8 MHz       // just for testing purposes
 end
 
-`ifdef EXTERNAL_DMA
-initial
-begin
-  wait(StartTB);  // Start of testbench
-  
-  WishboneWrite(32'h00000800, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 1
-  WishboneWrite(32'h00000000, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 0
-  WishboneWrite(32'h00000080, {26'h0, `ETH_TX_BD_NUM_ADR<<2}); // r_RxBDAddress = 0x80
-  WishboneWrite(32'h0002A443, {26'h0, `ETH_MODER_ADR<<2});     // RxEn, Txen, FullD, CrcEn, Pad, DmaEn, r_IFG
-  WishboneWrite(32'h00000004, {26'h0, `ETH_CTRLMODER_ADR<<2}); //r_TxFlow = 1
-
-  SendPacket(16'h0015, 1'b0);
-  SendPacket(16'h0043, 1'b1);   // Control frame
-  SendPacket(16'h0025, 1'b0);
-  SendPacket(16'h0045, 1'b0);
-  SendPacket(16'h0025, 1'b0);
-
-  ReceivePacket(16'h0012, 1'b1);    // Initializes RxBD and then Sends a control packet on the MRxD[3:0] signals.
-  ReceivePacket(16'h0011, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
-  ReceivePacket(16'h0016, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
-  ReceivePacket(16'h0017, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
-  ReceivePacket(16'h0018, 1'b0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
-
-
-  WishboneRead({26'h0, `ETH_MODER_ADR});   // Read from MODER register
-
-  WishboneRead({24'h04, (8'h0<<2)});       // Read from TxBD register
-  WishboneRead({24'h04, (8'h1<<2)});       // Read from TxBD register
-  WishboneRead({24'h04, (8'h2<<2)});       // Read from TxBD register
-  WishboneRead({24'h04, (8'h3<<2)});       // Read from TxBD register
-  WishboneRead({24'h04, (8'h4<<2)});       // Read from TxBD register
-    
-  WishboneRead({22'h01, (10'h80<<2)});       // Read from RxBD register
-  WishboneRead({22'h01, (10'h81<<2)});       // Read from RxBD register
-  WishboneRead({22'h01, (10'h82<<2)});       // Read from RxBD register
-  WishboneRead({22'h01, (10'h83<<2)});       // Read from RxBD register
-  WishboneRead({22'h01, (10'h84<<2)});       // Read from RxBD register
-
-  #10000 $stop;
-end
-
-
-
-
-
-
-
-task WishboneWrite;
-  input [31:0] Data;
-  input [31:0] Address;
-  integer ii;
-
-  begin
-    wait (~WishboneBusy);
-    WishboneBusy = 1;
-    @ (posedge WB_CLK_I);
-    #1;
-    WB_ADR_I = Address;
-    WB_DAT_I = Data;
-    WB_WE_I  = 1'b1;
-    WB_CYC_I = 1'b1;
-    WB_STB_I = 1'b1;
-    WB_SEL_I = 4'hf;
-
-    wait(WB_ACK_O);   // waiting for acknowledge response
-
-    // Writing information about the access to the screen
-    @ (posedge WB_CLK_I);
-      if(~Address[11] & ~Address[10])
-        $write("\nWrite to register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address);
-      else
-      if(~Address[11] & Address[10])
-        if(Address[9:2] < tb_eth_top.ethtop.r_TxBDNum)
-          begin
-            $write("\nWrite to TxBD (Data: 0x%x, TxBD Addr: 0x%0x)\n", Data, Address);
-            if(Data[9])
-              $write("Send Control packet (PAUSE = 0x%0h)\n", Data[31:16]);
-          end
-        else
-          $write("\nWrite to RxBD (Data: 0x%x, RxBD Addr: 0x%0x)", Data, Address);
-      else
-        $write("\nWB write ??????????????     Data: 0x%x      Addr: 0x%0x", Data, Address);
-    #1;
-    WB_ADR_I = 32'hx;
-    WB_DAT_I = 32'hx;
-    WB_WE_I  = 1'bx;
-    WB_CYC_I = 1'b0;
-    WB_STB_I = 1'b0;
-    WB_SEL_I = 4'hx;
-    #5 WishboneBusy = 0;
-  end
-endtask
-
-
-task WishboneRead;
-  input [31:0] Address;
-  reg   [31:0] Data;
-  integer ii;
-
-  begin
-    wait (~WishboneBusy);
-    WishboneBusy = 1;
-    @ (posedge WB_CLK_I);
-    #1;
-    WB_ADR_I = Address;
-    WB_WE_I  = 1'b0;
-    WB_CYC_I = 1'b1;
-    WB_STB_I = 1'b1;
-    WB_SEL_I = 4'hf;
-
-    for(ii=0; (ii<20 & ~WB_ACK_O); ii=ii+1)   // Response on the WISHBONE is limited to 20 WB_CLK_I cycles
-    begin
-      @ (posedge WB_CLK_I);
-      Data = WB_DAT_O;
-    end
-
-    if(ii==20)
-      begin
-        $display("\nERROR: Task WishboneRead(Address=0x%0h): Too late or no appeariance of the WB_ACK_O signal, (Time=%0t)", 
-          Address, $time);
-        #50 $stop;
-      end
-
-    @ (posedge WB_CLK_I);
-      if(~Address[11] & ~Address[10])
-        $write("\nRead from register (Data: 0x%x, Reg. Addr: 0x%0x)", Data, Address);
-      else
-      if(~Address[11] & Address[10])
-        if(Address[9:2] < tb_eth_top.ethtop.r_TxBDNum)
-          begin
-            $write("\nRead from TxBD (Data: 0x%x, TxBD Addr: 0x%0x)", Data, Address);
-          end
-        else
-          $write("\nRead from RxBD (Data: 0x%x, RxBD Addr: 0x%0x)", Data, Address);
-      else
-        $write("\nWB read  ?????????    Data: 0x%x      Addr: 0x%0x", Data, Address);
-    #1;
-    WB_ADR_I = 32'hx;
-    WB_WE_I  = 1'bx;
-    WB_CYC_I = 1'b0;
-    WB_STB_I = 1'b0;
-    WB_SEL_I = 4'hx;
-    #5 WishboneBusy = 0;
-  end
-endtask
-
-
-
-
-task SendPacket;
-  input [15:0]  Length;
-  input         ControlFrame;
-  reg           Wrap;
-  reg [31:0]    TempAddr;
-  reg [31:0]    TempData;
-  
-  begin
-    if(TxBDIndex == 3)    // Only 4 buffer descriptors are used
-      Wrap = 1'b1;
-    else
-      Wrap = 1'b0;
-
-    TempAddr = {22'h01, (TxBDIndex<<2)};
-    TempData = {Length[15:0], 1'b1, 1'b0, Wrap, 3'h0, ControlFrame, 1'b0, TxBDIndex[7:0]};  // Ready and Wrap = 1
-
-    #1;
-    if(TxBDIndex == 3)    // Only 4 buffer descriptors are used
-      TxBDIndex = 0;
-    else
-      TxBDIndex = TxBDIndex + 1;
-
-    fork
-      begin
-        WishboneWrite(TempData, TempAddr); // Writing status to TxBD
-      end
-      
-      begin
-        if(~ControlFrame)
-        WaitingForTxDMARequest(4'h1, Length); // Delay, DMALength
-      end
-    join
-  end
-endtask
-
-
-
-task ReceivePacket;    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
-  input [15:0] LengthRx;
-  input        RxControlFrame;
-  reg        WrapRx;
-  reg [31:0] TempRxAddr;
-  reg [31:0] TempRxData;
-  reg abc;
-  begin
-    if(RxBDIndex == 3)    // Only 4 buffer descriptors are used
-      WrapRx = 1'b1;
-    else
-      WrapRx = 1'b0;
-
-    TempRxAddr = {22'h01, ((tb_eth_top.ethtop.r_TxBDNum + RxBDIndex)<<2)};
-
-    TempRxData = {LengthRx[15:0], 1'b1, 1'b0, WrapRx, 5'h0, RxBDIndex[7:0]};  // Ready and WrapRx = 1 or 0
-
-    #1;
-    if(RxBDIndex == 3)    // Only 4 buffer descriptors are used
-      RxBDIndex = 0;
-    else
-      RxBDIndex = RxBDIndex + 1;
-
-    abc=1;
-    WishboneWrite(TempRxData, TempRxAddr); // Writing status to RxBD
-    abc=0;
-    fork
-      begin
-        #200;
-        if(RxControlFrame)
-          GetControlDataOnMRxD(LengthRx); // LengthRx = PAUSE timer value.
-        else
-          GetDataOnMRxD(LengthRx); // LengthRx bytes is comming on MRxD[3:0] signals
-      end
-
-      begin
-        if(RxControlFrame)
-          WaitingForRxDMARequest(4'h1, 16'h40); // Delay, DMALength = 64 bytes.
-        else
-          WaitingForRxDMARequest(4'h1, LengthRx); // Delay, DMALength
-      end
-    join
-  end
-endtask
-
-
-
-task WaitingForTxDMARequest;
-  input [3:0] Delay;
-  input [15:0] DMALength;
-  integer pp;
-  reg [7:0]a, b, c, d;
-
-  for(pp=0; pp*4<DMALength; pp=pp+1)
-  begin
-    a = 4*pp[7:0]+3;
-    b = 4*pp[7:0]+2;
-    c = 4*pp[7:0]+1;
-    d = 4*pp[7:0]  ;
-    @ (posedge WB_REQ_O[0]);
-    repeat(Delay) @(posedge WB_CLK_I);
-    
-    wait (~WishboneBusy);
-    WishboneBusy = 1;
-    #1;
-    WB_DAT_I = {a, b, c, d};
-    WB_ADR_I = {22'h02, pp[9:0]};
-    $display("task WaitingForTxDMARequest: pp=%0d, WB_ADR_I=0x%0h, WB_DAT_I=0x%0h", pp, WB_ADR_I, WB_DAT_I);
-
-    WB_WE_I  = 1'b1;
-    WB_CYC_I = 1'b1;
-    WB_STB_I = 1'b1;
-    WB_SEL_I = 4'hf;
-    WB_ACK_I[0] = 1'b1;
-
-    @ (posedge WB_CLK_I);
-    #1;
-    WB_ADR_I = 32'hx;
-    WB_DAT_I = 32'hx;
-    WB_WE_I  = 1'bx;
-    WB_CYC_I = 1'b0;
-    WB_STB_I = 1'b0;
-    WB_SEL_I = 4'hx;
-    WB_ACK_I[0] = 1'b0;
-    #5 WishboneBusy = 0;
-  end
-endtask
-
-
-task WaitingForRxDMARequest;
-  input [3:0] Delay;
-  input [15:0] DMALengthRx;
-  integer rr;
-
-  for(rr=0; rr*4<DMALengthRx; rr=rr+1)
-  begin
-    @ (posedge WB_REQ_O[1]);
-    repeat(Delay) @(posedge WB_CLK_I);
-    
-    wait (~WishboneBusy);
-    WishboneBusy = 1;
-    #1;
-    WB_ADR_I = {22'h02, rr[9:0]};
-    $display("task WaitingForRxDMARequest: rr=%0d, WB_ADR_I=0x%0h, WB_DAT_O=0x%0h", rr, WB_ADR_I, WB_DAT_O);
-
-    WB_WE_I  = 1'b1;
-    WB_CYC_I = 1'b1;
-    WB_STB_I = 1'b1;
-    WB_SEL_I = 4'hf;
-    WB_ACK_I[1] = 1'b1;
-
-    @ (posedge WB_CLK_I);
-    #1;
-    WB_ADR_I = 32'hx;
-    WB_WE_I  = 1'bx;
-    WB_CYC_I = 1'b0;
-    WB_STB_I = 1'b0;
-    WB_SEL_I = 4'hx;
-    WB_ACK_I[1] = 1'b0;
-    #5 WishboneBusy = 0;
-  end
-endtask
-
-
-
-task GetDataOnMRxD;
-  input [15:0] Len;
-  integer tt;
-
-  begin
-    @ (posedge MRxClk);
-    MRxDV=1'b1;
-    
-    for(tt=0; tt<15; tt=tt+1)
-    begin
-      MRxD=4'h5;              // preamble
-      @ (posedge MRxClk);
-    end
-    MRxD=4'hd;                // SFD
-    
-    for(tt=0; tt<Len; tt=tt+1)
-    begin
-      @ (posedge MRxClk);
-      MRxD=tt[3:0];
-      @ (posedge MRxClk);
-      MRxD=tt[7:4];
-    end
-    @ (posedge MRxClk);
-    MRxDV=1'b0;
-  end
-endtask
-
-
-task GetControlDataOnMRxD;
-  input [15:0] Timer;
-  reg [127:0] Packet;
-  reg [127:0] Data;
-  reg [31:0] Crc;
-  integer tt;
-
-  begin
-  Packet = 128'h10082C000010_deadbeef0013_8880_0010; // 0180c2000001 + 8808 + 0001
-  Crc = 32'h6014fe08; // not a correct value
-  
-    @ (posedge MRxClk);
-    MRxDV=1'b1;
-    
-    for(tt=0; tt<15; tt=tt+1)
-    begin
-      MRxD=4'h5;              // preamble
-      @ (posedge MRxClk);
-    end
-    MRxD=4'hd;                // SFD
-    
-    for(tt=0; tt<32; tt=tt+1)
-    begin
-      Data = Packet << (tt*4);
-      @ (posedge MRxClk);
-      MRxD=Data[127:124];
-    end
-    
-    for(tt=0; tt<2; tt=tt+1)    // timer
-    begin
-      Data[15:0] = Timer << (tt*8);
-      @ (posedge MRxClk);
-      MRxD=Data[11:8];
-      @ (posedge MRxClk);
-      MRxD=Data[15:12];
-    end
-    
-    for(tt=0; tt<42; tt=tt+1)   // padding
-    begin
-      Data[7:0] = 8'h0;
-      @ (posedge MRxClk);
-      MRxD=Data[3:0];
-      @ (posedge MRxClk);
-      MRxD=Data[3:0];
-    end
-    
-    for(tt=0; tt<4; tt=tt+1)    // crc
-    begin
-      Data[31:0] = Crc << (tt*8);
-      @ (posedge MRxClk);
-      MRxD=Data[27:24];
-      @ (posedge MRxClk);
-      MRxD=Data[31:28];
-    end
-    
-    
-    
-    @ (posedge MRxClk);
-    MRxDV=1'b0;
-  end
-endtask
-
-`else // No EXTERNAL_DMA
 
 initial
 begin
@@ -705,7 +341,8 @@ begin
   InitializeMemory;
 
 // Select which test you want to run:
-    TestTxAndRx;
+  //  TestTxAndRx;
+    TestFullDuplex;
   //  TestUnicast;
   //  TestBroadcast;
   //  TestMulticast;
@@ -744,12 +381,12 @@ task TestTxAndRx;
 
     for(jj=0; jj<8; jj=jj+4)
     begin
-      WishboneWriteData(`TX_BUF_BASE + jj, 32'hffffffff, 4'hf); // Initializing data to ff
+      WishboneWriteData(`TX_BUF_BASE + jj, 32'h11111111, 4'hf); // Initializing data to ff
     end
 
     for(jj=0; jj<8; jj=jj+4)
     begin
-      WishboneWriteData(`RX_BUF_BASE + jj, 32'hffffffff, 4'hf); // Initializing data to ff
+      WishboneWriteData(`RX_BUF_BASE + jj, 32'h11111111, 4'hf); // Initializing data to ff
     end
 
 //  SendPacketX(16'h0064, 1'b0, 2'h3);
@@ -762,27 +399,49 @@ task TestTxAndRx;
 
 fork
   begin
-    SendPacketX(16'h264, 1'b0, 2'h3);
-    SendPacketX(16'h64, 1'b0, 2'h3);
+/*
+  SendPacketX(16'h0064, 1'b0, 2'h1);
+  SendPacketX(16'h0064, 1'b0, 2'h2);
+  SendPacketX(16'h0064, 1'b0, 2'h3);
+  SendPacketX(16'h0064, 1'b0, 2'h0);
+*/
+//    SendPacketX(16'h264, 1'b0, 2'h3);
+//    SendPacketX(16'h64, 1'b0, 2'h3);
+//    SendPacketX(16'h104, 1'b0, 2'h3);
   end
   
   begin
-    ReceivePacketX(16'h0030, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
-    ReceivePacketX(16'h0035, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
     ReceivePacketX(16'h0040, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
-    ReceivePacketX(16'h0035, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
-    ReceivePacketX(16'h0062, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+    ReceivePacketX(16'h0041, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+    ReceivePacketX(16'h0042, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+    ReceivePacketX(16'h0043, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+    ReceivePacketX(16'h0044, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
   end
-join
 
-fork
+//  begin
+//    for(ii=0; ii<10000; ii=ii+1)
+//      begin
+//        WishboneRead({22'h01, 10'b0}, data_in);  // read back
+//        #100;
+//      end
+//  end
+//join
+
+//fork
+/*
   begin
-    wait(tb_eth_top.ethtop.wishbone.TxStatusWrite);   // wait until tx status is written
+    repeat(4)
+      begin
+        wait(tb_eth_top.ethtop.wishbone.TxStatusWrite);   // wait until tx status is written
+        @ (posedge WB_CLK_I)
+        #1;
+      end
   end
-  
+*/  
   begin
     wait(tb_eth_top.ethtop.wishbone.RxStatusWrite);   // wait until rx status is written
   end
+
 join
 
 
@@ -872,6 +531,231 @@ join
   #100000 $stop;
  end
 endtask //TestTxAndRx
+
+
+
+
+
+task TestFullDuplex;
+
+ integer ii, jj;
+ integer data_in, bd, pointer;
+ integer addr;
+
+ begin
+  WishboneWrite(32'h00000800, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 1
+  WishboneWrite(32'h00000000, {26'h0, `ETH_MODER_ADR<<2});     // r_Rst = 0
+  WishboneWrite(32'h00000080, {26'h0, `ETH_TX_BD_NUM_ADR<<2}); // r_RxBDAddress = 0x80
+
+  WishboneWrite(32'h0000a40b, {26'h0, `ETH_MODER_ADR<<2});     // CrcEn, Pad en, full duplex, reject broadcast, RxEn, TxEn
+
+  WishboneWrite(32'h00000002, {26'h0, `ETH_MAC_ADDR1_ADR<<2}); // MAC = 000203040506
+  WishboneWrite(32'h03040506, {26'h0, `ETH_MAC_ADDR0_ADR<<2});
+
+  initialize_txbd(5);
+  initialize_rxbd(6);
+  
+  send_packet(48'h000123456789, 16'h0064);
+
+  
+  /*  
+  for(ii=0; ii<12; ii=ii+1) begin
+    addr = 32'h400 + ii*4;
+    WishboneRead(addr, data_in);
+    $display("\n(%0t)\t\tRead TxBD %0x = 0x%x", $time, ii, data_in);
+  end
+
+  for(ii=0; ii<14; ii=ii+1) begin
+    addr = 32'h600 + ii*4;
+    WishboneRead(addr, data_in);
+    $display("\n(%0t)\t\tRead RxBD %0x = 0x%x", $time, ii, data_in);
+  end
+  */
+
+//  WishboneRead({22'h01, 10'b0}, data_in);  // read back
+//  WishboneRead({22'h01, ((10'h0+jj[4:0]*2'h2)<<2)}, bd);       // Read from TxBD
+  
+/*  
+  for(jj=0; jj<8; jj=jj+4)
+    WishboneWriteData(`TX_BUF_BASE + jj, 32'h11111111, 4'hf); // Initializing data to ff
+
+  for(jj=0; jj<8; jj=jj+4)
+    WishboneWriteData(`RX_BUF_BASE + jj, 32'h11111111, 4'hf); // Initializing data to ff
+
+
+fork
+  begin
+  SendPacketX(16'h0064, 1'b0, 2'h1);
+  SendPacketX(16'h0065, 1'b0, 2'h2);
+  SendPacketX(16'h0066, 1'b0, 2'h3);
+  SendPacketX(16'h0067, 1'b0, 2'h0);
+  end
+  
+  begin
+    ReceivePacketX(16'h0040, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+    ReceivePacketX(16'h0041, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+    ReceivePacketX(16'h0042, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+    ReceivePacketX(16'h0043, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+    ReceivePacketX(16'h0044, 1'b0, `UNICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+  end
+*/
+
+//fork
+/*
+  begin
+    repeat(4)
+      begin
+        wait(tb_eth_top.ethtop.wishbone.TxStatusWrite);   // wait until tx status is written
+        @ (posedge WB_CLK_I)
+        #1;
+      end
+  end
+*/  
+
+/*
+  begin
+    wait(tb_eth_top.ethtop.wishbone.RxStatusWrite);   // wait until rx status is written
+  end
+
+join
+*/
+
+/*
+  SendPacket(16'h0013, 1'b0);
+  SendPacket(16'h0014, 1'b0);
+
+  SendPacket(16'h0030, 1'b0);
+  SendPacket(16'h0031, 1'b0);
+  SendPacket(16'h0032, 1'b0);
+  SendPacket(16'h0033, 1'b0);
+  SendPacket(16'h0025, 1'b0);
+  SendPacket(16'h0045, 1'b0); 
+  SendPacket(16'h0025, 1'b0);
+  SendPacket(16'h0017, 1'b0);
+*/
+
+//  ReceivePacketX(16'h0050, 1'b0, `MULTICAST_XFR, 2'h3);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+//  ReceivePacketX(16'h0050, 1'b0, `MULTICAST_XFR, 2'h2);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+//  ReceivePacketX(16'h0050, 1'b0, `MULTICAST_XFR, 2'h1);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+//  ReceivePacketX(16'h0050, 1'b0, `MULTICAST_XFR, 2'h0);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+
+//  ReceivePacket(16'h0050, 1'b0, `MULTICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+//  ReceivePacket(16'h0051, 1'b0, `UNICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+//  ReceivePacket(16'h0052, 1'b0, `MULTICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+//  ReceivePacket(16'h0053, 1'b0, `BROADCAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+//  ReceivePacket(16'h0054, 1'b0, `UNICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+//  ReceivePacket(16'h0055, 1'b0, `MULTICAST_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+//  ReceivePacket(16'h0056, 1'b0, `UNICAST_WRONG_XFR);    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
+
+
+  repeat(1000) @ (posedge MRxClk);        // Waiting some time for all accesses to finish before reading out the statuses.
+
+//  WishboneRead({24'h04, (8'h0<<2)}, RxBD);       // Read from TxBD register
+//  WishboneRead({24'h04, (8'h1<<2)}, RxBD);       // Read from TxBD register
+//  WishboneRead({24'h04, (8'h2<<2)}, RxBD);       // Read from TxBD register
+//  WishboneRead({24'h04, (8'h3<<2)}, RxBD);       // Read from TxBD register
+//  WishboneRead({24'h04, (8'h4<<2)}, RxBD);       // Read from TxBD register
+
+/*
+  for(jj=0; jj<3; jj=jj+1)    // How many TxBD do we want to read?
+  begin
+      
+      WishboneRead({22'h01, ((10'h0+jj[4:0]*2'h2)<<2)}, bd);       // Read from TxBD
+      $display("\n(%0t)\t\tRead TxBD %0x = 0x%x", $time, jj, bd);
+      if(~bd[15]) // Ready = 0?
+        begin
+          WishboneRead({22'h01, ((10'h0+jj[4:0]*2'h2+1'h1)<<2)}, pointer);  // Read TxBD pointer
+          $display("\t\t\tRead TxBDPointer 0x=%x", pointer);
+          $write("\t\t\tData:");
+          for(ii=0; ii<bd[31:16]; ii=ii+4)
+            begin
+              WishboneReadData({pointer[31:2], 2'h0}+ii, data_in);        // Read data from Tx Pointer
+              $write("\t0x%x", data_in);
+            end
+        end
+  end
+
+
+  for(jj=0; jj<3; jj=jj+1)    // How many RxBD do we want to read?
+  begin
+      
+      WishboneRead({22'h01, ((10'h80+jj[4:0]*2'h2)<<2)}, bd);       // Read from RxBD
+      $display("\n(%0t)\t\tRead RxBD %0x = 0x%x", $time, jj, bd);
+      if(~bd[15]) // Empty = 0?
+        begin
+          WishboneRead({22'h01, ((10'h80+jj[4:0]*2'h2+1'h1)<<2)}, pointer);  // Read RxBD pointer
+          $display("\t\t\tRead RxBDPointer 0x=%x", pointer);
+          $write("\t\t\tData:");
+          for(ii=0; ii<bd[31:16]+4; ii=ii+4)
+            begin
+              WishboneReadData({pointer[31:2], 2'h0} + ii, data_in);        // Read data from Rx Pointer
+              $write("\t0x%x", data_in);
+            end
+        end
+  end
+
+  WishboneRead({22'h01, (10'h81<<2)}, data_in);       // Read from RxBD register
+  WishboneRead({22'h01, (10'h82<<2)}, data_in);       // Read from RxBD register
+  WishboneRead({22'h01, (10'h83<<2)}, data_in);       // Read from RxBD register
+  WishboneRead({22'h01, (10'h84<<2)}, data_in);       // Read from RxBD register
+  WishboneRead({22'h01, (10'h85<<2)}, data_in);       // Read from RxBD register
+  WishboneRead({22'h01, (10'h86<<2)}, data_in);       // Read from RxBD register
+  WishboneRead({22'h01, (10'h87<<2)}, data_in);       // Read from RxBD register
+*/
+
+
+  #100000 $stop;
+ end
+endtask //TestFullDuplex
+
+
+
+task initialize_txbd;
+  input [6:0] txbd_num;
+  
+  integer i, j;
+  integer bd_status_addr, buf_addr, bd_ptr_addr;
+  
+  for(i=0; i<txbd_num; i=i+1) begin
+    buf_addr = `TX_BUF_BASE + i * 32'h600;
+    bd_status_addr = `TX_BD_BASE + i * 8;
+    bd_ptr_addr = bd_status_addr + 4; 
+    
+    // Initializing BD - status
+    if(i==txbd_num-1)
+      WishboneWrite(32'h00007800, bd_status_addr);  // last BD: + WRAP
+    else
+      WishboneWrite(32'h00005800, bd_status_addr);  // IRQ + PAD + CRC
+
+    WishboneWrite(buf_addr, bd_ptr_addr);   // Initializing BD - pointer
+  end
+endtask // initialize_txbd
+
+
+task initialize_rxbd;
+  input [6:0] rxbd_num;
+  
+  integer i, j;
+  integer bd_status_addr, buf_addr, bd_ptr_addr;
+  
+  for(i=0; i<rxbd_num; i=i+1) begin
+    buf_addr = `RX_BUF_BASE + i * 32'h600;
+    bd_status_addr = `RX_BD_BASE + i * 8;
+    bd_ptr_addr = bd_status_addr + 4; 
+    
+    // Initializing BD - status
+    if(i==rxbd_num-1)
+      WishboneWrite(32'h0000e000, bd_status_addr);  // last BD: + WRAP
+    else
+      WishboneWrite(32'h0000c000, bd_status_addr);  // IRQ + PAD + CRC
+
+    WishboneWrite(buf_addr, bd_ptr_addr);   // Initializing BD - pointer
+  end
+endtask // initialize_rxbd
+
+
+
+
 
 
 reg [7:0] LateCollisionCounter;
@@ -1087,7 +971,7 @@ always @ (posedge WB_CLK_I)
 begin
   if(m_wb_cyc_o & m_wb_stb_o) // Add valid address range
     begin
-      repeat(3) @ (posedge WB_CLK_I);
+      repeat(2) @ (posedge WB_CLK_I);
         begin
           m_wb_ack_i <=#Tp 1'b1;
           if(~m_wb_we_o)
@@ -1387,6 +1271,70 @@ task SendPacketX;
 endtask
 
 
+task send_packet;
+  input [47:0] dest_addr;
+  input [15:0] length;
+
+  reg [31:0] BD, ptr;
+  reg [31:0] i;
+  reg [2:0]  increment;
+
+  reg [31:0]    TempAddr;
+  reg [31:0]    TempData;
+  reg [15:0]    kk;
+  reg  [3:0]    Select;
+  
+  begin
+    bd_status_addr = `TX_BD_BASE + g_last_txbd * 8;
+
+    mama
+    WishboneRead(bd_status_addr, BD);           // Read BD
+    WishboneRead(bd_status_addr+4, ptr);        // Read buffer pointer
+
+    case(ptr[1:0])
+      2'h0 : begin Select = 4'hf; increment = 3'h4 end
+      2'h1 : begin Select = 4'h7; increment = 3'h3 end
+      2'h2 : begin Select = 4'h3; increment = 3'h2 end
+      2'h3 : begin Select = 4'h1; increment = 3'h1 end
+    endcase
+
+    // Writing data to buffer
+    for(i=ptr; i<(length+ptr); i=i+increment)   // (i=0; i<length; i=i+increment)
+    begin
+      if(i>ptr)   // After first write all accesses are word accesses
+        begin Select = 4'hf; increment=3'h4; end
+
+      TempAddr = `TX_BUF_BASE + TxBDIndex * 32'h600 + kk;
+      TempData = {i[7:0]+3'h1, i[7:0]+3'h2, i[7:0]+3'h3, i[7:0]+3'h4};
+mama                 
+      WishboneWriteData(TempAddr, TempData, Select); // Writing Data to buffer that is pointed by the BD
+    end
+    
+
+    // Writing buffer pointer
+    TempAddr = {22'h01, ((TxBDIndex*2'h2 + 1'b1)<<2)};
+    TempData = `TX_BUF_BASE + TxBDIndex * 32'h600 + AddrOffset; // 1536 bytes is reserved for one frame
+    WishboneWrite(TempData, TempAddr); // Writing Tx pointer
+
+    TempAddr = {22'h01, ((TxBDIndex*2'h2)<<2)};
+    TempData = {length[15:0], 1'b1, 1'b1, Wrap, 3'h0, ControlFrame, 1'b0, TxBDIndex[7:0]};  // Ready, interrupt and Wrap = 1
+
+    #1;
+    if(Wrap)
+      TxBDIndex = 0;
+    else
+      TxBDIndex = TxBDIndex + 1;
+
+    WishboneWrite(TempData, TempAddr); // Writing status to TxBD
+
+    if(BD & 32'h2000)     // Wrap bit set ?
+      g_last_txbd = 0;
+    else
+      g_last_txbd = g_last_txbd+1;
+
+  end
+endtask // send_packet
+
 
 task ReceivePacket;    // Initializes RxBD and then generates traffic on the MRxD[3:0] signals.
   input [15:0] LengthRx;
@@ -1587,7 +1535,6 @@ task InitializeMemory;
 endtask
 
 
-`endif
 
 
 endmodule
