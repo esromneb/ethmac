@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: not supported by cvs2svn $
+// Revision 1.6  2002/02/15 11:17:48  mohor
+// File format changed.
+//
 // Revision 1.5  2002/02/14 20:48:43  billditt
 // Addition  of new module eth_addrcheck.v
 //
@@ -160,7 +163,6 @@ wire          GenerateRxStartFrm;
 wire          GenerateRxEndFrm;
 wire          DribbleRxEndFrm;
 wire    [3:0] DlyCrcCnt;
-wire          RxAbort;
 
 
 assign MRxDEqD = MRxD == 4'hd;
